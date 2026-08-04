@@ -62,7 +62,7 @@ jobs:
         run: |
           if [ ! -f "gradlew" ] || [ ! -s "gradle/wrapper/gradle-wrapper.jar" ]; then
             echo "Generating missing Gradle Wrapper..."
-            gradle wrapper --gradle-version 8.9
+            gradle wrapper --gradle-version 9.3.1
           fi
           chmod +x gradlew
 
