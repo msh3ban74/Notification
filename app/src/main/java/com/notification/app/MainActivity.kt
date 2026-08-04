@@ -3,12 +3,15 @@ package com.notification.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.activity.viewModels
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,23 +21,27 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.notification.app.ui.components.PremiumTopAppBar
 import com.notification.app.ui.screens.*
 import com.notification.app.ui.theme.NotificationTheme
 import com.notification.app.ui.viewmodel.MainViewModel
+import com.notification.app.ui.designsystem.RafeeqSpacing
 
 sealed class Screen(val route: String, val titleEn: String, val titleAr: String, val icon: ImageVector) {
     object Splash : Screen("splash", "Splash", "البداية", Icons.Default.Notifications)
-    object Home : Screen("home", "Home", "الرئيسية", Icons.Default.Home)
-    object Reminders : Screen("reminders", "Reminders", "التذكيرات", Icons.Default.NotificationsActive)
+    object Dashboard : Screen("dashboard", "Dashboard", "لوحة التحكم", Icons.Default.Home)
+    object AiChat : Screen("ai_chat", "AI Assistant", "المساعد الذكي", Icons.Default.AutoAwesome)
+    object Tasks : Screen("tasks", "Tasks", "المهام", Icons.Default.CheckCircle)
+    object Notifications : Screen("notifications", "Notifications", "الإشعارات", Icons.Default.NotificationsActive)
     object Ledger : Screen("ledger", "Ledger", "دفتر الديون", Icons.Default.AccountBalanceWallet)
     object Gam3iya : Screen("gam3iya", "Gam3iya", "الجمعيات", Icons.Default.Group)
-    object AiChat : Screen("ai_chat", "AI Assistant", "المساعد الذكي", Icons.Default.AutoAwesome)
     object Islamic : Screen("islamic", "Islamic", "إسلاميات", Icons.Default.Mosque)
-    object HealthNotes : Screen("health_notes", "Health/Notes", "الصحة", Icons.Default.WaterDrop)
     object Settings : Screen("settings", "Settings", "الإعدادات", Icons.Default.Settings)
     object Auth : Screen("auth", "Auth", "دخول", Icons.Default.Lock)
 }
@@ -74,18 +81,24 @@ class MainActivity : ComponentActivity() {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
 
+                    // Bottom navigation contains ONLY 4 items
                     val bottomBarScreens = listOf(
-                        Screen.Home,
-                        Screen.Reminders,
-                        Screen.Ledger,
-                        Screen.Gam3iya,
-                        Screen.Islamic,
+                        Screen.Dashboard,
                         Screen.AiChat,
-                        Screen.HealthNotes,
-                        Screen.Settings
+                        Screen.Tasks,
+                        Screen.Notifications
                     )
 
                     Scaffold(
+                        topBar = {
+                            if (currentRoute != Screen.Auth.route && currentRoute != Screen.Splash.route) {
+                                PremiumTopAppBar(
+                                    onProfileClick = {
+                                        navController.navigate(Screen.Settings.route)
+                                    }
+                                )
+                            }
+                        },
                         bottomBar = {
                             if (currentRoute != Screen.Auth.route && currentRoute != Screen.Splash.route) {
                                 NavigationBar {
@@ -94,7 +107,7 @@ class MainActivity : ComponentActivity() {
                                             selected = currentRoute == screen.route,
                                             onClick = {
                                                 navController.navigate(screen.route) {
-                                                    popUpTo(Screen.Home.route) {
+                                                    popUpTo(Screen.Dashboard.route) {
                                                         saveState = true
                                                     }
                                                     launchSingleTop = true
@@ -152,134 +165,163 @@ class MainActivity : ComponentActivity() {
                                     )
                             }
                         ) {
-                            composable(Screen.Splash.route) {
-                                SplashScreen(
-                                    isArabic = isArabic,
-                                    onSplashFinished = {
-                                        val destination = if (isLoggedIn) Screen.Home.route else Screen.Auth.route
-                                        navController.navigate(destination) {
-                                            popUpTo(Screen.Splash.route) { inclusive = true }
-                                        }
-                                    }
-                                )
-                            }
-
-                            composable(Screen.Home.route) {
-                                HomeScreen(
-                                    userName = userName,
-                                    reminders = reminders,
-                                    prayerTimes = prayerTimes,
-                                    isArabic = isArabic,
-                                    onNavigateToReminders = { navController.navigate(Screen.Reminders.route) },
-                                    onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
-                                    onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
-                                    onNavigateToAiChat = { navController.navigate(Screen.AiChat.route) },
-                                    onToggleReminder = { viewModel.toggleReminderCompleted(it) }
-                                )
-                            }
-
-                            composable(Screen.Reminders.route) {
-                                RemindersScreen(
-                                    reminders = reminders,
-                                    isArabic = isArabic,
-                                    onAddReminder = { viewModel.addReminder(it) },
-                                    onToggleReminder = { viewModel.toggleReminderCompleted(it) },
-                                    onDeleteReminder = { viewModel.deleteReminder(it) }
-                                )
-                            }
-
-                            composable(Screen.Ledger.route) {
-                                LedgerScreen(
-                                    persons = persons,
-                                    transactions = transactions,
-                                    isArabic = isArabic,
-                                    onAddPerson = { name, phone -> viewModel.addPerson(name, phone) },
-                                    onAddTransaction = { viewModel.addLedgerTransaction(it) },
-                                    onDeleteTransaction = { viewModel.deleteLedgerTransaction(it) }
-                                )
-                            }
-
-                            composable(Screen.Gam3iya.route) {
-                                Gam3iyaScreen(
-                                    gam3iyas = gam3iyas,
-                                    isArabic = isArabic,
-                                    getMembersForGam3iya = { id -> viewModel.getMembersForGam3iya(id) },
-                                    onCreateGam3iya = { title, total, installment, members, startDate ->
-                                        viewModel.createGam3iya(title, total, installment, members, startDate)
-                                    }
-                                )
-                            }
-
-                            composable(Screen.AiChat.route) {
-                                AiChatScreen(
-                                    messages = chatMessages,
-                                    isLoading = isAiLoading,
-                                    isArabic = isArabic,
-                                    onSendMessage = { viewModel.sendAiMessage(it) }
-                                )
-                            }
-
-                            composable(Screen.Islamic.route) {
-                                IslamicRemindersScreen(
-                                    prayerTimes = prayerTimes,
-                                    isArabic = isArabic
-                                )
-                            }
-
-                            composable(Screen.HealthNotes.route) {
-                                HealthWorkNotesScreen(
-                                    workNotes = workNotes,
-                                    waterCount = waterCount,
-                                    isArabic = isArabic,
-                                    onIncrementWater = { viewModel.incrementWater() },
-                                    onAddNote = { title, content -> viewModel.addWorkNote(title, content) },
-                                    onToggleNoteDone = { viewModel.toggleWorkNoteDone(it) },
-                                    onDeleteNote = { viewModel.deleteWorkNote(it) }
-                                )
-                            }
-
-                            composable(Screen.Settings.route) {
-                                SettingsScreen(
-                                    currentLanguage = language,
-                                    isDarkMode = isDarkMode,
-                                    isLoggedIn = isLoggedIn,
-                                    userName = userName,
-                                    userEmail = userEmail,
-                                    geminiApiKey = geminiApiKey,
-                                    lastSyncTime = lastSyncTime,
-                                    isArabic = isArabic,
-                                    onSetLanguage = { viewModel.setLanguage(it) },
-                                    onSetDarkMode = { viewModel.setDarkMode(it) },
-                                    onSetGeminiKey = { viewModel.setGeminiApiKey(it) },
-                                    onTriggerBackup = { viewModel.triggerBackupSync() },
-                                    onSignOut = {
-                                        com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-                                        viewModel.setUserAuth("Guest User", "", false)
-                                    }
-                                )
-                            }
-
-                            composable(Screen.Auth.route) {
-                                AuthScreen(
-                                    onSignInSuccess = { name, email ->
-                                        viewModel.setUserAuth(name, email, true)
-                                        viewModel.restoreFromBackup()
-                                        navController.navigate(Screen.Home.route) {
-                                            popUpTo(Screen.Auth.route) { inclusive = true }
-                                        }
-                                    },
-                                    onSkip = {
-                                        navController.navigate(Screen.Home.route) {
-                                            popUpTo(Screen.Auth.route) { inclusive = true }
-                                        }
-                                    },
-                                    isArabic = isArabic
-                                )
-                            }
+                            addSplashScreen(navController, isLoggedIn)
+                            addDashboardScreen(navController)
+                            addAiChatScreen()
+                            addTasksScreen()
+                            addNotificationsScreen()
+                            addLegacyScreens()
+                            addSettingsScreen()
+                            addAuthScreen(navController)
                         }
                     }
                 }
             }
+        }
+    }
+
+    private fun NavGraphBuilder.addSplashScreen(navController: NavHostController) {
+        composable(Screen.Splash.route) {
+            SplashScreen(
+                isArabic = false,
+                onSplashFinished = {
+                    val destination = if (isLoggedIn) Screen.Dashboard.route else Screen.Auth.route
+                    navController.navigate(destination) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+    }
+
+    private fun NavGraphBuilder.addDashboardScreen(navController: NavHostController) {
+        composable(Screen.Dashboard.route) {
+            DashboardScreen(
+                onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
+                onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
+                onNavigateToReminders = { navController.navigate(Screen.Tasks.route) },
+                onNavigateToIslamic = { navController.navigate(Screen.Islamic.route) }
+            )
+        }
+    }
+
+    private fun NavGraphBuilder.addAiChatScreen() {
+        composable(Screen.AiChat.route) {
+            AiChatScreen(
+                messages = chatMessages,
+                isLoading = isAiLoading,
+                isArabic = isArabic,
+                onSendMessage = { viewModel.sendAiMessage(it) }
+            )
+        }
+    }
+
+    private fun NavGraphBuilder.addTasksScreen() {
+        composable(Screen.Tasks.route) {
+            RemindersScreen(
+                reminders = reminders,
+                isArabic = isArabic,
+                onAddReminder = { viewModel.addReminder(it) },
+                onToggleReminder = { viewModel.toggleReminderCompleted(it) },
+                onDeleteReminder = { viewModel.deleteReminder(it) }
+            )
+        }
+    }
+
+    private fun NavGraphBuilder.addNotificationsScreen() {
+        composable(Screen.Notifications.route) {
+            // Placeholder for future notifications/alarm history screen
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(RafeeqSpacing.medium)
+            ) {
+                Text(
+                    text = "Notifications History",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.padding(RafeeqSpacing.medium))
+                Text(
+                    text = "Coming soon...",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    private fun NavGraphBuilder.addLegacyScreens() {
+        composable(Screen.Ledger.route) {
+            LedgerScreen(
+                persons = persons,
+                transactions = transactions,
+                isArabic = isArabic,
+                onAddPerson = { name, phone -> viewModel.addPerson(name, phone) },
+                onAddTransaction = { viewModel.addLedgerTransaction(it) },
+                onDeleteTransaction = { viewModel.deleteLedgerTransaction(it) }
+            )
+        }
+
+        composable(Screen.Gam3iya.route) {
+            Gam3iyaScreen(
+                gam3iyas = gam3iyas,
+                isArabic = isArabic,
+                getMembersForGam3iya = { id -> viewModel.getMembersForGam3iya(id) },
+                onCreateGam3iya = { title, total, installment, members, startDate ->
+                    viewModel.createGam3iya(title, total, installment, members, startDate)
+                }
+            )
+        }
+
+        composable(Screen.Islamic.route) {
+            IslamicRemindersScreen(
+                prayerTimes = prayerTimes,
+                isArabic = isArabic
+            )
+        }
+    }
+
+    private fun NavGraphBuilder.addSettingsScreen() {
+        composable(Screen.Settings.route) {
+            SettingsScreen(
+                currentLanguage = language,
+                isDarkMode = isDarkMode,
+                isLoggedIn = isLoggedIn,
+                userName = userName,
+                userEmail = userEmail,
+                geminiApiKey = geminiApiKey,
+                lastSyncTime = lastSyncTime,
+                isArabic = isArabic,
+                onSetLanguage = { viewModel.setLanguage(it) },
+                onSetDarkMode = { viewModel.setDarkMode(it) },
+                onSetGeminiKey = { viewModel.setGeminiApiKey(it) },
+                onTriggerBackup = { viewModel.triggerBackupSync() },
+                onSignOut = {
+                    com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                    viewModel.setUserAuth("Guest User", "", false)
+                }
+            )
+        }
+    }
+
+    private fun NavGraphBuilder.addAuthScreen(navController: NavHostController) {
+        composable(Screen.Auth.route) {
+            AuthScreen(
+                onSignInSuccess = { name, email ->
+                    viewModel.setUserAuth(name, email, true)
+                    viewModel.restoreFromBackup()
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    }
+                },
+                onSkip = {
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Auth.route) { inclusive = true }
+                    }
+                },
+                isArabic = isArabic
+            )
         }
     }
 }
