@@ -74,44 +74,41 @@ jobs:
         run: |
           echo "GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }}" >> local.properties
 
-      - name: Build unsigned Release APK
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ github.workspace }}/release-key.jks"
+
+      - name: Build signed Release APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/release-key.jks
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: ./gradlew assembleRelease
 
-      - name: Decode keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-key.jks
+      - name: Remove keystore file
+        if: always()
+        run: rm -f "${{ github.workspace }}/release-key.jks"
 
-      - name: Sign & align Release APK
+      - name: Locate signed APK
+        id: findapk
         run: |
-          BUILD_TOOLS=$(ls "$ANDROID_HOME"/build-tools | sort -V | tail -n 1)
-          ZIPALIGN="$ANDROID_HOME/build-tools/$BUILD_TOOLS/zipalign"
-          APKSIGNER="$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner"
-
-          UNSIGNED_APK=$(find app/build/outputs/apk/release -iname "*unsigned*.apk" | head -n 1)
-          if [ -z "$UNSIGNED_APK" ]; then
-            UNSIGNED_APK=$(find app/build/outputs/apk/release -iname "*.apk" | head -n 1)
+          APK_PATH=$(find app/build/outputs/apk/release -iname "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "No APK found after build."
+            exit 1
           fi
-
-          "$ZIPALIGN" -f -p 4 "$UNSIGNED_APK" app-release-aligned.apk
-
-          "$APKSIGNER" sign \
-            --ks release-key.jks \
-            --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
-            --key-pass pass:${{ secrets.KEY_PASSWORD }} \
-            --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
-            --out app-release-signed.apk \
-            app-release-aligned.apk
-
-          rm -f release-key.jks
+          echo "Found: $APK_PATH"
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Upload signed Release APK
         uses: actions/upload-artifact@v4
         with:
           name: notification-release-signed
-          path: app-release-signed.apk
+          path: ${{ steps.findapk.outputs.apk_path }}
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: "Notification - Release Build #${{ github.run_number }}"
-          files: app-release-signed.apk
+          files: ${{ steps.findapk.outputs.apk_path }}
