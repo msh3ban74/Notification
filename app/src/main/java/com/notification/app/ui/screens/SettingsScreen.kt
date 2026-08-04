@@ -1,0 +1,344 @@
+package com.notification.app.ui.screens
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import com.notification.app.ui.theme.MaroonPrimary
+import java.text.SimpleDateFormat
+import java.util.*
+
+@Composable
+fun SettingsScreen(
+    currentLanguage: String,
+    isDarkMode: Boolean,
+    isLoggedIn: Boolean,
+    userName: String,
+    userEmail: String,
+    geminiApiKey: String,
+    lastSyncTime: Long,
+    isArabic: Boolean,
+    onSetLanguage: (String) -> Unit,
+    onSetDarkMode: (Boolean) -> Unit,
+    onSetGeminiKey: (String) -> Unit,
+    onTriggerBackup: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    val context = LocalContext.current
+    var apiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
+    var isKeyVisible by remember { mutableStateOf(false) }
+    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+
+        item {
+            Text(
+                text = if (isArabic) "الإعدادات والتفضلات" else "Settings & Preferences",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        // Account & Cloud Backup Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CloudSync,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = if (isLoggedIn) userName else if (isArabic) "حساب زائر" else "Guest Account",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isLoggedIn) userEmail else if (isArabic) "لم يتم تسجيل الدخول" else "Not logged in",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        if (isLoggedIn) {
+                            TextButton(onClick = onSignOut) {
+                                Text(
+                                    text = if (isArabic) "خروج" else "Sign Out",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Divider()
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = if (isArabic) "النسخ الاحتياطي السحابي" else "Google Cloud Backup",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (lastSyncTime > 0) "${if (isArabic) "آخر مزامنة:" else "Last sync:"} ${dateFormat.format(Date(lastSyncTime))}"
+                                else if (isArabic) "لم تتم المزامنة بعد" else "Never synced",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Button(
+                            onClick = onTriggerBackup,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
+                        ) {
+                            Icon(imageVector = Icons.Default.Sync, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isArabic) "مزامنة الآن" else "Sync Now")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Language & Appearance Section
+        item {
+            Text(
+                text = if (isArabic) "اللغة والمظهر" else "Language & Appearance",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Language,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = if (isArabic) "اللغة / Language" else "App Language",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Row {
+                            FilterChip(
+                                selected = currentLanguage == "ar",
+                                onClick = { onSetLanguage("ar") },
+                                label = { Text("العربية") }
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            FilterChip(
+                                selected = currentLanguage == "en",
+                                onClick = { onSetLanguage("en") },
+                                label = { Text("English") }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Divider()
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DarkMode,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = if (isArabic) "الوضع الليلي (Dark Mode)" else "Dark Theme",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Switch(checked = isDarkMode, onCheckedChange = onSetDarkMode)
+                    }
+                }
+            }
+        }
+
+        // Battery Optimization Exemption Prompt
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BatteryAlert,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = if (isArabic) "استثناء توفير البطارية" else "Battery Optimization",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (isArabic) "ضمان وصول التنبيهات والمنبهات في موعدها الدقيق" else "Ensure exact alarms ring on schedule",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    OutlinedButton(onClick = { requestBatteryOptimizationExemption(context) }) {
+                        Text(if (isArabic) "تفعيل" else "Enable")
+                    }
+                }
+            }
+        }
+
+        // Smart Assistant API Settings
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = if (isArabic) "مفتاح تفعيل المساعد الذكي" else "Custom Assistant API Key",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isArabic) "يمكنك إدخال مفتاح الخدمة الخاص بك أو ترك الحقل فارغاً لاستخدام المفتاح المدمج" else "Enter custom API key or leave empty to use built-in key",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = apiKeyInput,
+                        onValueChange = { apiKeyInput = it },
+                        label = { Text("API Key") },
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (isKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        trailingIcon = {
+                            IconButton(onClick = { isKeyVisible = !isKeyVisible }) {
+                                Icon(
+                                    imageVector = if (isKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (isKeyVisible) "Hide Key" else "Show Key"
+                                )
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = { onSetGeminiKey(apiKeyInput) },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary),
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text(if (isArabic) "حفظ المفتاح" else "Save Key")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun requestBatteryOptimizationExemption(context: Context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        val intent = Intent().apply {
+            val packageName = context.packageName
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                action = Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                data = Uri.parse("package:$packageName")
+            } else {
+                action = Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+            }
+        }
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+}

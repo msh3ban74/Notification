@@ -1,0 +1,6 @@
+{
+  "name": "Notification",
+  "description": "Reminders, Debt & Ledger Tracking, Gam3iya Tracker, Smart AI Alarms, and Islamic Reminders",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
