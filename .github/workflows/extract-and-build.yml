@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  workflows: write
 
 jobs:
   extract-and-build:
@@ -65,6 +66,10 @@ jobs:
             gradle wrapper --gradle-version 8.9
           fi
           chmod +x gradlew
+
+      - name: Write .env from secrets
+        run: |
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
 
       - name: Write local.properties from secrets
         run: |
