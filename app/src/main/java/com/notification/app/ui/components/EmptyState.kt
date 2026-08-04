@@ -5,6 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -111,7 +113,7 @@ fun EmptyState(
 private fun EmptyStatePreview() {
     NotificationTheme {
         EmptyState(
-            icon = androidx.compose.material.icons.Icons.Default.EventAvailable,
+            icon = Icons.Default.EventAvailable,
             title = "لا توجد تذكيرات حالياً",
             subtitle = "اضغط على زر الإضافة لإنشاء تذكير جديد"
         )
