@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Properties
 
 plugins {
   alias(libs.plugins.android.application)
@@ -9,10 +10,10 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
-val localProperties = java.util.Properties().apply {
+val localProperties = Properties().apply {
   val localPropsFile = rootProject.file("local.properties")
   if (localPropsFile.exists()) {
-    localPropsFile.inputStream().use { load(it) }
+    localPropsFile.inputStream().use { stream -> load(stream) }
   }
 }
 
