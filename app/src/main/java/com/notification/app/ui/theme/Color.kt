@@ -34,3 +34,5 @@ val MaroonPrimary = Primary
 val MaroonPrimaryLight = PrimaryLight
 val MaroonPrimaryDark = PrimaryDark
 val ChampagneGold = Warning
+val MaroonContainerDark = Color(0xFF2A0007)
+val PlatinumDarkBackground = Color(0xFF111113)
