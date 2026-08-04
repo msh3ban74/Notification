@@ -2,27 +2,35 @@ package com.notification.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Maroon / Burgundy Brand Colors (Geometric Balance)
-val MaroonPrimary = Color(0xFF600010)
-val MaroonPrimaryLight = Color(0xFF8B1E3F)
-val MaroonPrimaryDark = Color(0xFF40000B)
-val MaroonContainerLight = Color(0xFFF5E6E8)
-val MaroonContainerDark = Color(0xFF2A0007)
+// Modern Blue-Based Premium Color System (2026 Google-style)
+val Primary = Color(0xFF2563EB)
+val PrimaryLight = Color(0xFF5B8CFF)
+val PrimaryDark = Color(0xFF1E40AF)
+val Secondary = Color(0xFF5B8CFF)
+val Accent = Color(0xFF7C4DFF)
 
-// Platinum Gray & Geometric Neutral Colors
-val PlatinumLight = Color(0xFFE5E4E2)
-val PlatinumSurfaceLight = Color(0xFFFFFFFF)
-val PlatinumCardLight = Color(0xFFFFFFFF)
-val PlatinumTextDark = Color(0xFF0F172A)
-val PlatinumTextMuted = Color(0xFF64748B)
+val Background = Color(0xFFF8FAFC)
+val Surface = Color(0xFFFFFFFF)
+val SurfaceVariant = Color(0xFFF1F5F9)
 
-val PlatinumDarkBackground = Color(0xFF111113)
-val PlatinumDarkSurface = Color(0xFF1C1C1F)
-val PlatinumDarkCard = Color(0xFF26262B)
-val PlatinumTextLight = Color(0xFFF8FAFC)
+val OnPrimary = Color(0xFFFFFFFF)
+val OnSecondary = Color(0xFFFFFFFF)
+val OnBackground = Color(0xFF0F172A)
+val OnSurface = Color(0xFF1E293B)
+val OnSurfaceVariant = Color(0xFF64748B)
 
-// Accent Champagne Gold & Functional Status
-val ChampagneGold = Color(0xFFD4AF37)
-val AccentTeal = Color(0xFF1C8A7D)
-val DangerRed = Color(0xFFC0392B)
-val SuccessGreen = Color(0xFF27AE60)
+val Success = Color(0xFF16A34A)
+val Warning = Color(0xFFF59E0B)
+val Error = Color(0xFFDC2626)
+
+// Gradient Colors for Premium Icons
+val GradientBlueStart = Color(0xFF2563EB)
+val GradientBlueEnd = Color(0xFF06B6D4)
+val GradientPurpleStart = Color(0xFF7C4DFF)
+val GradientPurpleEnd = Color(0xFFEC4899)
+
+// Legacy aliases for backward compatibility
+val MaroonPrimary = Primary
+val MaroonPrimaryLight = PrimaryLight
+val MaroonPrimaryDark = PrimaryDark
+val ChampagneGold = Warning

@@ -79,7 +79,9 @@ class MainActivity : ComponentActivity() {
                         Screen.Reminders,
                         Screen.Ledger,
                         Screen.Gam3iya,
+                        Screen.Islamic,
                         Screen.AiChat,
+                        Screen.HealthNotes,
                         Screen.Settings
                     )
 
@@ -154,7 +156,8 @@ class MainActivity : ComponentActivity() {
                                 SplashScreen(
                                     isArabic = isArabic,
                                     onSplashFinished = {
-                                        navController.navigate(Screen.Home.route) {
+                                        val destination = if (isLoggedIn) Screen.Home.route else Screen.Auth.route
+                                        navController.navigate(destination) {
                                             popUpTo(Screen.Splash.route) { inclusive = true }
                                         }
                                     }
