@@ -32,6 +32,20 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
+      # The secrets gradle plugin resolves .env/.env.example at project
+      # configuration time, and generating the wrapper below already
+      # configures the project — so these files MUST exist first.
+      - name: Write .env from secrets
+        run: |
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+          if [ ! -f ".env.example" ]; then
+            echo "GEMINI_API_KEY=" > .env.example
+          fi
+
+      - name: Write local.properties from secrets
+        run: |
+          echo "GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }}" >> local.properties
+
       - name: Ensure Gradle Wrapper exists
         run: |
           if [ ! -f "gradlew" ] || [ ! -s "gradle/wrapper/gradle-wrapper.jar" ]; then
@@ -39,14 +53,6 @@ jobs:
             gradle wrapper --gradle-version 9.3.1
           fi
           chmod +x gradlew
-
-      - name: Write .env from secrets
-        run: |
-          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
-
-      - name: Write local.properties from secrets
-        run: |
-          echo "GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }}" >> local.properties
 
       - name: Generate debug keystore
         # The repo's debug signing config expects ./debug.keystore with the
