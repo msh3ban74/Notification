@@ -2,6 +2,7 @@ package com.notification.app.domain.model
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.CheckCircle
@@ -61,6 +62,12 @@ data class SmartItemType(
                 titleEn = "Bill", titleAr = "فاتورة",
                 subtitleEn = "Payments due", subtitleAr = "مدفوعات مستحقة",
                 icon = Icons.Default.Receipt
+            ),
+            SmartItemType(
+                id = "alarm",
+                titleEn = "Alarm", titleAr = "منبه",
+                subtitleEn = "Wake-up & ring", subtitleAr = "صحيني ورن",
+                icon = Icons.Default.Alarm
             ),
             SmartItemType(
                 id = "medicine",

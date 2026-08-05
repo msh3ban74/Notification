@@ -119,7 +119,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (isArabic) "النسخ الاحتياطي السحابي" else "Google Cloud Backup",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -133,13 +133,15 @@ fun SettingsScreen(
                             )
                         }
 
-                        Button(
-                            onClick = onTriggerBackup,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
-                        ) {
-                            Icon(imageVector = Icons.Default.Sync, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isArabic) "مزامنة الآن" else "Sync Now")
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        // Compact icon-only sync (the old full-width button
+                        // dominated the card). Tonal, fixed size.
+                        FilledTonalIconButton(onClick = onTriggerBackup) {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = if (isArabic) "مزامنة الآن" else "Sync now"
+                            )
                         }
                     }
                 }
@@ -253,6 +255,77 @@ fun SettingsScreen(
 
                     OutlinedButton(onClick = { requestBatteryOptimizationExemption(context) }) {
                         Text(if (isArabic) "تفعيل" else "Enable")
+                    }
+                }
+            }
+        }
+
+        // Permissions: notification access + exact-alarm special access.
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = if (isArabic) "السماح بالإشعارات" else "Notification access",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        OutlinedButton(onClick = {
+                            com.notification.app.ui.permissions.openNotificationSettings(context)
+                        }) {
+                            Text(if (isArabic) "فتح" else "Open")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Divider()
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Alarm,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = if (isArabic) "المنبهات الدقيقة" else "Exact alarms",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        OutlinedButton(onClick = {
+                            com.notification.app.ui.permissions.openExactAlarmSettings(context)
+                        }) {
+                            Text(if (isArabic) "فتح" else "Open")
+                        }
                     }
                 }
             }

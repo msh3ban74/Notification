@@ -92,6 +92,10 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     // Sprint 5 — Smart Gam3iya: reuses the existing Gam3iya implementation
     // (viewModel.createGam3iya → createGam3iyaWithMembers).
     object CreateGam3iya : Screen("create_gam3iya", "New Gam3iya", "جمعية جديدة", Icons.Default.Add)
+
+    // Stability sprint — Smart Alarm: reuses the existing AlarmEntity +
+    // addAlarm + AlarmManagerScheduler pipeline.
+    object CreateAlarm : Screen("create_alarm", "New Alarm", "منبه جديد", Icons.Default.Add)
 }
 
 class MainActivity : ComponentActivity() {
@@ -127,6 +131,9 @@ class MainActivity : ComponentActivity() {
 
             // Stability sprint — Rafeeq is officially dark-theme only.
             NotificationTheme(darkTheme = true, isArabic = isArabic) {
+                // Ask for the notification permission on first launch so
+                // alerts and alarms can actually appear (Android 13+).
+                com.notification.app.ui.permissions.RequestCorePermissions()
                 CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                     val navController = rememberNavController()
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -619,6 +626,26 @@ class MainActivity : ComponentActivity() {
                             // EXISTING creation pipeline (viewModel.createGam3iya
                             // → createGam3iyaWithMembers + Gam3iyaCalculator),
                             // then returns to the Dashboard.
+                            // Stability sprint — Smart Alarm. Saving goes
+                            // through the EXISTING alarm pipeline
+                            // (viewModel.addAlarm → AlarmManagerScheduler),
+                            // then returns to the Dashboard with a confirmation.
+                            composable(Screen.CreateAlarm.route) {
+                                CreateAlarmScreen(
+                                    isArabic = isArabic,
+                                    onSave = { alarm ->
+                                        viewModel.addAlarm(alarm)
+                                        navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (isArabic) "تم ضبط المنبه" else "Alarm set."
+                                            )
+                                        }
+                                    },
+                                    onCancel = { navController.popBackStack() }
+                                )
+                            }
+
                             composable(Screen.CreateGam3iya.route) {
                                 CreateGam3iyaScreen(
                                     isArabic = isArabic,
@@ -681,6 +708,7 @@ class MainActivity : ComponentActivity() {
                                 when (item.id) {
                                     "task" -> navController.navigate(Screen.CreateTask.createRoute())
                                     "debt" -> navController.navigate(Screen.CreateDebt.route)
+                                    "alarm" -> navController.navigate(Screen.CreateAlarm.route)
                                     "bill", "appointment", "medicine" -> navController.navigate(
                                         Screen.CreateSmartReminder.createRoute(item.id)
                                     )
