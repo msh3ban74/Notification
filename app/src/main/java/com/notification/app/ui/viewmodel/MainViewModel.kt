@@ -11,6 +11,7 @@ import com.notification.app.data.repository.GeminiRepository
 import com.notification.app.data.repository.NotificationRepository
 import com.notification.app.domain.calculator.PrayerTime
 import com.notification.app.domain.calculator.PrayerTimesCalculator
+import com.notification.app.domain.model.AiSuggestion
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.domain.scheduler.AlarmManagerScheduler
@@ -82,6 +83,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isAiLoading = MutableStateFlow(false)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
+
+    // Dashboard "Rafeeq Suggestions" — produced by the EXISTING Gemini
+    // pipeline from real data (see GeminiRepository.generateDashboardSuggestions).
+    private val _aiSuggestions = MutableStateFlow<List<AiSuggestion>>(emptyList())
+    val aiSuggestions: StateFlow<List<AiSuggestion>> = _aiSuggestions.asStateFlow()
+
+    private val _aiSuggestionsLoading = MutableStateFlow(false)
+    val aiSuggestionsLoading: StateFlow<Boolean> = _aiSuggestionsLoading.asStateFlow()
+
+    /**
+     * Refreshes the dashboard AI suggestions. Reuses the existing Gemini
+     * repository and API-key resolution; on failure the list simply stays
+     * empty and the dashboard falls back to its local rule-based insights.
+     */
+    fun refreshAiSuggestions(isArabic: Boolean, force: Boolean = false) {
+        if (_aiSuggestionsLoading.value) return
+        if (!force && _aiSuggestions.value.isNotEmpty()) return
+        viewModelScope.launch {
+            _aiSuggestionsLoading.value = true
+            _aiSuggestions.value = geminiRepository.generateDashboardSuggestions(
+                isArabic = isArabic,
+                customApiKey = geminiApiKey.value
+            )
+            _aiSuggestionsLoading.value = false
+        }
+    }
 
     // Water counter state
     private val _waterCount = MutableStateFlow(0)

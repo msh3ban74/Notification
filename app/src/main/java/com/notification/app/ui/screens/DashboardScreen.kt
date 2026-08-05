@@ -2,6 +2,7 @@ package com.notification.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,12 +23,17 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,8 +45,11 @@ import com.notification.app.data.local.entities.AlarmEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
 import com.notification.app.data.local.entities.ReminderEntity
+import androidx.compose.ui.unit.dp
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.calculator.LedgerStatus
+import com.notification.app.domain.model.AiSuggestion
+import com.notification.app.domain.model.AiSuggestionAction
 import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.ui.designsystem.AppDimens
 import com.notification.app.ui.designsystem.AppPadding
@@ -74,6 +83,10 @@ fun DashboardScreen(
     persons: List<PersonEntity> = emptyList(),
     transactions: List<LedgerTransactionEntity> = emptyList(),
     alarms: List<AlarmEntity> = emptyList(),
+    aiSuggestions: List<AiSuggestion> = emptyList(),
+    aiSuggestionsLoading: Boolean = false,
+    onRefreshSuggestions: () -> Unit = {},
+    onAskRafeeq: (String) -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToLedger: () -> Unit = {},
@@ -81,6 +94,9 @@ fun DashboardScreen(
     onNavigateToIslamic: () -> Unit = {},
     onNavigateToHealthNotes: () -> Unit = {}
 ) {
+    // Ask the existing Gemini pipeline for fresh suggestions once per
+    // dashboard entry (the ViewModel guards against duplicate work).
+    LaunchedEffect(Unit) { onRefreshSuggestions() }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -108,7 +124,14 @@ fun DashboardScreen(
             isArabic = isArabic,
             reminders = reminders,
             persons = persons,
-            transactions = transactions
+            transactions = transactions,
+            aiSuggestions = aiSuggestions,
+            aiLoading = aiSuggestionsLoading,
+            onRefresh = onRefreshSuggestions,
+            onAskRafeeq = onAskRafeeq,
+            onNavigateToTasks = onNavigateToTasks,
+            onNavigateToNotifications = onNavigateToNotifications,
+            onNavigateToLedger = onNavigateToLedger
         )
 
         TodaysTasksSection(
@@ -480,13 +503,146 @@ private fun StatTile(
 }
 
 /**
- * Rafeeq Design Language — "Rafeeq Suggestions": calm, data-driven
- * insights derived from the EXISTING repositories with simple rules
- * (no fake content; the card hides itself when there is nothing worth
- * saying). This is the dashboard's intelligent voice.
+ * "Rafeeq Suggestions" — the dashboard's intelligent voice.
+ *
+ * Primary source: the EXISTING Gemini pipeline
+ * (GeminiRepository.generateDashboardSuggestions), which reads the
+ * user's REAL data and returns up to three actionable suggestions.
+ * Each suggestion carries an [AiSuggestionAction] that maps to an
+ * EXISTING flow (open Tasks / Notifications / Ledger, or hand the
+ * question to the assistant) — no new business logic.
+ *
+ * Fallback: when the AI list is empty (offline, no key, no data), the
+ * card falls back to local rule-based insights computed from the same
+ * repositories; it hides entirely when there is nothing worth saying.
  */
 @Composable
 private fun RafeeqSuggestionsSection(
+    isArabic: Boolean,
+    reminders: List<ReminderEntity>,
+    persons: List<PersonEntity>,
+    transactions: List<LedgerTransactionEntity>,
+    aiSuggestions: List<AiSuggestion>,
+    aiLoading: Boolean,
+    onRefresh: () -> Unit,
+    onAskRafeeq: (String) -> Unit,
+    onNavigateToTasks: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    onNavigateToLedger: () -> Unit
+) {
+    if (aiSuggestions.isNotEmpty() || aiLoading) {
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(AppDimens.iconSizeMedium)
+                    )
+                    Text(
+                        text = if (isArabic) "اقتراحات رفيق" else "Rafeeq Suggestions",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (aiLoading) {
+                        CircularProgressIndicator(
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    } else {
+                        IconButton(onClick = onRefresh, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = if (isArabic) "تحديث" else "Refresh",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider()
+                if (aiSuggestions.isEmpty()) {
+                    SectionEmptyText(
+                        if (isArabic) "رفيق يحضّر اقتراحاتك..." else "Rafeeq is preparing your suggestions..."
+                    )
+                } else {
+                    aiSuggestions.forEach { suggestion ->
+                        AiSuggestionRow(
+                            suggestion = suggestion,
+                            isArabic = isArabic,
+                            onAskRafeeq = onAskRafeeq,
+                            onNavigateToTasks = onNavigateToTasks,
+                            onNavigateToNotifications = onNavigateToNotifications,
+                            onNavigateToLedger = onNavigateToLedger
+                        )
+                    }
+                }
+            }
+        }
+        return
+    }
+
+    LocalRuleSuggestions(
+        isArabic = isArabic,
+        reminders = reminders,
+        persons = persons,
+        transactions = transactions
+    )
+}
+
+@Composable
+private fun AiSuggestionRow(
+    suggestion: AiSuggestion,
+    isArabic: Boolean,
+    onAskRafeeq: (String) -> Unit,
+    onNavigateToTasks: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    onNavigateToLedger: () -> Unit
+) {
+    val actionLabel = when (suggestion.action) {
+        AiSuggestionAction.OPEN_TASKS -> if (isArabic) "افتح المهام" else "Open tasks"
+        AiSuggestionAction.OPEN_NOTIFICATIONS -> if (isArabic) "افتح التنبيهات" else "Open alerts"
+        AiSuggestionAction.OPEN_LEDGER -> if (isArabic) "افتح الدفتر" else "Open ledger"
+        AiSuggestionAction.ASK_RAFEEQ -> if (isArabic) "اسأل رفيق" else "Ask Rafeeq"
+    }
+    val onAction: () -> Unit = when (suggestion.action) {
+        AiSuggestionAction.OPEN_TASKS -> onNavigateToTasks
+        AiSuggestionAction.OPEN_NOTIFICATIONS -> onNavigateToNotifications
+        AiSuggestionAction.OPEN_LEDGER -> onNavigateToLedger
+        AiSuggestionAction.ASK_RAFEEQ -> ({ onAskRafeeq(suggestion.text) })
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Text(
+            text = suggestion.text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        TextButton(
+            onClick = onAction,
+            contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = 0.dp)
+        ) {
+            Text(
+                text = actionLabel,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+/**
+ * Local rule-based fallback insights (pre-AI behavior, unchanged):
+ * computed from the same repositories, hides itself when empty.
+ */
+@Composable
+private fun LocalRuleSuggestions(
     isArabic: Boolean,
     reminders: List<ReminderEntity>,
     persons: List<PersonEntity>,

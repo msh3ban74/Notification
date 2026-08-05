@@ -119,12 +119,14 @@ class MainActivity : ComponentActivity() {
             val workNotes by viewModel.allWorkNotes.collectAsState()
             val chatMessages by viewModel.chatMessages.collectAsState()
             val isAiLoading by viewModel.isAiLoading.collectAsState()
+            val aiSuggestions by viewModel.aiSuggestions.collectAsState()
+            val aiSuggestionsLoading by viewModel.aiSuggestionsLoading.collectAsState()
             val waterCount by viewModel.waterCount.collectAsState()
 
             val isArabic = language == "ar"
             val layoutDirection = if (isArabic) LayoutDirection.Rtl else LayoutDirection.Ltr
 
-            NotificationTheme(darkTheme = isDarkMode) {
+            NotificationTheme(darkTheme = isDarkMode, isArabic = isArabic) {
                 CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                     val navController = rememberNavController()
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -294,6 +296,21 @@ class MainActivity : ComponentActivity() {
                                     persons = persons,
                                     transactions = transactions,
                                     alarms = alarms,
+                                    aiSuggestions = aiSuggestions,
+                                    aiSuggestionsLoading = aiSuggestionsLoading,
+                                    onRefreshSuggestions = {
+                                        viewModel.refreshAiSuggestions(isArabic = isArabic)
+                                    },
+                                    onAskRafeeq = { question ->
+                                        // Existing assistant flow: open the AI
+                                        // tab and send through the same pipeline.
+                                        navController.navigate(Screen.AiChat.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                        viewModel.sendAiMessage(question)
+                                    },
                                     onNavigateToTasks = {
                                         navController.navigate(Screen.Tasks.route) {
                                             popUpTo(Screen.Dashboard.route) { saveState = true }

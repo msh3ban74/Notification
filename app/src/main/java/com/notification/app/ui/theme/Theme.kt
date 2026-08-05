@@ -61,13 +61,16 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun NotificationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    isArabic: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        // Rafeeq premium typography: Cinzel titles + Lexend body (EN),
+        // Cairo everywhere (AR). RTL/LTR handling is unaffected.
+        typography = rafeeqTypography(isArabic),
         shapes = Shapes,
         content = content
     )
