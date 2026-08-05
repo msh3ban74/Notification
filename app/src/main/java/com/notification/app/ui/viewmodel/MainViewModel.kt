@@ -11,6 +11,8 @@ import com.notification.app.data.repository.GeminiRepository
 import com.notification.app.data.repository.NotificationRepository
 import com.notification.app.domain.calculator.PrayerTime
 import com.notification.app.domain.calculator.PrayerTimesCalculator
+import com.notification.app.domain.model.LedgerTransactionType
+import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.domain.scheduler.AlarmManagerScheduler
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -96,10 +98,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Reminders Actions
     fun addReminder(reminder: ReminderEntity) {
         viewModelScope.launch {
-            val id = repository.insertReminder(reminder)
-            val fullReminder = reminder.copy(id = id)
-            AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), fullReminder)
+            insertAndScheduleReminder(reminder)
         }
+    }
+
+    /**
+     * The single insert-and-schedule path for every reminder in the app.
+     * Sprint 3/4 reuse: called by [addReminder] (Tasks) and by [addDebt]
+     * (due-date reminder), so there is exactly ONE scheduling pipeline.
+     */
+    private suspend fun insertAndScheduleReminder(reminder: ReminderEntity): Long {
+        val id = repository.insertReminder(reminder)
+        AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), reminder.copy(id = id))
+        return id
     }
 
     fun toggleReminderCompleted(reminder: ReminderEntity) {
@@ -130,6 +141,60 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
             repository.deleteLedgerTransaction(tx)
+        }
+    }
+
+    /**
+     * Sprint 4 — Smart Debt.
+     *
+     * Creates a debt by COMPOSING the existing Ledger implementation:
+     *  - person       → existing [PersonEntity] (or a new one via the
+     *                   existing repository.insertPerson).
+     *  - the debt     → the existing [LedgerTransactionEntity]
+     *                   (GAVE_THEM = lent / THEY_GAVE_ME = borrowed).
+     *  - due date     → the existing reminder pipeline
+     *                   ([insertAndScheduleReminder]) linked through the
+     *                   entity's existing linkedReminderId column.
+     * No new entities, no duplicated debt logic, no new scheduler.
+     */
+    fun addDebt(
+        existingPersonId: Long?,
+        personName: String,
+        amount: Double,
+        isLent: Boolean,
+        dueDate: Long?,
+        note: String
+    ) {
+        viewModelScope.launch {
+            val personId = existingPersonId
+                ?: repository.insertPerson(PersonEntity(name = personName))
+
+            val linkedReminderId = if (dueDate != null && dueDate > System.currentTimeMillis()) {
+                val isArabic = language.value == "ar"
+                insertAndScheduleReminder(
+                    ReminderEntity(
+                        title = if (isArabic) "استحقاق دين: $personName" else "Debt due: $personName",
+                        note = note,
+                        dueDate = dueDate,
+                        category = ReminderCategory.MONEY.name
+                    )
+                )
+            } else null
+
+            repository.insertLedgerTransaction(
+                LedgerTransactionEntity(
+                    personId = personId,
+                    type = if (isLent) {
+                        LedgerTransactionType.GAVE_THEM.name
+                    } else {
+                        LedgerTransactionType.THEY_GAVE_ME.name
+                    },
+                    amount = amount,
+                    date = System.currentTimeMillis(),
+                    note = note,
+                    linkedReminderId = linkedReminderId
+                )
+            )
         }
     }
 

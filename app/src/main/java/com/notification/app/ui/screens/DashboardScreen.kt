@@ -2,6 +2,7 @@ package com.notification.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,46 +15,61 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Mosque
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import com.notification.app.data.local.entities.LedgerTransactionEntity
+import com.notification.app.data.local.entities.PersonEntity
+import com.notification.app.data.local.entities.ReminderEntity
+import com.notification.app.domain.calculator.LedgerCalculator
+import com.notification.app.domain.calculator.LedgerStatus
 import com.notification.app.ui.designsystem.AppDimens
 import com.notification.app.ui.designsystem.AppPadding
 import com.notification.app.ui.designsystem.PremiumCard
 import com.notification.app.ui.theme.Spacing
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
- * Sprint 1 — Application Foundation.
- * Sprint 2 — UI/UX Polish: reworked spacing, hierarchy, alignment and
- * card proportions. No sections were added or removed, and none of the
- * placeholder copy or navigation targets changed — only how the same
- * content is laid out.
+ * Sprint 1 — Application Foundation (UI shell).
+ * Sprint 2 — UI/UX Polish (spacing, hierarchy, proportions).
+ * Sprint 3/4 — Smart Task & Smart Debt foundation: the placeholder cards
+ * are now REAL summaries read from the EXISTING data layer.
  *
- * Dashboard: the new default landing screen after Splash.
+ *  - Today's Tasks    ← the existing reminders flow (Room, via
+ *                       MainViewModel.allReminders).
+ *  - Upcoming Debts   ← the existing ledger (persons + transactions) using
+ *                       the existing LedgerCalculator — no debt logic is
+ *                       duplicated here.
+ *  - Recent Activity  ← latest reminders + ledger transactions merged.
  *
- * IMPORTANT: This is UI SHELL ONLY for Sprint 1.
- *  - NOT connected to Room, Firestore, or Gemini.
- *  - All content below is placeholder/sample data.
- *  - No business logic lives in this file.
- *
- * The "Quick Actions" section links out to the app's EXISTING, already
- * built feature screens (Ledger, Gam3iya, Islamic, Health/Notes) so those
- * features remain reachable now that they are no longer in the Bottom
- * Navigation. Those destinations themselves are untouched.
+ * No fake data: every row shown comes straight from the repositories, and
+ * each section shows an honest empty message when there is nothing yet.
  */
 @Composable
 fun DashboardScreen(
     isArabic: Boolean = false,
+    reminders: List<ReminderEntity> = emptyList(),
+    persons: List<PersonEntity> = emptyList(),
+    transactions: List<LedgerTransactionEntity> = emptyList(),
+    onNavigateToTasks: () -> Unit = {},
     onNavigateToLedger: () -> Unit = {},
     onNavigateToGam3iya: () -> Unit = {},
     onNavigateToIslamic: () -> Unit = {},
@@ -69,7 +85,18 @@ fun DashboardScreen(
     ) {
         GreetingSection(isArabic = isArabic)
 
-        TodaysSummarySection(isArabic = isArabic)
+        TodaysTasksSection(
+            isArabic = isArabic,
+            reminders = reminders,
+            onClick = onNavigateToTasks
+        )
+
+        UpcomingDebtsSection(
+            isArabic = isArabic,
+            persons = persons,
+            transactions = transactions,
+            onClick = onNavigateToLedger
+        )
 
         QuickActionsSection(
             isArabic = isArabic,
@@ -79,9 +106,12 @@ fun DashboardScreen(
             onNavigateToHealthNotes = onNavigateToHealthNotes
         )
 
-        RecentActivitySection(isArabic = isArabic)
-
-        AiSuggestionsSection(isArabic = isArabic)
+        RecentActivitySection(
+            isArabic = isArabic,
+            reminders = reminders,
+            persons = persons,
+            transactions = transactions
+        )
     }
 }
 
@@ -111,24 +141,190 @@ private fun SectionTitle(text: String) {
     )
 }
 
+/** One compact icon+text line inside a summary card. */
 @Composable
-private fun TodaysSummarySection(isArabic: Boolean) {
-    PremiumCard {
+private fun SummaryRow(
+    icon: ImageVector,
+    text: String,
+    trailing: String? = null,
+    trailingColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(AppDimens.iconSizeSmall)
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        if (trailing != null) {
+            Text(
+                text = trailing,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = trailingColor
+            )
+        }
+    }
+}
+
+/** Muted single-line message used when a section has no real data yet. */
+@Composable
+private fun SectionEmptyText(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun TodaysTasksSection(
+    isArabic: Boolean,
+    reminders: List<ReminderEntity>,
+    onClick: () -> Unit
+) {
+    val timeFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
+
+    // "Today" = [start of today, start of tomorrow) in local time.
+    val todaysTasks = remember(reminders) {
+        val startOfDay = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val endOfDay = startOfDay + 24L * 60 * 60 * 1000
+        reminders
+            .filter { it.dueDate in startOfDay until endOfDay }
+            .sortedBy { it.dueDate }
+    }
+    val pendingCount = todaysTasks.count { !it.isCompleted }
+
+    PremiumCard(onClick = onClick) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (isArabic) "مهام اليوم" else "Today's Tasks",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (todaysTasks.isNotEmpty()) {
+                    Text(
+                        text = if (isArabic) "$pendingCount متبقية" else "$pendingCount pending",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            HorizontalDivider()
+            if (todaysTasks.isEmpty()) {
+                SectionEmptyText(
+                    if (isArabic) "لا توجد مهام مستحقة اليوم." else "No tasks due today."
+                )
+            } else {
+                todaysTasks.take(3).forEach { task ->
+                    SummaryRow(
+                        icon = if (task.isCompleted) {
+                            Icons.Default.CheckCircle
+                        } else {
+                            Icons.Default.RadioButtonUnchecked
+                        },
+                        text = task.title,
+                        trailing = timeFormat.format(Date(task.dueDate))
+                    )
+                }
+                if (todaysTasks.size > 3) {
+                    Text(
+                        text = if (isArabic) {
+                            "و${todaysTasks.size - 3} مهام أخرى…"
+                        } else {
+                            "and ${todaysTasks.size - 3} more…"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpcomingDebtsSection(
+    isArabic: Boolean,
+    persons: List<PersonEntity>,
+    transactions: List<LedgerTransactionEntity>,
+    onClick: () -> Unit
+) {
+    // Reuses the EXISTING LedgerCalculator — the same net-balance logic the
+    // Ledger screen uses. Nothing is recomputed differently here.
+    val openBalances = remember(persons, transactions) {
+        persons.mapNotNull { person ->
+            val summary = LedgerCalculator.calculateNetBalance(
+                transactions.filter { it.personId == person.id }
+            )
+            if (summary.status == LedgerStatus.SETTLED) null else person to summary
+        }.sortedByDescending { it.second.netAmount }
+    }
+
+    PremiumCard(onClick = onClick) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
-                text = if (isArabic) "ملخص اليوم" else "Today's Summary",
+                text = if (isArabic) "الديون القادمة" else "Upcoming Debts",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             HorizontalDivider()
-            Text(
-                text = if (isArabic)
-                    "سيتم عرض ملخص حقيقي هنا في مرحلة لاحقة."
-                else
-                    "A real summary will appear here in a later sprint.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (openBalances.isEmpty()) {
+                SectionEmptyText(
+                    if (isArabic) "لا توجد ديون مفتوحة." else "No open debts."
+                )
+            } else {
+                openBalances.take(3).forEach { (person, summary) ->
+                    val owedToMe = summary.status == LedgerStatus.THEY_OWE_ME
+                    SummaryRow(
+                        icon = Icons.Default.AccountBalanceWallet,
+                        text = person.name,
+                        trailing = if (isArabic) {
+                            if (owedToMe) "له ${summary.netAmount} ج.م" else "عليك ${summary.netAmount} ج.م"
+                        } else {
+                            if (owedToMe) "+${summary.netAmount} EGP" else "-${summary.netAmount} EGP"
+                        },
+                        trailingColor = if (owedToMe) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        }
+                    )
+                }
+                if (openBalances.size > 3) {
+                    Text(
+                        text = if (isArabic) {
+                            "و${openBalances.size - 3} حسابات أخرى…"
+                        } else {
+                            "and ${openBalances.size - 3} more…"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }
@@ -209,8 +405,52 @@ private fun QuickActionsSection(
     }
 }
 
+/** A single, already-formatted feed line for the Recent Activity card. */
+private data class ActivityEntry(
+    val timestamp: Long,
+    val icon: ImageVector,
+    val text: String,
+    val trailing: String
+)
+
 @Composable
-private fun RecentActivitySection(isArabic: Boolean) {
+private fun RecentActivitySection(
+    isArabic: Boolean,
+    reminders: List<ReminderEntity>,
+    persons: List<PersonEntity>,
+    transactions: List<LedgerTransactionEntity>
+) {
+    val dateFormat = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+
+    // Latest reminders (by creation) merged with latest ledger transactions
+    // (by date) — both straight from the existing Room flows.
+    val entries = remember(reminders, persons, transactions, isArabic) {
+        val personNames = persons.associateBy({ it.id }, { it.name })
+        val reminderEntries = reminders.map {
+            ActivityEntry(
+                timestamp = it.createdAt,
+                icon = Icons.Default.NotificationsActive,
+                text = it.title,
+                trailing = dateFormat.format(Date(it.createdAt))
+            )
+        }
+        val txEntries = transactions.map {
+            val name = personNames[it.personId]
+                ?: if (isArabic) "غير معروف" else "Unknown"
+            ActivityEntry(
+                timestamp = it.date,
+                icon = Icons.Default.AccountBalanceWallet,
+                text = if (isArabic) {
+                    "معاملة مع $name — ${it.amount} ج.م"
+                } else {
+                    "Transaction with $name — ${it.amount} EGP"
+                },
+                trailing = dateFormat.format(Date(it.date))
+            )
+        }
+        (reminderEntries + txEntries).sortedByDescending { it.timestamp }.take(4)
+    }
+
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
@@ -219,36 +459,20 @@ private fun RecentActivitySection(isArabic: Boolean) {
                 fontWeight = FontWeight.SemiBold
             )
             HorizontalDivider()
-            Text(
-                text = if (isArabic)
-                    "لا يوجد نشاط لعرضه بعد."
-                else
-                    "No recent activity to show yet.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun AiSuggestionsSection(isArabic: Boolean) {
-    PremiumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Text(
-                text = if (isArabic) "اقتراحات الذكاء الاصطناعي" else "AI Suggestions",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            HorizontalDivider()
-            Text(
-                text = if (isArabic)
-                    "سيقترح المساعد الذكي أفكار مخصصة لك هنا قريبًا."
-                else
-                    "Your AI Assistant will suggest personalized ideas here soon.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (entries.isEmpty()) {
+                SectionEmptyText(
+                    if (isArabic) "لا يوجد نشاط لعرضه بعد." else "No recent activity to show yet."
+                )
+            } else {
+                entries.forEach { entry ->
+                    SummaryRow(
+                        icon = entry.icon,
+                        text = entry.text,
+                        trailing = entry.trailing,
+                        trailingColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }

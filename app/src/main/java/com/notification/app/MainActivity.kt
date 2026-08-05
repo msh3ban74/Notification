@@ -30,6 +30,7 @@ import com.notification.app.ui.components.SmartItemBottomSheet
 import com.notification.app.ui.screens.*
 import com.notification.app.ui.theme.NotificationTheme
 import com.notification.app.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val titleEn: String, val titleAr: String, val icon: ImageVector) {
     object Splash : Screen("splash", "Splash", "البداية", Icons.Default.Notifications)
@@ -55,13 +56,22 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
 
     // Sprint 2 — Smart Item Engine Foundation. Placeholder destination
     // reached from the Dashboard "+" bottom sheet. Parametrized by the
-    // SmartItemType id (e.g. "debt", "gam3iya"). No chrome (top/bottom
-    // bar) is shown here, same as Splash/Auth.
+    // SmartItemType id (e.g. "gam3iya", "bill"). No chrome (top/bottom
+    // bar) is shown here, same as Splash/Auth. Types that already have a
+    // real form (Task — Sprint 3, Debt — Sprint 4) route to their own
+    // screens below instead.
     object SmartItemPlaceholder : Screen(
         "smart_item/{itemId}", "Coming Soon", "قريبًا", Icons.Default.Add
     ) {
         fun createRoute(itemId: String) = "smart_item/$itemId"
     }
+
+    // Sprint 3 — Smart Task: the first real Smart Item form. Reuses the
+    // existing Reminder pipeline (entity, ViewModel, scheduler).
+    object CreateTask : Screen("create_task", "New Task", "مهمة جديدة", Icons.Default.Add)
+
+    // Sprint 4 — Smart Debt: reuses the existing Ledger implementation.
+    object CreateDebt : Screen("create_debt", "New Debt", "دين جديد", Icons.Default.Add)
 }
 
 class MainActivity : ComponentActivity() {
@@ -102,6 +112,11 @@ class MainActivity : ComponentActivity() {
                     // Sprint 2 — Smart Item Engine Foundation.
                     var showSmartItemSheet by remember { mutableStateOf(false) }
 
+                    // Sprint 3/4 — app-level snackbar (e.g. "Task created
+                    // successfully" after returning from a Smart Item form).
+                    val snackbarHostState = remember { SnackbarHostState() }
+                    val scope = rememberCoroutineScope()
+
                     // Sprint 1: Bottom Navigation contains ONLY these four
                     // primary destinations. Settings is intentionally
                     // excluded — it's reachable only from the Top App Bar's
@@ -119,6 +134,7 @@ class MainActivity : ComponentActivity() {
                     val showChrome = currentRoute in chromeRoutes
 
                     Scaffold(
+                        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
                         topBar = {
                             if (showChrome) {
                                 val currentScreen = bottomBarScreens.firstOrNull { it.route == currentRoute }
@@ -248,8 +264,21 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable(Screen.Dashboard.route) {
+                                // Sprint 3/4: the Dashboard now shows REAL
+                                // summaries read from the existing Room flows
+                                // already collected above — no fake data.
                                 DashboardScreen(
                                     isArabic = isArabic,
+                                    reminders = reminders,
+                                    persons = persons,
+                                    transactions = transactions,
+                                    onNavigateToTasks = {
+                                        navController.navigate(Screen.Tasks.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
                                     onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
                                     onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
                                     onNavigateToIslamic = { navController.navigate(Screen.Islamic.route) },
@@ -389,8 +418,8 @@ class MainActivity : ComponentActivity() {
                             }
 
                             // Sprint 2 — Smart Item Engine Foundation.
-                            // Single placeholder destination reused for
-                            // every type selected from the bottom sheet.
+                            // Single placeholder destination reused for the
+                            // types that don't have a real form yet.
                             composable(
                                 route = Screen.SmartItemPlaceholder.route,
                                 arguments = listOf(navArgument("itemId") { type = NavType.StringType })
@@ -404,18 +433,79 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() }
                                 )
                             }
+
+                            // Sprint 3 — Smart Task. Saving goes through the
+                            // EXISTING reminder pipeline (viewModel.addReminder
+                            // → repository → AlarmManagerScheduler), then
+                            // returns to Tasks with a confirmation snackbar.
+                            composable(Screen.CreateTask.route) {
+                                CreateTaskScreen(
+                                    isArabic = isArabic,
+                                    onSave = { reminder ->
+                                        viewModel.addReminder(reminder)
+                                        navController.navigate(Screen.Tasks.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (isArabic) "تم إنشاء المهمة بنجاح" else "Task created successfully."
+                                            )
+                                        }
+                                    },
+                                    onCancel = { navController.popBackStack() }
+                                )
+                            }
+
+                            // Sprint 4 — Smart Debt. Saving goes through the
+                            // EXISTING ledger implementation (viewModel.addDebt
+                            // composes insertPerson/insertLedgerTransaction and
+                            // the reminder pipeline for the due date), then
+                            // returns to the Dashboard.
+                            composable(Screen.CreateDebt.route) {
+                                CreateDebtScreen(
+                                    persons = persons,
+                                    isArabic = isArabic,
+                                    onSave = { existingPersonId, personName, amount, isLent, dueDate, note ->
+                                        viewModel.addDebt(
+                                            existingPersonId = existingPersonId,
+                                            personName = personName,
+                                            amount = amount,
+                                            isLent = isLent,
+                                            dueDate = dueDate,
+                                            note = note
+                                        )
+                                        navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (isArabic) "تم حفظ الدين بنجاح" else "Debt saved successfully."
+                                            )
+                                        }
+                                    },
+                                    onCancel = { navController.popBackStack() }
+                                )
+                            }
                         }
                     }
 
                     // Sprint 2 — Smart Item Engine Foundation.
                     // Opened by the Dashboard "+" FAB above.
+                    // Sprint 3/4: "task" and "debt" now open their REAL
+                    // forms; every other type still lands on the placeholder.
                     if (showSmartItemSheet) {
                         SmartItemBottomSheet(
                             isArabic = isArabic,
                             onDismiss = { showSmartItemSheet = false },
                             onItemSelected = { item ->
                                 showSmartItemSheet = false
-                                navController.navigate(Screen.SmartItemPlaceholder.createRoute(item.id))
+                                when (item.id) {
+                                    "task" -> navController.navigate(Screen.CreateTask.route)
+                                    "debt" -> navController.navigate(Screen.CreateDebt.route)
+                                    else -> navController.navigate(
+                                        Screen.SmartItemPlaceholder.createRoute(item.id)
+                                    )
+                                }
                             }
                         )
                     }
