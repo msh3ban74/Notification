@@ -15,8 +15,10 @@ on:
       - "develop"
   workflow_dispatch:
 
+# contents: write so the workflow can publish the debug APK to the
+# "debug-latest" release — a permanent public download link.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-debug:
@@ -77,3 +79,21 @@ jobs:
         with:
           name: rafeeq-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Publish APK to the debug-latest release
+        # Keeps ONE rolling prerelease ("debug-latest") holding the newest
+        # debug APK, so there is always a permanent public download link:
+        # https://github.com/<owner>/<repo>/releases/download/debug-latest/Rafeeq-debug.apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          cp "$APK" Rafeeq-debug.apk
+          if ! gh release view debug-latest --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create debug-latest \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Rafeeq Debug (latest)" \
+              --notes "Rolling prerelease: newest debug APK built by Rafeeq Branch CI." \
+              --prerelease
+          fi
+          gh release upload debug-latest Rafeeq-debug.apk --repo "$GITHUB_REPOSITORY" --clobber
