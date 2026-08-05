@@ -9,9 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -1130,18 +1127,22 @@ private fun QuickActionsSection(
             )
         )
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
+        // CRASH FIX: this was a LazyVerticalGrid with no height bound inside
+        // the dashboard's verticalScroll Column — nesting two vertically
+        // scrollable layouts throws IllegalStateException the moment the
+        // Dashboard composes (the "closes within a second" crash). With a
+        // fixed set of four actions a plain non-lazy Row renders the same
+        // 4-column grid with zero nested scrolling.
+        Row(
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             modifier = Modifier.fillMaxWidth()
         ) {
-            items(actions) { action ->
+            actions.forEach { action ->
                 PremiumCard(
                     onClick = action.onClick,
                     contentPadding = AppPadding.cardCompact,
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .weight(1f)
                         .aspectRatio(0.95f)
                 ) {
                     Column(

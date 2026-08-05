@@ -108,6 +108,40 @@ jobs:
           name: rafeeq-release-apk
           path: app/build/outputs/apk/release/*.apk
 
+      - name: Emulator smoke test (catch instant crashes)
+        # Boots a real Android emulator, installs the signed release APK,
+        # launches the app, then lets monkey explore ~400 taps. Fails the
+        # build if any FATAL EXCEPTION appears — the class of crash that a
+        # compile can never catch (e.g. nested-scroll IllegalStateException).
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r "$(ls app/build/outputs/apk/release/*.apk | head -1)"
+            adb logcat -c
+            adb shell am start -n com.notification.app/.MainActivity
+            sleep 20
+            adb shell monkey -p com.notification.app --throttle 250 --pct-syskeys 0 400 || true
+            sleep 5
+            adb logcat -d > logcat-full.txt || true
+            if grep -q "FATAL EXCEPTION" logcat-full.txt; then
+              echo "=================== CRASH DETECTED ==================="
+              grep -A 40 "FATAL EXCEPTION" logcat-full.txt | head -80
+              exit 1
+            fi
+            echo "Smoke test passed — no fatal exceptions."
+
+      - name: Upload smoke-test logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logcat
+          path: logcat-full.txt
+          if-no-files-found: ignore
+
       - name: Publish APKs to the rafeeq-latest release
         # ONE rolling release ("rafeeq-latest") always holding the newest
         # signed release APK (primary) plus the debug APK — permanent
