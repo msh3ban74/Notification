@@ -66,6 +66,16 @@ fun SettingsScreen(
             )
         }
 
+        // ── Section: Account ─────────────────────────────────────────
+        item {
+            Text(
+                text = if (isArabic) "الحساب والنسخ الاحتياطي" else "Account & Backup",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
         // Account & Cloud Backup Card
         item {
             Card(
@@ -183,16 +193,18 @@ fun SettingsScreen(
                         }
 
                         Row {
+                            // QA fix: labels wrapped to two lines on device
+                            // ("Engl/ish") — force a single unwrapped line.
                             FilterChip(
                                 selected = currentLanguage == "ar",
                                 onClick = { onSetLanguage("ar") },
-                                label = { Text("العربية") }
+                                label = { Text("العربية", maxLines = 1, softWrap = false) }
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             FilterChip(
                                 selected = currentLanguage == "en",
                                 onClick = { onSetLanguage("en") },
-                                label = { Text("English") }
+                                label = { Text("English", maxLines = 1, softWrap = false) }
                             )
                         }
                     }
@@ -224,6 +236,16 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+        // ── Section: Notifications ───────────────────────────────────
+        item {
+            Text(
+                text = if (isArabic) "الإشعارات والتنبيهات" else "Notifications",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
         }
 
         // Battery Optimization Exemption Prompt
@@ -269,6 +291,16 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+        // ── Section: AI ──────────────────────────────────────────────
+        item {
+            Text(
+                text = if (isArabic) "الذكاء الاصطناعي" else "AI Assistant",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
         }
 
         // Smart Assistant API Settings
@@ -317,6 +349,41 @@ fun SettingsScreen(
                     ) {
                         Text(if (isArabic) "حفظ المفتاح" else "Save Key")
                     }
+                }
+            }
+        }
+
+        // ── Section: About ───────────────────────────────────────────
+        item {
+            Text(
+                text = if (isArabic) "حول" else "About",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = if (isArabic) "رفيق — Rafeeq" else "Rafeeq — رفيق",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (isArabic) "الإصدار 1.0 • رفيقك الذكي في كل تفاصيل حياتك" else "Version 1.0 • Your intelligent life companion",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

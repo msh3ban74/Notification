@@ -52,7 +52,9 @@ import java.util.Locale
 fun NotificationsScreen(
     reminders: List<ReminderEntity>,
     alarms: List<AlarmEntity>,
-    isArabic: Boolean = false
+    isArabic: Boolean = false,
+    /** v1.0 — empty-state CTA: jump to Tasks to schedule the first reminder. */
+    onCreateFirst: (() -> Unit)? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("EEE dd MMM, hh:mm a", Locale.getDefault()) }
     val now = System.currentTimeMillis()
@@ -78,10 +80,14 @@ fun NotificationsScreen(
             icon = Icons.Default.NotificationsNone,
             title = if (isArabic) "لا توجد إشعارات مجدولة" else "No scheduled notifications",
             subtitle = if (isArabic) {
-                "أنشئ مهمة أو تذكيرًا من زر الإضافة (+) وستظهر إشعاراته هنا"
+                "جدول أول تذكير وستظهر إشعاراته هنا تلقائيًا"
             } else {
-                "Create a task or reminder with the (+) button and its notifications will appear here"
-            }
+                "Schedule your first reminder and its alerts will appear here"
+            },
+            actionLabel = if (onCreateFirst != null) {
+                if (isArabic) "أنشئ تذكيرًا" else "Schedule Reminder"
+            } else null,
+            onAction = onCreateFirst
         )
         return
     }

@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.notification.app.data.local.entities.AlarmEntity
+import com.notification.app.data.local.entities.Gam3iyaEntity
 import com.notification.app.data.local.entities.Gam3iyaMemberEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
@@ -51,7 +51,8 @@ import com.notification.app.data.local.entities.ReminderEntity
 import com.notification.app.data.local.entities.WorkNoteEntity
 import com.notification.app.domain.calculator.PrayerTime
 import com.notification.app.ui.components.SmartWidget
-import com.notification.app.ui.components.SummaryCountRow
+import com.notification.app.ui.designsystem.PremiumButton
+import com.notification.app.ui.designsystem.SkeletonLine
 import androidx.compose.ui.unit.dp
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.calculator.LedgerStatus
@@ -87,6 +88,8 @@ import java.util.Locale
 @Composable
 fun DashboardScreen(
     isArabic: Boolean = false,
+    userName: String = "",
+    gam3iyas: List<Gam3iyaEntity> = emptyList(),
     reminders: List<ReminderEntity> = emptyList(),
     persons: List<PersonEntity> = emptyList(),
     transactions: List<LedgerTransactionEntity> = emptyList(),
@@ -126,17 +129,30 @@ fun DashboardScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = AppPadding.screen)
-            .padding(top = Spacing.sm, bottom = Spacing.xl),
+            // QA fix: extra bottom inset so the FAB never covers the last
+            // tile when scrolled to the end (seen on device screenshots).
+            .padding(top = Spacing.sm, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
-        GreetingSection(isArabic = isArabic)
-
-        // Sprint 6 — premium first-run welcome: shown only when the user
-        // has no data at all anywhere; disappears forever after the first
-        // Smart Item is created.
         val hasAnyData = reminders.isNotEmpty() || persons.isNotEmpty() ||
             alarms.isNotEmpty() || gam3iyaMembers.isNotEmpty() || workNotes.isNotEmpty()
-        if (!hasAnyData) {
+
+        // v1.0 — Executive Summary: the first card intelligently narrates
+        // the user's day from REAL data, with the primary "Ask Rafeeq" CTA.
+        // First-run (no data anywhere): a premium welcome takes its place.
+        if (hasAnyData) {
+            ExecutiveSummaryCard(
+                isArabic = isArabic,
+                userName = userName,
+                reminders = reminders,
+                persons = persons,
+                transactions = transactions,
+                gam3iyaMembers = gam3iyaMembers,
+                waterCount = waterCount,
+                onAskRafeeq = onAskRafeeq
+            )
+        } else {
+            GreetingSection(isArabic = isArabic)
             PremiumCard {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -168,15 +184,20 @@ fun DashboardScreen(
             }
         }
 
-        // Sprint 6 — Executive: today's full summary + contextual widgets.
-        TodaysSummarySection(
+        // v1.0 — executive overview: eight compact live tiles.
+        ExecutiveStatsSection(
             isArabic = isArabic,
             reminders = reminders,
             persons = persons,
             transactions = transactions,
             alarms = alarms,
-            gam3iyaMembers = gam3iyaMembers,
-            workNotes = workNotes
+            gam3iyas = gam3iyas,
+            waterCount = waterCount,
+            onWaterClick = onWaterClick,
+            onTasksClick = onNavigateToTasks,
+            onNotificationsClick = onNavigateToNotifications,
+            onLedgerClick = onNavigateToLedger,
+            onGam3iyaClick = onNavigateToGam3iya
         )
 
         SmartWidgetsSection(
@@ -191,19 +212,6 @@ fun DashboardScreen(
             onNavigateToGam3iya = onNavigateToGam3iya,
             onNavigateToIslamic = onNavigateToIslamic,
             onNavigateToHealthNotes = onNavigateToHealthNotes
-        )
-
-        // Rafeeq Design Language — executive overview: the day at a
-        // glance in four large calm tiles, all real data.
-        ExecutiveStatsSection(
-            isArabic = isArabic,
-            reminders = reminders,
-            persons = persons,
-            transactions = transactions,
-            alarms = alarms,
-            onTasksClick = onNavigateToTasks,
-            onNotificationsClick = onNavigateToNotifications,
-            onLedgerClick = onNavigateToLedger
         )
 
         RafeeqSuggestionsSection(
@@ -281,7 +289,9 @@ fun DashboardScreen(
 private fun GreetingSection(isArabic: Boolean) {
     val dateLine = remember(isArabic) {
         SimpleDateFormat(
-            "EEEE، d MMMM yyyy",
+            // QA fix: locale-correct comma (the Arabic "،" leaked into the
+            // English date on device screenshots).
+            if (isArabic) "EEEE، d MMMM yyyy" else "EEEE, d MMMM yyyy",
             if (isArabic) Locale("ar") else Locale.ENGLISH
         ).format(Date())
     }
@@ -498,97 +508,154 @@ private fun UpcomingDebtsSection(
 }
 
 /**
- * Sprint 6 — Today's Summary: the full executive breakdown of the day
- * (pending/overdue tasks, upcoming reminders and alarms, outstanding
- * debts, upcoming gam3iya payouts, health reminders). Only non-zero
- * rows are shown, and the whole card hides itself when the day is
- * clear. All figures come from the EXISTING repositories/calculators.
+ * v1.0 — Executive Summary: the Dashboard's first card. A personal,
+ * time-of-day greeting followed by an intelligent narration of the day
+ * (tasks due today, bills tomorrow, overdue items, next gam3iya turn,
+ * water goal) — every line computed from REAL data and omitted when it
+ * has nothing to say — plus the primary "Ask Rafeeq" call to action.
  */
 @Composable
-private fun TodaysSummarySection(
+private fun ExecutiveSummaryCard(
     isArabic: Boolean,
+    userName: String,
     reminders: List<ReminderEntity>,
     persons: List<PersonEntity>,
     transactions: List<LedgerTransactionEntity>,
-    alarms: List<AlarmEntity>,
     gam3iyaMembers: List<Gam3iyaMemberEntity>,
-    workNotes: List<WorkNoteEntity>
+    waterCount: Int,
+    onAskRafeeq: (String) -> Unit
 ) {
     val now = System.currentTimeMillis()
-    val monthAhead = now + 35L * 24 * 60 * 60 * 1000
+    val cal = remember { Calendar.getInstance() }
+    val hour = cal.get(Calendar.HOUR_OF_DAY)
 
-    val pendingTasks = remember(reminders) { reminders.count { !it.isCompleted } }
-    val overdueTasks = remember(reminders) {
-        reminders.count { !it.isCompleted && it.dueDate < now }
+    val greeting = when {
+        isArabic && hour < 12 -> "صباح الخير"
+        isArabic && hour < 18 -> "مساء الخير"
+        isArabic -> "مساء الخير"
+        hour < 12 -> "Good morning"
+        hour < 18 -> "Good afternoon"
+        else -> "Good evening"
     }
-    val upcomingReminders = remember(reminders) {
-        reminders.count { !it.isCompleted && it.dueDate >= now }
+    val displayName = userName.takeIf { it.isNotBlank() && it != "User" && it != "Guest User" }
+    val greetingLine = if (displayName != null) "$greeting، $displayName 👋" else "$greeting 👋"
+
+    val dateLine = remember(isArabic) {
+        SimpleDateFormat(
+            if (isArabic) "EEEE، d MMMM yyyy" else "EEEE, d MMMM yyyy",
+            if (isArabic) Locale("ar") else Locale.ENGLISH
+        ).format(Date())
     }
-    val upcomingAlarms = remember(alarms) {
-        alarms.count { it.isEnabled && it.timeInMillis >= now }
+
+    val (dayStart, dayEnd) = remember {
+        val c = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+        val start = c.timeInMillis
+        c.add(Calendar.DAY_OF_YEAR, 1)
+        start to c.timeInMillis
     }
-    val outstandingDebts = remember(persons, transactions) {
-        persons.count { p ->
-            LedgerCalculator.calculateNetBalance(
-                transactions.filter { it.personId == p.id }
-            ).status != LedgerStatus.SETTLED
+    val tomorrowEnd = dayEnd + 24L * 60 * 60 * 1000
+
+    val bullets = remember(reminders, persons, transactions, gam3iyaMembers, waterCount, isArabic) {
+        buildList {
+            val dueToday = reminders.count { !it.isCompleted && it.dueDate in dayStart until dayEnd }
+            if (dueToday > 0) add(
+                if (isArabic) "$dueToday ${if (dueToday == 1) "مهمة مستحقة" else "مهام مستحقة"} اليوم"
+                else "$dueToday task${if (dueToday == 1) "" else "s"} due today"
+            )
+
+            val billsTomorrow = reminders.count {
+                !it.isCompleted && it.category == ReminderCategory.BILL.name &&
+                    it.dueDate in dayEnd until tomorrowEnd
+            }
+            if (billsTomorrow > 0) add(
+                if (isArabic) "$billsTomorrow ${if (billsTomorrow == 1) "فاتورة" else "فواتير"} غدًا"
+                else "$billsTomorrow bill${if (billsTomorrow == 1) "" else "s"} tomorrow"
+            )
+
+            val overdue = reminders.count { !it.isCompleted && it.dueDate < now }
+            add(
+                if (overdue > 0) {
+                    if (isArabic) "$overdue ${if (overdue == 1) "عنصر متأخر" else "عناصر متأخرة"} — راجعها"
+                    else "$overdue overdue item${if (overdue == 1) "" else "s"} — review them"
+                } else {
+                    if (isArabic) "لا يوجد متأخرات ✓" else "Nothing overdue ✓"
+                }
+            )
+
+            val openDebts = persons.count { p ->
+                LedgerCalculator.calculateNetBalance(
+                    transactions.filter { it.personId == p.id }
+                ).status != LedgerStatus.SETTLED
+            }
+            if (openDebts > 0) add(
+                if (isArabic) "$openDebts ${if (openDebts == 1) "حساب دين مفتوح" else "حسابات ديون مفتوحة"}"
+                else "$openDebts open debt account${if (openDebts == 1) "" else "s"}"
+            )
+
+            val nextPayout = gam3iyaMembers
+                .filter { !it.isPayoutReceived && it.payoutDate > now }
+                .minByOrNull { it.payoutDate }
+            if (nextPayout != null) {
+                val days = ((nextPayout.payoutDate - now) / (24L * 60 * 60 * 1000)).toInt()
+                add(
+                    if (isArabic) "دور الجمعية بعد $days ${if (days == 1) "يوم" else "أيام"}"
+                    else "Gam3iya turn in $days day${if (days == 1) "" else "s"}"
+                )
+            }
+
+            if (waterCount in 1..7) add(
+                if (isArabic) "هدف الماء $waterCount/8" else "Water goal $waterCount/8"
+            )
         }
     }
-    val gam3iyaPayments = remember(gam3iyaMembers) {
-        gam3iyaMembers.count { !it.isPayoutReceived && it.payoutDate in now..monthAhead }
-    }
-    val healthReminders = remember(reminders, workNotes) {
-        reminders.count {
-            !it.isCompleted && it.category == ReminderCategory.MEDICINE.name
-        } + workNotes.count { !it.isDone && (it.reminderTime ?: 0L) >= now }
-    }
-
-    val total = pendingTasks + upcomingAlarms + outstandingDebts + gam3iyaPayments + healthReminders
-    if (total == 0) return
 
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
-                text = if (isArabic) "ملخص اليوم" else "Today's Summary",
-                style = MaterialTheme.typography.titleMedium,
+                text = greetingLine,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            HorizontalDivider()
-            if (pendingTasks > 0) SummaryCountRow(
-                icon = Icons.Default.CheckCircle,
-                label = if (isArabic) "مهام معلقة" else "Pending tasks",
-                count = pendingTasks
+            Text(
+                text = dateLine,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (overdueTasks > 0) SummaryCountRow(
-                icon = Icons.Default.Warning,
-                label = if (isArabic) "مهام متأخرة" else "Overdue tasks",
-                count = overdueTasks,
-                highlight = true
-            )
-            if (upcomingReminders > 0) SummaryCountRow(
-                icon = Icons.Default.NotificationsActive,
-                label = if (isArabic) "تذكيرات قادمة" else "Upcoming reminders",
-                count = upcomingReminders
-            )
-            if (upcomingAlarms > 0) SummaryCountRow(
-                icon = Icons.Default.Alarm,
-                label = if (isArabic) "منبهات قادمة" else "Upcoming alarms",
-                count = upcomingAlarms
-            )
-            if (outstandingDebts > 0) SummaryCountRow(
-                icon = Icons.Default.AccountBalanceWallet,
-                label = if (isArabic) "ديون قائمة" else "Outstanding debts",
-                count = outstandingDebts
-            )
-            if (gam3iyaPayments > 0) SummaryCountRow(
-                icon = Icons.Default.Group,
-                label = if (isArabic) "أقساط جمعية قادمة" else "Upcoming gam3iya payments",
-                count = gam3iyaPayments
-            )
-            if (healthReminders > 0) SummaryCountRow(
-                icon = Icons.Default.Medication,
-                label = if (isArabic) "تذكيرات صحية" else "Health reminders",
-                count = healthReminders
+            if (bullets.isNotEmpty()) {
+                HorizontalDivider()
+                Text(
+                    text = if (isArabic) "اليوم:" else "Today:",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                bullets.forEach { line ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            }
+            PremiumButton(
+                text = if (isArabic) "اسأل رفيق ✨" else "Ask Rafeeq ✨",
+                onClick = {
+                    onAskRafeeq(
+                        if (isArabic) "لخص يومي ونظمه لي" else "Summarize and organize my day"
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)
             )
         }
     }
@@ -699,9 +766,10 @@ private fun SmartWidgetsSection(
 }
 
 /**
- * Rafeeq Design Language — executive stat tiles (2×2): today's tasks,
- * upcoming notifications, open debts, and due bills as large calm
- * numbers. Every figure is computed from the EXISTING repositories.
+ * v1.0 — executive stat grid: eight compact, live tiles (tasks, alerts,
+ * bills, open debts, money owed to me, gam3iyas, overdue, water goal).
+ * Every figure is computed from the EXISTING repositories and updates
+ * reactively through the hot Room StateFlows.
  */
 @Composable
 private fun ExecutiveStatsSection(
@@ -710,9 +778,13 @@ private fun ExecutiveStatsSection(
     persons: List<PersonEntity>,
     transactions: List<LedgerTransactionEntity>,
     alarms: List<AlarmEntity>,
+    gam3iyas: List<Gam3iyaEntity>,
+    waterCount: Int,
+    onWaterClick: () -> Unit,
     onTasksClick: () -> Unit,
     onNotificationsClick: () -> Unit,
-    onLedgerClick: () -> Unit
+    onLedgerClick: () -> Unit,
+    onGam3iyaClick: () -> Unit
 ) {
     val now = System.currentTimeMillis()
     val (dayStart, dayEnd) = remember {
@@ -732,76 +804,83 @@ private fun ExecutiveStatsSection(
         reminders.count { !it.isCompleted && it.dueDate >= now } +
             alarms.count { it.isEnabled && it.timeInMillis >= now }
     }
-    val openDebts = remember(persons, transactions) {
-        persons.count { p ->
-            val summary = LedgerCalculator.calculateNetBalance(
-                transactions.filter { it.personId == p.id }
-            )
-            summary.status != LedgerStatus.SETTLED
+    val summaries = remember(persons, transactions) {
+        persons.map { p ->
+            LedgerCalculator.calculateNetBalance(transactions.filter { it.personId == p.id })
         }
+    }
+    val openDebts = remember(summaries) {
+        summaries.count { it.status != LedgerStatus.SETTLED }
+    }
+    val owedToMe = remember(summaries) {
+        summaries.filter { it.status == LedgerStatus.THEY_OWE_ME }
+            .sumOf { kotlin.math.abs(it.netAmount) }
     }
     val dueBills = remember(reminders) {
-        reminders.count {
-            !it.isCompleted && it.category == ReminderCategory.BILL.name
-        }
+        reminders.count { !it.isCompleted && it.category == ReminderCategory.BILL.name }
+    }
+    val overdue = remember(reminders) {
+        reminders.count { !it.isCompleted && it.dueDate < now }
     }
 
+    // Short labels — QA fix: the previous long labels ellipsized on device.
+    val tiles = listOf(
+        StatTileData(todayTasks.toString(), if (isArabic) "مهام اليوم" else "Today", onTasksClick),
+        StatTileData(upcomingNotifications.toString(), if (isArabic) "تنبيهات" else "Alerts", onNotificationsClick),
+        StatTileData(dueBills.toString(), if (isArabic) "فواتير" else "Bills", onTasksClick),
+        StatTileData(openDebts.toString(), if (isArabic) "ديون" else "Debts", onLedgerClick),
+        StatTileData(
+            if (owedToMe > 0) "%,.0f".format(owedToMe) else "0",
+            if (isArabic) "لِيَ (ج.م)" else "Owed (EGP)",
+            onLedgerClick
+        ),
+        StatTileData(gam3iyas.size.toString(), if (isArabic) "جمعيات" else "Gam3iya", onGam3iyaClick),
+        StatTileData(overdue.toString(), if (isArabic) "متأخرة" else "Overdue", onTasksClick, highlight = overdue > 0),
+        StatTileData("$waterCount/8", if (isArabic) "الماء" else "Water", onWaterClick)
+    )
+
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            StatTile(
-                value = todayTasks,
-                label = if (isArabic) "مهام اليوم" else "Today's tasks",
-                onClick = onTasksClick,
-                modifier = Modifier.weight(1f)
-            )
-            StatTile(
-                value = upcomingNotifications,
-                label = if (isArabic) "التنبيهات القادمة" else "Upcoming alerts",
-                onClick = onNotificationsClick,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            StatTile(
-                value = openDebts,
-                label = if (isArabic) "ديون مفتوحة" else "Open debts",
-                onClick = onLedgerClick,
-                modifier = Modifier.weight(1f)
-            )
-            StatTile(
-                value = dueBills,
-                label = if (isArabic) "فواتير مستحقة" else "Bills due",
-                onClick = onTasksClick,
-                modifier = Modifier.weight(1f)
-            )
+        tiles.chunked(2).forEach { rowTiles ->
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                rowTiles.forEach { tile ->
+                    StatTile(tile, modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
 
+private data class StatTileData(
+    val value: String,
+    val label: String,
+    val onClick: () -> Unit,
+    val highlight: Boolean = false
+)
+
 @Composable
-private fun StatTile(
-    value: Int,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    PremiumCard(onClick = onClick, modifier = modifier) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+private fun StatTile(data: StatTileData, modifier: Modifier = Modifier) {
+    PremiumCard(
+        onClick = data.onClick,
+        contentPadding = AppPadding.cardCompact,
+        modifier = modifier
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = value.toString(),
-                style = MaterialTheme.typography.displayMedium,
+                text = data.value,
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = if (data.highlight) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.primary,
+                maxLines = 1
             )
             Text(
-                text = label,
+                text = data.label,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -875,9 +954,10 @@ private fun RafeeqSuggestionsSection(
                 }
                 HorizontalDivider()
                 if (aiSuggestions.isEmpty()) {
-                    SectionEmptyText(
-                        if (isArabic) "رفيق يحضّر اقتراحاتك..." else "Rafeeq is preparing your suggestions..."
-                    )
+                    // v1.0 — skeleton loading instead of a spinner.
+                    SkeletonLine(widthFraction = 0.9f)
+                    SkeletonLine(widthFraction = 0.7f)
+                    SkeletonLine(widthFraction = 0.8f)
                 } else {
                     aiSuggestions.forEach { suggestion ->
                         AiSuggestionRow(

@@ -107,36 +107,3 @@ fun SmartWidget(
         }
     }
 }
-
-/** One labeled count row inside the Today's Summary card. */
-@Composable
-fun SummaryCountRow(
-    icon: ImageVector,
-    label: String,
-    count: Int,
-    highlight: Boolean = false
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (highlight) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(AppDimens.iconSizeSmall)
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = count.toString(),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = if (highlight) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-        )
-    }
-}

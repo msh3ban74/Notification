@@ -293,6 +293,8 @@ class MainActivity : ComponentActivity() {
                                 // already collected above — no fake data.
                                 DashboardScreen(
                                     isArabic = isArabic,
+                                    userName = userName,
+                                    gam3iyas = gam3iyas,
                                     reminders = reminders,
                                     persons = persons,
                                     transactions = transactions,
@@ -366,7 +368,14 @@ class MainActivity : ComponentActivity() {
                                 NotificationsScreen(
                                     reminders = reminders,
                                     alarms = alarms,
-                                    isArabic = isArabic
+                                    isArabic = isArabic,
+                                    onCreateFirst = {
+                                        navController.navigate(Screen.Tasks.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
                                 )
                             }
 
@@ -425,7 +434,22 @@ class MainActivity : ComponentActivity() {
                                     messages = chatMessages,
                                     isLoading = isAiLoading,
                                     isArabic = isArabic,
-                                    onSendMessage = { viewModel.sendAiMessage(it) }
+                                    onSendMessage = { viewModel.sendAiMessage(it) },
+                                    onOpenTasks = {
+                                        navController.navigate(Screen.Tasks.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
+                                    onOpenLedger = { navController.navigate(Screen.Ledger.route) },
+                                    onOpenNotifications = {
+                                        navController.navigate(Screen.Notifications.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
                                 )
                             }
 

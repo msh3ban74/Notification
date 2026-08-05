@@ -27,6 +27,8 @@ import com.notification.app.domain.calculator.StatementExporter
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.ui.theme.MaroonPrimary
 import com.notification.app.ui.theme.OnPrimary
+import com.notification.app.ui.theme.Success
+import com.notification.app.ui.theme.Error
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -162,14 +164,16 @@ fun LedgerScreen(
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.AccountBalanceWallet,
                     title = if (isArabic) "لا توجد سجلات ديون" else "No Debt Records Found",
-                    subtitle = if (isArabic) "اضغط على زر (+ شخص) لإضافة أول حساب شخص ومتابعة المستحقات" else "Tap (+ Person) above to add your first account and track balance dues"
+                    subtitle = if (isArabic) "أنشئ أول دفتر وتتبع صافي المديونية لكل شخص" else "Create your first ledger and track per-person balances",
+                    actionLabel = if (isArabic) "أضف شخصًا" else "Add Person",
+                    onAction = { showAddPersonDialog = true }
                 )
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(bottom = 100.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(currentList) { (person, summary, txs) ->
+                    items(currentList, key = { it.first.id }) { (person, summary, txs) ->
                         PersonLedgerSummaryCard(
                             person = person,
                             summary = summary,
@@ -262,8 +266,8 @@ fun PersonLedgerSummaryCard(
     }
 
     val statusColor = when (summary.status) {
-        LedgerStatus.THEY_OWE_ME -> Color(0xFF27AE60)
-        LedgerStatus.I_OWE_THEM -> Color(0xFFC0392B)
+        LedgerStatus.THEY_OWE_ME -> Success
+        LedgerStatus.I_OWE_THEM -> Error
         LedgerStatus.SETTLED -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -471,7 +475,7 @@ fun PersonDetailScreen(
                                         text = "${tx.amount} EGP",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (txType.isGivingToThem) Color(0xFF27AE60) else Color(0xFFC0392B)
+                                        color = if (txType.isGivingToThem) Success else Error
                                     )
 
                                     if (onUpdateTransaction != null) {

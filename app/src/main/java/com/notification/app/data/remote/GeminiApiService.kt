@@ -73,7 +73,18 @@ object RetrofitClient {
         .connectTimeout(60, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
-        .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
+        // SECURITY (v1.0): BODY logging printed full AI payloads and the
+        // key-bearing request URL to logcat on user devices. Verbose only
+        // in debug builds; silent in release.
+        .addInterceptor(
+            HttpLoggingInterceptor().apply {
+                level = if (com.notification.app.BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.BODY
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
+            }
+        )
         .build()
 
     private val moshi = Moshi.Builder()

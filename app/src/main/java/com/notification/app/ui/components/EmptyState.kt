@@ -45,6 +45,9 @@ fun EmptyState(
     title: String,
     subtitle: String,
     modifier: Modifier = Modifier,
+    /** v1.0 — optional primary call to action ("Add Task", "Add Person"...). */
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
     /**
      * Extra bottom inset so the centered card doesn't sit under a
      * floating action button on screens that have the bottom nav + FAB
@@ -121,6 +124,19 @@ fun EmptyState(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.padding(horizontal = Spacing.sm)
                 )
+                if (actionLabel != null && onAction != null) {
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Button(
+                        onClick = onAction,
+                        shape = AppRadius.button,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaroonPrimary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Text(actionLabel, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
             }
         }
     }

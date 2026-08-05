@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -56,9 +57,15 @@ fun PremiumTopAppBar(
         shadowElevation = AppElevation.topBar,
         color = MaterialTheme.colorScheme.surface
     ) {
+        // QA fix (device screenshots): the app is edge-to-edge, so without
+        // consuming the status-bar inset the bar contents rendered UNDER the
+        // system clock/battery. statusBarsPadding keeps the surface color
+        // flowing behind the status bar (premium look) while pushing the
+        // row's content below it — correct in both RTL and LTR.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .height(AppDimens.topBarHeightCompact)
                 .padding(horizontal = AppPadding.screen),
             verticalAlignment = Alignment.CenterVertically
