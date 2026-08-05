@@ -18,11 +18,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.notification.app.domain.model.SmartItemType
 import com.notification.app.ui.components.PremiumTopAppBar
+import com.notification.app.ui.components.SmartItemBottomSheet
 import com.notification.app.ui.screens.*
 import com.notification.app.ui.theme.NotificationTheme
 import com.notification.app.ui.viewmodel.MainViewModel
@@ -48,6 +52,16 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     // Settings — reachable ONLY from the profile button in the Top App Bar.
     object Settings : Screen("settings", "Settings", "الإعدادات", Icons.Default.Settings)
     object Auth : Screen("auth", "Auth", "دخول", Icons.Default.Lock)
+
+    // Sprint 2 — Smart Item Engine Foundation. Placeholder destination
+    // reached from the Dashboard "+" bottom sheet. Parametrized by the
+    // SmartItemType id (e.g. "debt", "gam3iya"). No chrome (top/bottom
+    // bar) is shown here, same as Splash/Auth.
+    object SmartItemPlaceholder : Screen(
+        "smart_item/{itemId}", "Coming Soon", "قريبًا", Icons.Default.Add
+    ) {
+        fun createRoute(itemId: String) = "smart_item/$itemId"
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -84,6 +98,9 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
+
+                    // Sprint 2 — Smart Item Engine Foundation.
+                    var showSmartItemSheet by remember { mutableStateOf(false) }
 
                     // Sprint 1: Bottom Navigation contains ONLY these four
                     // primary destinations. Settings is intentionally
@@ -144,6 +161,23 @@ class MainActivity : ComponentActivity() {
                                             }
                                         )
                                     }
+                                }
+                            }
+                        },
+                        floatingActionButton = {
+                            // Sprint 2 — Smart Item Engine Foundation.
+                            // Standard Material 3 FAB, floats above the
+                            // Bottom Navigation (Scaffold handles the
+                            // offset automatically), visible only on
+                            // Dashboard — Rafeeq's primary "+" action.
+                            if (currentRoute == Screen.Dashboard.route) {
+                                FloatingActionButton(
+                                    onClick = { showSmartItemSheet = true }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = if (isArabic) "إضافة" else "Add"
+                                    )
                                 }
                             }
                         }
@@ -334,7 +368,37 @@ class MainActivity : ComponentActivity() {
                                     isArabic = isArabic
                                 )
                             }
+
+                            // Sprint 2 — Smart Item Engine Foundation.
+                            // Single placeholder destination reused for
+                            // every type selected from the bottom sheet.
+                            composable(
+                                route = Screen.SmartItemPlaceholder.route,
+                                arguments = listOf(navArgument("itemId") { type = NavType.StringType })
+                            ) { backStackEntry ->
+                                val itemId = backStackEntry.arguments?.getString("itemId")
+                                val item = SmartItemType.all.firstOrNull { it.id == itemId }
+                                ComingSoonScreen(
+                                    titleEn = item?.titleEn ?: "",
+                                    titleAr = item?.titleAr ?: "",
+                                    isArabic = isArabic,
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
                         }
+                    }
+
+                    // Sprint 2 — Smart Item Engine Foundation.
+                    // Opened by the Dashboard "+" FAB above.
+                    if (showSmartItemSheet) {
+                        SmartItemBottomSheet(
+                            isArabic = isArabic,
+                            onDismiss = { showSmartItemSheet = false },
+                            onItemSelected = { item ->
+                                showSmartItemSheet = false
+                                navController.navigate(Screen.SmartItemPlaceholder.createRoute(item.id))
+                            }
+                        )
                     }
                 }
             }
