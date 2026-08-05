@@ -96,6 +96,25 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     // Stability sprint — Smart Alarm: reuses the existing AlarmEntity +
     // addAlarm + AlarmManagerScheduler pipeline.
     object CreateAlarm : Screen("create_alarm", "New Alarm", "منبه جديد", Icons.Default.Add)
+
+    // Final Product sprint (Phase B) — money items: bill / installment /
+    // subscription, all backed by FinancialItemEntity. The financeType arg
+    // is a FinancialType name.
+    object CreateFinancial : Screen(
+        "create_financial/{financeType}", "New Item", "عنصر مالي", Icons.Default.Add
+    ) {
+        fun createRoute(financeType: String) = "create_financial/$financeType"
+    }
+
+    // Edit an existing financial item by id.
+    object EditFinancial : Screen(
+        "edit_financial/{itemId}", "Edit", "تعديل", Icons.Default.Add
+    ) {
+        fun createRoute(itemId: Long) = "edit_financial/$itemId"
+    }
+
+    // The money list (bills / installments / subscriptions).
+    object Financial : Screen("financial", "Money", "المالية", Icons.Default.AccountBalanceWallet)
 }
 
 class MainActivity : ComponentActivity() {
@@ -118,6 +137,7 @@ class MainActivity : ComponentActivity() {
             val gam3iyas by viewModel.allGam3iyas.collectAsState()
             val gam3iyaMembers by viewModel.allGam3iyaMembers.collectAsState()
             val alarms by viewModel.allAlarms.collectAsState()
+            val financialItems by viewModel.allFinancialItems.collectAsState()
             val prayerTimes by viewModel.prayerTimes.collectAsState()
             val workNotes by viewModel.allWorkNotes.collectAsState()
             val chatMessages by viewModel.chatMessages.collectAsState()
@@ -314,6 +334,7 @@ class MainActivity : ComponentActivity() {
                                     prayerTimes = prayerTimes,
                                     workNotes = workNotes,
                                     waterCount = waterCount,
+                                    financialItems = financialItems,
                                     aiSuggestions = aiSuggestions,
                                     aiSuggestionsLoading = aiSuggestionsLoading,
                                     onRefreshSuggestions = {
@@ -351,7 +372,8 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
                                     onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
                                     onNavigateToIslamic = { navController.navigate(Screen.Islamic.route) },
-                                    onNavigateToHealthNotes = { navController.navigate(Screen.HealthNotes.route) }
+                                    onNavigateToHealthNotes = { navController.navigate(Screen.HealthNotes.route) },
+                                    onNavigateToFinancial = { navController.navigate(Screen.Financial.route) }
                                 )
                             }
 
@@ -646,6 +668,70 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            // Phase B — Bill / Installment / Subscription.
+                            composable(
+                                route = Screen.CreateFinancial.route,
+                                arguments = listOf(navArgument("financeType") { type = NavType.StringType })
+                            ) { backStackEntry ->
+                                val ft = com.notification.app.domain.model.FinancialType
+                                    .fromString(backStackEntry.arguments?.getString("financeType"))
+                                CreateFinancialScreen(
+                                    isArabic = isArabic,
+                                    type = ft,
+                                    onSave = { item ->
+                                        viewModel.addFinancialItem(item)
+                                        navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (isArabic) "تم الحفظ" else "Saved."
+                                            )
+                                        }
+                                    },
+                                    onCancel = { navController.popBackStack() }
+                                )
+                            }
+
+                            // Phase B — edit an existing financial item.
+                            composable(
+                                route = Screen.EditFinancial.route,
+                                arguments = listOf(navArgument("itemId") { type = NavType.LongType })
+                            ) { backStackEntry ->
+                                val itemId = backStackEntry.arguments?.getLong("itemId") ?: -1L
+                                val editing = financialItems.firstOrNull { it.id == itemId }
+                                if (editing != null) {
+                                    CreateFinancialScreen(
+                                        isArabic = isArabic,
+                                        type = com.notification.app.domain.model.FinancialType.fromString(editing.type),
+                                        initial = editing,
+                                        onSave = { item ->
+                                            viewModel.updateFinancialItem(item)
+                                            navController.popBackStack()
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    if (isArabic) "تم التحديث" else "Updated."
+                                                )
+                                            }
+                                        },
+                                        onCancel = { navController.popBackStack() }
+                                    )
+                                } else {
+                                    androidx.compose.runtime.LaunchedEffect(Unit) { navController.popBackStack() }
+                                }
+                            }
+
+                            // Phase B — the money list.
+                            composable(Screen.Financial.route) {
+                                FinancialListScreen(
+                                    isArabic = isArabic,
+                                    items = financialItems,
+                                    onBack = { navController.popBackStack() },
+                                    onEdit = { navController.navigate(Screen.EditFinancial.createRoute(it.id)) },
+                                    onDelete = { viewModel.deleteFinancialItem(it) },
+                                    onTogglePaid = { viewModel.updateFinancialItem(it.copy(isPaid = !it.isPaid)) },
+                                    onAdd = { navController.navigate(Screen.CreateFinancial.createRoute("BILL")) }
+                                )
+                            }
+
                             composable(Screen.CreateGam3iya.route) {
                                 CreateGam3iyaScreen(
                                     isArabic = isArabic,
@@ -709,7 +795,16 @@ class MainActivity : ComponentActivity() {
                                     "task" -> navController.navigate(Screen.CreateTask.createRoute())
                                     "debt" -> navController.navigate(Screen.CreateDebt.route)
                                     "alarm" -> navController.navigate(Screen.CreateAlarm.route)
-                                    "bill", "appointment", "medicine" -> navController.navigate(
+                                    "bill" -> navController.navigate(
+                                        Screen.CreateFinancial.createRoute("BILL")
+                                    )
+                                    "installment" -> navController.navigate(
+                                        Screen.CreateFinancial.createRoute("INSTALLMENT")
+                                    )
+                                    "subscription" -> navController.navigate(
+                                        Screen.CreateFinancial.createRoute("SUBSCRIPTION")
+                                    )
+                                    "appointment", "medicine" -> navController.navigate(
                                         Screen.CreateSmartReminder.createRoute(item.id)
                                     )
                                     "gam3iya" -> navController.navigate(Screen.CreateGam3iya.route)

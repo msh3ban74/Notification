@@ -83,6 +83,12 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun updateAlarm(alarm: AlarmEntity) = db.alarmDao().updateAlarm(alarm)
     suspend fun deleteAlarm(alarm: AlarmEntity) = db.alarmDao().deleteAlarm(alarm)
 
+    // Phase B — financial items (bills / installments / subscriptions).
+    val allFinancialItems: Flow<List<FinancialItemEntity>> = db.financialDao().getAll()
+    suspend fun insertFinancialItem(item: FinancialItemEntity): Long = db.financialDao().insert(item)
+    suspend fun updateFinancialItem(item: FinancialItemEntity) = db.financialDao().update(item)
+    suspend fun deleteFinancialItem(item: FinancialItemEntity) = db.financialDao().delete(item)
+
     // Work Notes
     val allWorkNotes: Flow<List<WorkNoteEntity>> = db.workNoteDao().getAllNotes()
 

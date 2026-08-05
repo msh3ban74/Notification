@@ -83,6 +83,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val allWorkNotes: StateFlow<List<WorkNoteEntity>> = repository.allWorkNotes
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    // Phase B — financial items (bills / installments / subscriptions).
+    val allFinancialItems: StateFlow<List<FinancialItemEntity>> = repository.allFinancialItems
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    fun addFinancialItem(item: FinancialItemEntity) {
+        viewModelScope.launch { repository.insertFinancialItem(item) }
+    }
+
+    fun updateFinancialItem(item: FinancialItemEntity) {
+        viewModelScope.launch { repository.updateFinancialItem(item) }
+    }
+
+    fun deleteFinancialItem(item: FinancialItemEntity) {
+        viewModelScope.launch { repository.deleteFinancialItem(item) }
+    }
+
     // Islamic Prayers State
     private val _prayerTimes = MutableStateFlow<List<PrayerTime>>(emptyList())
     val prayerTimes: StateFlow<List<PrayerTime>> = _prayerTimes.asStateFlow()

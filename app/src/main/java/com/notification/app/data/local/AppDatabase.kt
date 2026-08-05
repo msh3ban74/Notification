@@ -17,9 +17,10 @@ import com.notification.app.data.local.entities.*
         Gam3iyaEntity::class,
         Gam3iyaMemberEntity::class,
         AlarmEntity::class,
-        WorkNoteEntity::class
+        WorkNoteEntity::class,
+        FinancialItemEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun gam3iyaDao(): Gam3iyaDao
     abstract fun alarmDao(): AlarmDao
     abstract fun workNoteDao(): WorkNoteDao
+    abstract fun financialDao(): FinancialDao
 
     companion object {
         @Volatile
@@ -50,6 +52,40 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration 2→3 — Phase B: the financial_items table (bills /
+         * installments / subscriptions). CREATE TABLE only, so no existing
+         * data is touched. Column types/defaults mirror FinancialItemEntity.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS financial_items (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        type TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        amount REAL NOT NULL DEFAULT 0,
+                        totalPrice REAL NOT NULL DEFAULT 0,
+                        downPayment REAL NOT NULL DEFAULT 0,
+                        monthlyAmount REAL NOT NULL DEFAULT 0,
+                        remaining REAL NOT NULL DEFAULT 0,
+                        dueDate INTEGER NOT NULL DEFAULT 0,
+                        accountNumber TEXT NOT NULL DEFAULT '',
+                        billNumber TEXT NOT NULL DEFAULT '',
+                        seller TEXT NOT NULL DEFAULT '',
+                        paymentMethod TEXT NOT NULL DEFAULT '',
+                        recurring INTEGER NOT NULL DEFAULT 0,
+                        isPaid INTEGER NOT NULL DEFAULT 0,
+                        note TEXT NOT NULL DEFAULT '',
+                        linkedReminderId INTEGER,
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -57,7 +93,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "notification_app_database"
                 )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 // Safety net only — real migrations above preserve data.
                 .fallbackToDestructiveMigration()
                 .build()

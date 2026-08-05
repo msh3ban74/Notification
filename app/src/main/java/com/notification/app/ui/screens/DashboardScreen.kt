@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WaterDrop
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.notification.app.data.local.entities.AlarmEntity
+import com.notification.app.data.local.entities.FinancialItemEntity
 import com.notification.app.data.local.entities.Gam3iyaEntity
 import com.notification.app.data.local.entities.Gam3iyaMemberEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
@@ -99,6 +101,7 @@ fun DashboardScreen(
     prayerTimes: List<PrayerTime> = emptyList(),
     workNotes: List<WorkNoteEntity> = emptyList(),
     waterCount: Int = 0,
+    financialItems: List<FinancialItemEntity> = emptyList(),
     aiSuggestions: List<AiSuggestion> = emptyList(),
     aiSuggestionsLoading: Boolean = false,
     onRefreshSuggestions: () -> Unit = {},
@@ -110,7 +113,8 @@ fun DashboardScreen(
     onNavigateToLedger: () -> Unit = {},
     onNavigateToGam3iya: () -> Unit = {},
     onNavigateToIslamic: () -> Unit = {},
-    onNavigateToHealthNotes: () -> Unit = {}
+    onNavigateToHealthNotes: () -> Unit = {},
+    onNavigateToFinancial: () -> Unit = {}
 ) {
     // Ask the existing Gemini pipeline for fresh suggestions once per
     // dashboard entry (the ViewModel guards with a TTL cache, so this is
@@ -208,11 +212,13 @@ fun DashboardScreen(
             prayerTimes = prayerTimes,
             workNotes = workNotes,
             waterCount = waterCount,
+            financialItems = financialItems,
             onWaterClick = onWaterClick,
             onNavigateToTasks = onNavigateToTasks,
             onNavigateToGam3iya = onNavigateToGam3iya,
             onNavigateToIslamic = onNavigateToIslamic,
-            onNavigateToHealthNotes = onNavigateToHealthNotes
+            onNavigateToHealthNotes = onNavigateToHealthNotes,
+            onNavigateToFinancial = onNavigateToFinancial
         )
 
         RafeeqSuggestionsSection(
@@ -676,16 +682,25 @@ private fun SmartWidgetsSection(
     prayerTimes: List<PrayerTime>,
     workNotes: List<WorkNoteEntity>,
     waterCount: Int,
+    financialItems: List<FinancialItemEntity>,
     onWaterClick: () -> Unit,
     onNavigateToTasks: () -> Unit,
     onNavigateToGam3iya: () -> Unit,
     onNavigateToIslamic: () -> Unit,
-    onNavigateToHealthNotes: () -> Unit
+    onNavigateToHealthNotes: () -> Unit,
+    onNavigateToFinancial: () -> Unit
 ) {
     val now = System.currentTimeMillis()
     val dayAhead = now + 24L * 60 * 60 * 1000
     val twoDaysAhead = now + 48L * 60 * 60 * 1000
     val monthAhead = now + 35L * 24 * 60 * 60 * 1000
+    val weekAhead = now + 7L * 24 * 60 * 60 * 1000
+    val dateOnlyFormat = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+
+    val nextFinancial = remember(financialItems) {
+        financialItems.filter { !it.isPaid && it.dueDate in now..weekAhead }
+            .minByOrNull { it.dueDate }
+    }
     val timeFormat = remember { SimpleDateFormat("EEE dd MMM, hh:mm a", Locale.getDefault()) }
 
     val medicineDue = remember(reminders) {
@@ -754,6 +769,15 @@ private fun SmartWidgetsSection(
             primaryLine = "$waterCount / $waterGoal",
             secondaryLine = if (isArabic) "اضغط لتسجيل كوب" else "Tap to log a glass",
             onClick = onWaterClick
+        )
+
+        SmartWidget(
+            visible = nextFinancial != null,
+            icon = Icons.Default.ReceiptLong,
+            title = if (isArabic) "استحقاق مالي قريب" else "Payment due soon",
+            primaryLine = nextFinancial?.title ?: "",
+            secondaryLine = nextFinancial?.let { dateOnlyFormat.format(Date(it.dueDate)) },
+            onClick = onNavigateToFinancial
         )
 
         SmartWidget(
