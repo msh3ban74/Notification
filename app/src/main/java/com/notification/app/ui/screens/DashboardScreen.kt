@@ -19,19 +19,24 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -42,9 +47,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.notification.app.data.local.entities.AlarmEntity
+import com.notification.app.data.local.entities.Gam3iyaMemberEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
 import com.notification.app.data.local.entities.ReminderEntity
+import com.notification.app.data.local.entities.WorkNoteEntity
+import com.notification.app.domain.calculator.PrayerTime
+import com.notification.app.ui.components.SmartWidget
+import com.notification.app.ui.components.SummaryCountRow
 import androidx.compose.ui.unit.dp
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.calculator.LedgerStatus
@@ -76,6 +86,7 @@ import java.util.Locale
  * No fake data: every row shown comes straight from the repositories, and
  * each section shows an honest empty message when there is nothing yet.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     isArabic: Boolean = false,
@@ -83,10 +94,16 @@ fun DashboardScreen(
     persons: List<PersonEntity> = emptyList(),
     transactions: List<LedgerTransactionEntity> = emptyList(),
     alarms: List<AlarmEntity> = emptyList(),
+    gam3iyaMembers: List<Gam3iyaMemberEntity> = emptyList(),
+    prayerTimes: List<PrayerTime> = emptyList(),
+    workNotes: List<WorkNoteEntity> = emptyList(),
+    waterCount: Int = 0,
     aiSuggestions: List<AiSuggestion> = emptyList(),
     aiSuggestionsLoading: Boolean = false,
     onRefreshSuggestions: () -> Unit = {},
+    onPullRefresh: () -> Unit = {},
     onAskRafeeq: (String) -> Unit = {},
+    onWaterClick: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToLedger: () -> Unit = {},
@@ -95,8 +112,18 @@ fun DashboardScreen(
     onNavigateToHealthNotes: () -> Unit = {}
 ) {
     // Ask the existing Gemini pipeline for fresh suggestions once per
-    // dashboard entry (the ViewModel guards against duplicate work).
+    // dashboard entry (the ViewModel guards with a TTL cache, so this is
+    // free while the cache is warm).
     LaunchedEffect(Unit) { onRefreshSuggestions() }
+
+    // Sprint 6 — pull-to-refresh: forces a fresh AI-suggestion fetch; the
+    // Room-backed sections refresh themselves reactively (hot StateFlows),
+    // so nothing is recreated and the UI never blocks.
+    PullToRefreshBox(
+        isRefreshing = aiSuggestionsLoading,
+        onRefresh = onPullRefresh,
+        modifier = Modifier.fillMaxSize()
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -106,6 +133,68 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
         GreetingSection(isArabic = isArabic)
+
+        // Sprint 6 — premium first-run welcome: shown only when the user
+        // has no data at all anywhere; disappears forever after the first
+        // Smart Item is created.
+        val hasAnyData = reminders.isNotEmpty() || persons.isNotEmpty() ||
+            alarms.isNotEmpty() || gam3iyaMembers.isNotEmpty() || workNotes.isNotEmpty()
+        if (!hasAnyData) {
+            PremiumCard {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.md)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(AppDimens.iconSizeLarge)
+                    )
+                    Text(
+                        text = if (isArabic) "أهلاً بك في رفيق" else "Welcome to Rafeeq",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = if (isArabic)
+                            "رفيقك الذكي في كل تفاصيل حياتك.\nاضغط زر (+) لإضافة أول عنصر ذكي"
+                        else
+                            "Your intelligent life companion.\nTap (+) to add your first Smart Item",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
+        // Sprint 6 — Executive: today's full summary + contextual widgets.
+        TodaysSummarySection(
+            isArabic = isArabic,
+            reminders = reminders,
+            persons = persons,
+            transactions = transactions,
+            alarms = alarms,
+            gam3iyaMembers = gam3iyaMembers,
+            workNotes = workNotes
+        )
+
+        SmartWidgetsSection(
+            isArabic = isArabic,
+            reminders = reminders,
+            gam3iyaMembers = gam3iyaMembers,
+            prayerTimes = prayerTimes,
+            workNotes = workNotes,
+            waterCount = waterCount,
+            onWaterClick = onWaterClick,
+            onNavigateToTasks = onNavigateToTasks,
+            onNavigateToGam3iya = onNavigateToGam3iya,
+            onNavigateToIslamic = onNavigateToIslamic,
+            onNavigateToHealthNotes = onNavigateToHealthNotes
+        )
 
         // Rafeeq Design Language — executive overview: the day at a
         // glance in four large calm tiles, all real data.
@@ -140,19 +229,38 @@ fun DashboardScreen(
             onClick = onNavigateToTasks
         )
 
-        UpcomingDebtsSection(
-            isArabic = isArabic,
-            persons = persons,
-            transactions = transactions,
-            onClick = onNavigateToLedger
-        )
+        // Sprint 6 — smart sections: these cards appear only when they
+        // actually have something to show.
+        val now = System.currentTimeMillis()
+        val hasOpenDebts = remember(persons, transactions) {
+            persons.any { p ->
+                LedgerCalculator.calculateNetBalance(
+                    transactions.filter { it.personId == p.id }
+                ).status != LedgerStatus.SETTLED
+            }
+        }
+        val hasUpcomingNotifications = remember(reminders, alarms) {
+            reminders.any { !it.isCompleted && it.dueDate >= now } ||
+                alarms.any { it.isEnabled && it.timeInMillis >= now }
+        }
 
-        UpcomingNotificationsSection(
-            isArabic = isArabic,
-            reminders = reminders,
-            alarms = alarms,
-            onClick = onNavigateToNotifications
-        )
+        if (hasOpenDebts) {
+            UpcomingDebtsSection(
+                isArabic = isArabic,
+                persons = persons,
+                transactions = transactions,
+                onClick = onNavigateToLedger
+            )
+        }
+
+        if (hasUpcomingNotifications) {
+            UpcomingNotificationsSection(
+                isArabic = isArabic,
+                reminders = reminders,
+                alarms = alarms,
+                onClick = onNavigateToNotifications
+            )
+        }
 
         QuickActionsSection(
             isArabic = isArabic,
@@ -168,6 +276,7 @@ fun DashboardScreen(
             persons = persons,
             transactions = transactions
         )
+    }
     }
 }
 
@@ -388,6 +497,207 @@ private fun UpcomingDebtsSection(
                 }
             }
         }
+    }
+}
+
+/**
+ * Sprint 6 — Today's Summary: the full executive breakdown of the day
+ * (pending/overdue tasks, upcoming reminders and alarms, outstanding
+ * debts, upcoming gam3iya payouts, health reminders). Only non-zero
+ * rows are shown, and the whole card hides itself when the day is
+ * clear. All figures come from the EXISTING repositories/calculators.
+ */
+@Composable
+private fun TodaysSummarySection(
+    isArabic: Boolean,
+    reminders: List<ReminderEntity>,
+    persons: List<PersonEntity>,
+    transactions: List<LedgerTransactionEntity>,
+    alarms: List<AlarmEntity>,
+    gam3iyaMembers: List<Gam3iyaMemberEntity>,
+    workNotes: List<WorkNoteEntity>
+) {
+    val now = System.currentTimeMillis()
+    val monthAhead = now + 35L * 24 * 60 * 60 * 1000
+
+    val pendingTasks = remember(reminders) { reminders.count { !it.isCompleted } }
+    val overdueTasks = remember(reminders) {
+        reminders.count { !it.isCompleted && it.dueDate < now }
+    }
+    val upcomingReminders = remember(reminders) {
+        reminders.count { !it.isCompleted && it.dueDate >= now }
+    }
+    val upcomingAlarms = remember(alarms) {
+        alarms.count { it.isEnabled && it.timeInMillis >= now }
+    }
+    val outstandingDebts = remember(persons, transactions) {
+        persons.count { p ->
+            LedgerCalculator.calculateNetBalance(
+                transactions.filter { it.personId == p.id }
+            ).status != LedgerStatus.SETTLED
+        }
+    }
+    val gam3iyaPayments = remember(gam3iyaMembers) {
+        gam3iyaMembers.count { !it.isPayoutReceived && it.payoutDate in now..monthAhead }
+    }
+    val healthReminders = remember(reminders, workNotes) {
+        reminders.count {
+            !it.isCompleted && it.category == ReminderCategory.MEDICINE.name
+        } + workNotes.count { !it.isDone && (it.reminderTime ?: 0L) >= now }
+    }
+
+    val total = pendingTasks + upcomingAlarms + outstandingDebts + gam3iyaPayments + healthReminders
+    if (total == 0) return
+
+    PremiumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Text(
+                text = if (isArabic) "ملخص اليوم" else "Today's Summary",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            HorizontalDivider()
+            if (pendingTasks > 0) SummaryCountRow(
+                icon = Icons.Default.CheckCircle,
+                label = if (isArabic) "مهام معلقة" else "Pending tasks",
+                count = pendingTasks
+            )
+            if (overdueTasks > 0) SummaryCountRow(
+                icon = Icons.Default.Warning,
+                label = if (isArabic) "مهام متأخرة" else "Overdue tasks",
+                count = overdueTasks,
+                highlight = true
+            )
+            if (upcomingReminders > 0) SummaryCountRow(
+                icon = Icons.Default.NotificationsActive,
+                label = if (isArabic) "تذكيرات قادمة" else "Upcoming reminders",
+                count = upcomingReminders
+            )
+            if (upcomingAlarms > 0) SummaryCountRow(
+                icon = Icons.Default.Alarm,
+                label = if (isArabic) "منبهات قادمة" else "Upcoming alarms",
+                count = upcomingAlarms
+            )
+            if (outstandingDebts > 0) SummaryCountRow(
+                icon = Icons.Default.AccountBalanceWallet,
+                label = if (isArabic) "ديون قائمة" else "Outstanding debts",
+                count = outstandingDebts
+            )
+            if (gam3iyaPayments > 0) SummaryCountRow(
+                icon = Icons.Default.Group,
+                label = if (isArabic) "أقساط جمعية قادمة" else "Upcoming gam3iya payments",
+                count = gam3iyaPayments
+            )
+            if (healthReminders > 0) SummaryCountRow(
+                icon = Icons.Default.Medication,
+                label = if (isArabic) "تذكيرات صحية" else "Health reminders",
+                count = healthReminders
+            )
+        }
+    }
+}
+
+/**
+ * Sprint 6 — Smart Widgets: contextual cards that animate in only when
+ * relevant (medicine due, next prayer, upcoming meeting, gam3iya payout,
+ * water goal, open work notes) and collapse away otherwise. Each one is
+ * a [SmartWidget] reading EXISTING data — no new logic.
+ */
+@Composable
+private fun SmartWidgetsSection(
+    isArabic: Boolean,
+    reminders: List<ReminderEntity>,
+    gam3iyaMembers: List<Gam3iyaMemberEntity>,
+    prayerTimes: List<PrayerTime>,
+    workNotes: List<WorkNoteEntity>,
+    waterCount: Int,
+    onWaterClick: () -> Unit,
+    onNavigateToTasks: () -> Unit,
+    onNavigateToGam3iya: () -> Unit,
+    onNavigateToIslamic: () -> Unit,
+    onNavigateToHealthNotes: () -> Unit
+) {
+    val now = System.currentTimeMillis()
+    val dayAhead = now + 24L * 60 * 60 * 1000
+    val twoDaysAhead = now + 48L * 60 * 60 * 1000
+    val monthAhead = now + 35L * 24 * 60 * 60 * 1000
+    val timeFormat = remember { SimpleDateFormat("EEE dd MMM, hh:mm a", Locale.getDefault()) }
+
+    val medicineDue = remember(reminders) {
+        reminders.filter {
+            !it.isCompleted && it.category == ReminderCategory.MEDICINE.name &&
+                it.dueDate in now..dayAhead
+        }.sortedBy { it.dueDate }
+    }
+    val nextPrayer = remember(prayerTimes) {
+        prayerTimes.filter { it.timestamp > now }.minByOrNull { it.timestamp }
+    }
+    val nextAppointment = remember(reminders) {
+        reminders.filter {
+            !it.isCompleted && it.category == ReminderCategory.APPOINTMENT.name &&
+                it.dueDate in now..twoDaysAhead
+        }.minByOrNull { it.dueDate }
+    }
+    val nextPayout = remember(gam3iyaMembers) {
+        gam3iyaMembers.filter { !it.isPayoutReceived && it.payoutDate in now..monthAhead }
+            .minByOrNull { it.payoutDate }
+    }
+    val openNotes = remember(workNotes) { workNotes.count { !it.isDone } }
+    val waterGoal = 8
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        SmartWidget(
+            visible = medicineDue.isNotEmpty(),
+            icon = Icons.Default.Medication,
+            title = if (isArabic) "دواء اليوم" else "Medicine today",
+            primaryLine = medicineDue.firstOrNull()?.title ?: "",
+            secondaryLine = medicineDue.firstOrNull()?.let { timeFormat.format(Date(it.dueDate)) },
+            onClick = onNavigateToTasks
+        )
+
+        SmartWidget(
+            visible = nextPrayer != null,
+            icon = Icons.Default.Mosque,
+            title = if (isArabic) "الصلاة القادمة" else "Next prayer",
+            primaryLine = nextPrayer?.let { if (isArabic) it.nameAr else it.nameEn } ?: "",
+            secondaryLine = nextPrayer?.timeFormatted,
+            onClick = onNavigateToIslamic
+        )
+
+        SmartWidget(
+            visible = nextAppointment != null,
+            icon = Icons.Default.Event,
+            title = if (isArabic) "موعد قادم" else "Upcoming meeting",
+            primaryLine = nextAppointment?.title ?: "",
+            secondaryLine = nextAppointment?.let { timeFormat.format(Date(it.dueDate)) },
+            onClick = onNavigateToTasks
+        )
+
+        SmartWidget(
+            visible = nextPayout != null,
+            icon = Icons.Default.Group,
+            title = if (isArabic) "قبض جمعية قادم" else "Gam3iya payout",
+            primaryLine = nextPayout?.memberName ?: "",
+            secondaryLine = nextPayout?.let { timeFormat.format(Date(it.payoutDate)) },
+            onClick = onNavigateToGam3iya
+        )
+
+        SmartWidget(
+            visible = waterCount in 1 until waterGoal,
+            icon = Icons.Default.WaterDrop,
+            title = if (isArabic) "هدف الماء" else "Water goal",
+            primaryLine = "$waterCount / $waterGoal",
+            secondaryLine = if (isArabic) "اضغط لتسجيل كوب" else "Tap to log a glass",
+            onClick = onWaterClick
+        )
+
+        SmartWidget(
+            visible = openNotes > 0,
+            icon = Icons.Default.CheckCircle,
+            title = if (isArabic) "ملاحظات العمل" else "Work notes",
+            primaryLine = if (isArabic) "$openNotes قيد التنفيذ" else "$openNotes open",
+            onClick = onNavigateToHealthNotes
+        )
     }
 }
 

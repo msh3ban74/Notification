@@ -46,6 +46,9 @@ class NotificationRepository(private val db: AppDatabase) {
     fun getMembersForGam3iya(gam3iyaId: Long): Flow<List<Gam3iyaMemberEntity>> =
         db.gam3iyaDao().getMembersForGam3iya(gam3iyaId)
 
+    // Sprint 6 — Executive Dashboard (read-only observation).
+    val allGam3iyaMembers: Flow<List<Gam3iyaMemberEntity>> = db.gam3iyaDao().getAllMembers()
+
     suspend fun getGam3iyaById(id: Long): Gam3iyaEntity? = db.gam3iyaDao().getGam3iyaById(id)
 
     suspend fun createGam3iyaWithMembers(

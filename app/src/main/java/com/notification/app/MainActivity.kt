@@ -114,6 +114,7 @@ class MainActivity : ComponentActivity() {
             val persons by viewModel.allPersons.collectAsState()
             val transactions by viewModel.allTransactions.collectAsState()
             val gam3iyas by viewModel.allGam3iyas.collectAsState()
+            val gam3iyaMembers by viewModel.allGam3iyaMembers.collectAsState()
             val alarms by viewModel.allAlarms.collectAsState()
             val prayerTimes by viewModel.prayerTimes.collectAsState()
             val workNotes by viewModel.allWorkNotes.collectAsState()
@@ -296,11 +297,20 @@ class MainActivity : ComponentActivity() {
                                     persons = persons,
                                     transactions = transactions,
                                     alarms = alarms,
+                                    gam3iyaMembers = gam3iyaMembers,
+                                    prayerTimes = prayerTimes,
+                                    workNotes = workNotes,
+                                    waterCount = waterCount,
                                     aiSuggestions = aiSuggestions,
                                     aiSuggestionsLoading = aiSuggestionsLoading,
                                     onRefreshSuggestions = {
                                         viewModel.refreshAiSuggestions(isArabic = isArabic)
                                     },
+                                    onPullRefresh = {
+                                        // Pull-to-refresh: bypass the TTL cache.
+                                        viewModel.refreshAiSuggestions(isArabic = isArabic, force = true)
+                                    },
+                                    onWaterClick = { viewModel.incrementWater() },
                                     onAskRafeeq = { question ->
                                         // Existing assistant flow: open the AI
                                         // tab and send through the same pipeline.

@@ -51,27 +51,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val alarmRingtoneUri: StateFlow<String> = preferencesRepository.alarmRingtoneUriFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
-    // Database Flows
+    // Database Flows.
+    // Sprint 6 — performance: core dashboard flows use SharingStarted.Lazily
+    // so Room keeps them HOT for the ViewModel's whole life. Switching tabs
+    // never tears the subscription down, so returning to the Dashboard (or
+    // any list screen) renders instantly from the cached StateFlow value —
+    // Room pushes fresh values in the background when data changes.
     val allReminders: StateFlow<List<ReminderEntity>> = repository.allReminders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val pendingReminders: StateFlow<List<ReminderEntity>> = repository.pendingReminders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allPersons: StateFlow<List<PersonEntity>> = repository.allPersons
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allTransactions: StateFlow<List<LedgerTransactionEntity>> = repository.allTransactions
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allGam3iyas: StateFlow<List<Gam3iyaEntity>> = repository.allGam3iyas
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Sprint 6 — Executive Dashboard: upcoming gam3iya payouts widget.
+    val allGam3iyaMembers: StateFlow<List<Gam3iyaMemberEntity>> = repository.allGam3iyaMembers
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allAlarms: StateFlow<List<AlarmEntity>> = repository.allAlarms
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allWorkNotes: StateFlow<List<WorkNoteEntity>> = repository.allWorkNotes
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     // Islamic Prayers State
     private val _prayerTimes = MutableStateFlow<List<PrayerTime>>(emptyList())
@@ -92,22 +101,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _aiSuggestionsLoading = MutableStateFlow(false)
     val aiSuggestionsLoading: StateFlow<Boolean> = _aiSuggestionsLoading.asStateFlow()
 
+    // Sprint 6 — TTL cache for AI suggestions: within the TTL the cached
+    // list is served instantly with no network call; pull-to-refresh
+    // passes force=true to bypass. The UI is never blocked either way.
+    private var aiSuggestionsFetchedAt = 0L
+
     /**
      * Refreshes the dashboard AI suggestions. Reuses the existing Gemini
-     * repository and API-key resolution; on failure the list simply stays
-     * empty and the dashboard falls back to its local rule-based insights.
+     * repository and API-key resolution; on failure the previous list is
+     * kept (or stays empty, letting the dashboard fall back to its local
+     * rule-based insights).
      */
     fun refreshAiSuggestions(isArabic: Boolean, force: Boolean = false) {
         if (_aiSuggestionsLoading.value) return
-        if (!force && _aiSuggestions.value.isNotEmpty()) return
+        val fresh = System.currentTimeMillis() - aiSuggestionsFetchedAt < AI_SUGGESTIONS_TTL_MS
+        if (!force && _aiSuggestions.value.isNotEmpty() && fresh) return
         viewModelScope.launch {
             _aiSuggestionsLoading.value = true
-            _aiSuggestions.value = geminiRepository.generateDashboardSuggestions(
+            val result = geminiRepository.generateDashboardSuggestions(
                 isArabic = isArabic,
                 customApiKey = geminiApiKey.value
             )
+            if (result.isNotEmpty()) {
+                _aiSuggestions.value = result
+                aiSuggestionsFetchedAt = System.currentTimeMillis()
+            }
             _aiSuggestionsLoading.value = false
         }
+    }
+
+    companion object {
+        /** How long cached AI suggestions stay fresh before a silent re-fetch. */
+        const val AI_SUGGESTIONS_TTL_MS: Long = 15 * 60 * 1000L
     }
 
     // Water counter state
