@@ -20,6 +20,12 @@ on:
 permissions:
   contents: write
 
+# A newer push supersedes and cancels any still-running build of the same
+# branch, so a hung emulator can never block the pipeline.
+concurrency:
+  group: rafeeq-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-debug:
     runs-on: ubuntu-latest
@@ -109,6 +115,7 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
 
       - name: Emulator deep UI test (walk every screen)
+        timeout-minutes: 25
         # Boots a real Android emulator, installs the signed release APK,
         # and runs ci/emulator_ui_test.sh — a full walk of every screen
         # with per-step crash checks and screenshots. The test lives in a

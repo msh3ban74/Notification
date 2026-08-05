@@ -19,19 +19,19 @@ adb logcat -c
 adb shell am start -n com.notification.app/.MainActivity
 sleep 22
 
-snap() { adb exec-out screencap -p > "shots/$1.png" 2>/dev/null || true; }
+snap() { timeout 20 adb exec-out screencap -p > "shots/$1.png" 2>/dev/null || true; }
 
 fail_with_crash() {
   echo "==================== CRASH at step: $1 ===================="
   adb logcat -d | grep -B 2 -A 45 "FATAL EXCEPTION" | head -120
   snap "CRASH-$1"
-  adb logcat -d > logcat-full.txt || true
+  timeout 30 adb logcat -d > logcat-full.txt || true
   exit 1
 }
 
 checkpoint() {
   sleep 1
-  if adb logcat -d | grep -q "FATAL EXCEPTION"; then
+  if timeout 25 adb logcat -d | grep -q "FATAL EXCEPTION"; then
     fail_with_crash "$1"
   fi
   if adb logcat -d | grep -q "ANR in com.notification.app"; then
@@ -42,8 +42,8 @@ checkpoint() {
 }
 
 tap_text() {
-  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
-  adb pull /sdcard/ui.xml ui.xml >/dev/null 2>&1 || true
+  timeout 20 adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
+  timeout 15 adb pull /sdcard/ui.xml ui.xml >/dev/null 2>&1 || true
   COORDS=$(python3 - "$1" <<'PYEOF'
 import re, sys
 try:
@@ -122,9 +122,9 @@ sleep 6
 checkpoint "11-ai-suggestion-sent"
 
 # Random exploration
-adb shell monkey -p com.notification.app --throttle 250 --pct-syskeys 0 400 || true
+timeout 240 adb shell monkey -p com.notification.app --throttle 250 --pct-syskeys 0 400 || true
 sleep 4
-adb logcat -d > logcat-full.txt || true
+timeout 30 adb logcat -d > logcat-full.txt || true
 if grep -q "FATAL EXCEPTION" logcat-full.txt; then
   echo "==================== CRASH during monkey ===================="
   grep -B 2 -A 45 "FATAL EXCEPTION" logcat-full.txt | head -120
