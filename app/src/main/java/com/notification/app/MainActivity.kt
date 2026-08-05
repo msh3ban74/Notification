@@ -226,6 +226,11 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 FloatingActionButton(
                                     onClick = { showSmartItemSheet = true },
+                                    // Visual polish — the FAB is the app's
+                                    // primary gold accent: full champagne
+                                    // gold with a deep floating shadow.
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary,
                                     elevation = FloatingActionButtonDefaults.elevation(
                                         defaultElevation = com.notification.app.ui.designsystem.AppElevation.high,
                                         pressedElevation = com.notification.app.ui.designsystem.AppElevation.high + com.notification.app.ui.designsystem.AppElevation.medium

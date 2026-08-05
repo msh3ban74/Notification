@@ -62,6 +62,7 @@ import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.ui.designsystem.AppDimens
 import com.notification.app.ui.designsystem.AppPadding
 import com.notification.app.ui.designsystem.PremiumCard
+import com.notification.app.ui.designsystem.PremiumCardStyle
 import com.notification.app.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -612,7 +613,7 @@ private fun ExecutiveSummaryCard(
         }
     }
 
-    PremiumCard {
+    PremiumCard(style = PremiumCardStyle.Hero) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
                 text = greetingLine,
@@ -861,7 +862,7 @@ private data class StatTileData(
 private fun StatTile(data: StatTileData, modifier: Modifier = Modifier) {
     PremiumCard(
         onClick = data.onClick,
-        contentPadding = AppPadding.cardCompact,
+        style = PremiumCardStyle.Compact,
         modifier = modifier
     ) {
         Row(

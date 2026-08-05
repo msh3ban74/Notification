@@ -53,10 +53,13 @@ fun PremiumTopAppBar(
     title: String,
     onProfileClick: () -> Unit
 ) {
+    // Visual polish — transparent app bar: the bar shares the screen's
+    // background so content and chrome read as ONE calm surface (Linear /
+    // Pixel style); the status-bar inset still keeps content clear.
     Surface(
-        tonalElevation = AppElevation.topBar,
-        shadowElevation = AppElevation.topBar,
-        color = MaterialTheme.colorScheme.surface
+        tonalElevation = AppElevation.none,
+        shadowElevation = AppElevation.none,
+        color = MaterialTheme.colorScheme.background
     ) {
         // QA fix (device screenshots): the app is edge-to-edge, so without
         // consuming the status-bar inset the bar contents rendered UNDER the
