@@ -47,6 +47,9 @@ jobs:
       - name: Write local.properties from secrets
         run: |
           echo "GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }}" >> local.properties
+          if [ -z "${{ secrets.GOOGLE_WEB_CLIENT_ID }}" ]; then
+            echo "::warning::GOOGLE_WEB_CLIENT_ID secret is empty — Google Sign-In will not work in this APK. Add it in repo Settings → Secrets → Actions."
+          fi
 
       - name: Ensure Gradle Wrapper exists
         run: |
