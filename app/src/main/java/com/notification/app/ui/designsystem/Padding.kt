@@ -19,16 +19,16 @@ import androidx.compose.ui.unit.dp
  */
 object AppPadding {
     /** Padding used for the whole screen content area. */
-    val screen = 16.dp
+    val screen = 20.dp
 
     /** Padding inside a standard card. */
-    val card = 16.dp
+    val card = 20.dp
 
     /** Padding inside a compact card (e.g. a stat chip). */
-    val cardCompact = 12.dp
+    val cardCompact = 14.dp
 
     /** Padding inside a list item / row. */
-    val listItem = 12.dp
+    val listItem = 16.dp
 
     /** Horizontal padding for a button's content. */
     val buttonHorizontal = 24.dp

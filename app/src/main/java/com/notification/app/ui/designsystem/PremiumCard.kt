@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.Dp
  * a raw [Card] on new screens so every card in the app shares the same
  * shape, elevation, and internal padding by default.
  *
- * Polish added this sprint: a softer corner radius via [AppRadius.medium],
+ * Polish added this sprint: the Rafeeq Design Language card radius via [AppRadius.card],
  * an elevation bump on press, and a subtle press-scale so tappable cards
  * feel responsive. No colors were changed.
  *
@@ -63,7 +63,7 @@ fun PremiumCard(
 
     Card(
         modifier = cardModifier,
-        shape = AppRadius.medium,
+        shape = AppRadius.card,
         colors = CardDefaults.cardColors(),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (elevated) AppElevation.floatingCard else AppElevation.none,

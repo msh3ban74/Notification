@@ -24,9 +24,10 @@ val OnBackground = Color(0xFF1C1E24)
 val OnSurface = Color(0xFF1C1E24)
 val OnSurfaceVariant = Color(0xFF6E6656)
 
-val Success = Color(0xFF3E9B5F)
+val Success = Color(0xFF2E9E77)     // elegant emerald
 val Warning = Color(0xFFD4AF37)
-val Error = Color(0xFFC94F4F)
+val Error = Color(0xFFC94F4F)       // soft red
+val Info = Color(0xFF7A93B8)        // muted blue
 
 // Dark ("royal") side of the palette
 val RichBlack = Color(0xFF0B0B10)

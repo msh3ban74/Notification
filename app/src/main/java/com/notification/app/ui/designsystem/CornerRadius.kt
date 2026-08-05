@@ -13,11 +13,21 @@ import androidx.compose.ui.unit.dp
  * don't need to reference MaterialTheme.shapes manually or hard-code dp.
  */
 object AppRadius {
-    val extraSmall = RoundedCornerShape(8.dp)
-    val small = RoundedCornerShape(12.dp)
-    val medium = RoundedCornerShape(16.dp)
-    val large = RoundedCornerShape(24.dp)
+    val extraSmall = RoundedCornerShape(10.dp)
+    val small = RoundedCornerShape(14.dp)
+    val medium = RoundedCornerShape(20.dp)
+    val large = RoundedCornerShape(26.dp)
     val extraLarge = RoundedCornerShape(32.dp)
+
+    // Rafeeq Design Language semantics
+    /** Premium cards: 26dp. */
+    val card = RoundedCornerShape(26.dp)
+
+    /** Buttons: 22dp. */
+    val button = RoundedCornerShape(22.dp)
+
+    /** Bottom sheets: very rounded top corners. */
+    val sheet = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
 
     /** Fully rounded — for pills, chips, and circular buttons. */
     val full = RoundedCornerShape(50)

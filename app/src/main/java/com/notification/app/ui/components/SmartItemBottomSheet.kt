@@ -37,6 +37,7 @@ import com.notification.app.domain.model.SmartItemType
 import com.notification.app.ui.designsystem.AppAnimationDuration
 import com.notification.app.ui.designsystem.AppDimens
 import com.notification.app.ui.designsystem.AppPadding
+import com.notification.app.ui.designsystem.AppRadius
 import com.notification.app.ui.designsystem.PremiumCard
 import com.notification.app.ui.theme.Spacing
 
@@ -66,7 +67,9 @@ fun SmartItemBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState
+        sheetState = sheetState,
+        // Rafeeq Design Language: bottom sheets are very rounded.
+        shape = AppRadius.sheet
     ) {
         Column(
             modifier = Modifier

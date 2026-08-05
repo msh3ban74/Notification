@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Mosque
@@ -40,6 +41,7 @@ import com.notification.app.data.local.entities.PersonEntity
 import com.notification.app.data.local.entities.ReminderEntity
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.calculator.LedgerStatus
+import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.ui.designsystem.AppDimens
 import com.notification.app.ui.designsystem.AppPadding
 import com.notification.app.ui.designsystem.PremiumCard
@@ -89,6 +91,26 @@ fun DashboardScreen(
     ) {
         GreetingSection(isArabic = isArabic)
 
+        // Rafeeq Design Language — executive overview: the day at a
+        // glance in four large calm tiles, all real data.
+        ExecutiveStatsSection(
+            isArabic = isArabic,
+            reminders = reminders,
+            persons = persons,
+            transactions = transactions,
+            alarms = alarms,
+            onTasksClick = onNavigateToTasks,
+            onNotificationsClick = onNavigateToNotifications,
+            onLedgerClick = onNavigateToLedger
+        )
+
+        RafeeqSuggestionsSection(
+            isArabic = isArabic,
+            reminders = reminders,
+            persons = persons,
+            transactions = transactions
+        )
+
         TodaysTasksSection(
             isArabic = isArabic,
             reminders = reminders,
@@ -128,14 +150,20 @@ fun DashboardScreen(
 
 @Composable
 private fun GreetingSection(isArabic: Boolean) {
+    val dateLine = remember(isArabic) {
+        SimpleDateFormat(
+            "EEEE، d MMMM yyyy",
+            if (isArabic) Locale("ar") else Locale.ENGLISH
+        ).format(Date())
+    }
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Text(
             text = if (isArabic) "أهلاً بيك 👋" else "Welcome back 👋",
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold
         )
         Text(
-            text = if (isArabic) "نظرة سريعة على يومك" else "Here's a quick look at your day",
+            text = dateLine,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -335,6 +363,203 @@ private fun UpcomingDebtsSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Rafeeq Design Language — executive stat tiles (2×2): today's tasks,
+ * upcoming notifications, open debts, and due bills as large calm
+ * numbers. Every figure is computed from the EXISTING repositories.
+ */
+@Composable
+private fun ExecutiveStatsSection(
+    isArabic: Boolean,
+    reminders: List<ReminderEntity>,
+    persons: List<PersonEntity>,
+    transactions: List<LedgerTransactionEntity>,
+    alarms: List<AlarmEntity>,
+    onTasksClick: () -> Unit,
+    onNotificationsClick: () -> Unit,
+    onLedgerClick: () -> Unit
+) {
+    val now = System.currentTimeMillis()
+    val (dayStart, dayEnd) = remember {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+        val start = cal.timeInMillis
+        cal.add(Calendar.DAY_OF_YEAR, 1)
+        start to cal.timeInMillis
+    }
+
+    val todayTasks = remember(reminders) {
+        reminders.count { !it.isCompleted && it.dueDate in dayStart until dayEnd }
+    }
+    val upcomingNotifications = remember(reminders, alarms) {
+        reminders.count { !it.isCompleted && it.dueDate >= now } +
+            alarms.count { it.isEnabled && it.timeInMillis >= now }
+    }
+    val openDebts = remember(persons, transactions) {
+        persons.count { p ->
+            val summary = LedgerCalculator.calculateNetBalance(
+                transactions.filter { it.personId == p.id }
+            )
+            summary.status != LedgerStatus.SETTLED
+        }
+    }
+    val dueBills = remember(reminders) {
+        reminders.count {
+            !it.isCompleted && it.category == ReminderCategory.BILL.name
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            StatTile(
+                value = todayTasks,
+                label = if (isArabic) "مهام اليوم" else "Today's tasks",
+                onClick = onTasksClick,
+                modifier = Modifier.weight(1f)
+            )
+            StatTile(
+                value = upcomingNotifications,
+                label = if (isArabic) "التنبيهات القادمة" else "Upcoming alerts",
+                onClick = onNotificationsClick,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            StatTile(
+                value = openDebts,
+                label = if (isArabic) "ديون مفتوحة" else "Open debts",
+                onClick = onLedgerClick,
+                modifier = Modifier.weight(1f)
+            )
+            StatTile(
+                value = dueBills,
+                label = if (isArabic) "فواتير مستحقة" else "Bills due",
+                onClick = onTasksClick,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatTile(
+    value: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    PremiumCard(onClick = onClick, modifier = modifier) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = value.toString(),
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/**
+ * Rafeeq Design Language — "Rafeeq Suggestions": calm, data-driven
+ * insights derived from the EXISTING repositories with simple rules
+ * (no fake content; the card hides itself when there is nothing worth
+ * saying). This is the dashboard's intelligent voice.
+ */
+@Composable
+private fun RafeeqSuggestionsSection(
+    isArabic: Boolean,
+    reminders: List<ReminderEntity>,
+    persons: List<PersonEntity>,
+    transactions: List<LedgerTransactionEntity>
+) {
+    val now = System.currentTimeMillis()
+    val weekAhead = now + 7L * 24 * 60 * 60 * 1000
+
+    val suggestions = remember(reminders, persons, transactions, isArabic) {
+        buildList {
+            val overdue = reminders.count { !it.isCompleted && it.dueDate < now }
+            if (overdue > 0) add(
+                if (isArabic) "لديك $overdue ${if (overdue == 1) "مهمة متأخرة" else "مهام متأخرة"} — راجعها الآن"
+                else "You have $overdue overdue task${if (overdue == 1) "" else "s"} — review them now"
+            )
+
+            val billsThisWeek = reminders.count {
+                !it.isCompleted && it.category == ReminderCategory.BILL.name &&
+                    it.dueDate in now..weekAhead
+            }
+            if (billsThisWeek > 0) add(
+                if (isArabic) "لديك $billsThisWeek ${if (billsThisWeek == 1) "فاتورة" else "فواتير"} خلال الأسبوع القادم"
+                else "You have $billsThisWeek bill${if (billsThisWeek == 1) "" else "s"} due within a week"
+            )
+
+            val iOweCount = persons.count { p ->
+                LedgerCalculator.calculateNetBalance(
+                    transactions.filter { it.personId == p.id }
+                ).status == LedgerStatus.I_OWE_THEM
+            }
+            if (iOweCount > 0) add(
+                if (isArabic) "عليك مستحقات لـ $iOweCount ${if (iOweCount == 1) "شخص" else "أشخاص"} — راجع الدفتر"
+                else "You owe $iOweCount ${if (iOweCount == 1) "person" else "people"} — check the ledger"
+            )
+
+            val medicineToday = reminders.count {
+                !it.isCompleted && it.category == ReminderCategory.MEDICINE.name &&
+                    it.dueDate in now..(now + 24L * 60 * 60 * 1000)
+            }
+            if (medicineToday > 0) add(
+                if (isArabic) "لا تنسَ دواءك — $medicineToday ${if (medicineToday == 1) "جرعة" else "جرعات"} خلال ٢٤ ساعة"
+                else "Don't forget your medicine — $medicineToday dose${if (medicineToday == 1) "" else "s"} in the next 24h"
+            )
+        }.take(3)
+    }
+
+    if (suggestions.isEmpty()) return
+
+    PremiumCard {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(AppDimens.iconSizeMedium)
+                )
+                Text(
+                    text = if (isArabic) "اقتراحات رفيق" else "Rafeeq Suggestions",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            HorizontalDivider()
+            suggestions.forEach { suggestion ->
+                Text(
+                    text = suggestion,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }
