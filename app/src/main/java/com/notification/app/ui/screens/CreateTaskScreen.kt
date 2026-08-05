@@ -60,42 +60,119 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * Sprint 3 — Smart Task.
+ * Sprint 5 — Smart Items rollout.
  *
- * The first REAL Smart Item flow, replacing the "Coming Soon" placeholder
- * for the "Task" type picked from the Dashboard's "+" bottom sheet.
+ * Per-type configuration for the shared smart reminder form below. Every
+ * type here rides the SAME existing reminder pipeline — only the screen
+ * title, the stored [ReminderCategory], and the pre-selected repeat differ.
+ * This is what lets Bill / Appointment / Medicine become real flows without
+ * duplicating the Task form or inventing new business logic.
+ */
+data class SmartReminderFormConfig(
+    val newTitleEn: String,
+    val newTitleAr: String,
+    val editTitleEn: String,
+    val editTitleAr: String,
+    val category: ReminderCategory,
+    val defaultRecurrence: RecurrenceType = RecurrenceType.NONE,
+    val savedMessageEn: String,
+    val savedMessageAr: String
+) {
+    companion object {
+        val Task = SmartReminderFormConfig(
+            newTitleEn = "New Task", newTitleAr = "مهمة جديدة",
+            editTitleEn = "Edit Task", editTitleAr = "تعديل المهمة",
+            category = ReminderCategory.CUSTOM,
+            savedMessageEn = "Task created successfully.",
+            savedMessageAr = "تم إنشاء المهمة بنجاح"
+        )
+        val Bill = SmartReminderFormConfig(
+            newTitleEn = "New Bill", newTitleAr = "فاتورة جديدة",
+            editTitleEn = "Edit Bill", editTitleAr = "تعديل الفاتورة",
+            category = ReminderCategory.BILL,
+            defaultRecurrence = RecurrenceType.MONTHLY,
+            savedMessageEn = "Bill saved successfully.",
+            savedMessageAr = "تم حفظ الفاتورة بنجاح"
+        )
+        val Appointment = SmartReminderFormConfig(
+            newTitleEn = "New Appointment", newTitleAr = "موعد جديد",
+            editTitleEn = "Edit Appointment", editTitleAr = "تعديل الموعد",
+            category = ReminderCategory.APPOINTMENT,
+            savedMessageEn = "Appointment saved successfully.",
+            savedMessageAr = "تم حفظ الموعد بنجاح"
+        )
+        val Medicine = SmartReminderFormConfig(
+            newTitleEn = "New Medicine", newTitleAr = "دواء جديد",
+            editTitleEn = "Edit Medicine", editTitleAr = "تعديل الدواء",
+            category = ReminderCategory.MEDICINE,
+            defaultRecurrence = RecurrenceType.DAILY,
+            savedMessageEn = "Medicine reminder saved successfully.",
+            savedMessageAr = "تم حفظ تذكير الدواء بنجاح"
+        )
+
+        /** Maps a SmartItemType id from the "+" bottom sheet to its form config. */
+        fun forItemId(itemId: String?): SmartReminderFormConfig = when (itemId) {
+            "bill" -> Bill
+            "appointment" -> Appointment
+            "medicine" -> Medicine
+            else -> Task
+        }
+    }
+}
+
+/**
+ * Sprint 3 — Smart Task (extended in Sprint 5 to power Bill, Appointment
+ * and Medicine through [SmartReminderFormConfig], plus an EDIT mode).
+ *
+ * The REAL Smart Item flow replacing the "Coming Soon" placeholders for
+ * reminder-shaped types picked from the Dashboard's "+" bottom sheet.
  *
  * This screen is UI ONLY — it builds a [ReminderEntity] and hands it to
  * [onSave]. Persistence and alarm scheduling are the EXISTING pipeline
- * (MainViewModel.addReminder → NotificationRepository.insertReminder →
- * AlarmManagerScheduler.scheduleReminderAlarm). No second reminder
- * implementation is introduced here.
+ * (MainViewModel.addReminder / updateTaskReminder → NotificationRepository
+ * → AlarmManagerScheduler). No second reminder implementation exists.
  *
  *  - Priority   → maps onto the existing PreAlertOption system (see
  *                 [TaskPriority]); the schema is untouched.
  *  - Repeat     → the existing, fully supported [RecurrenceType].
- *  - Category   → stored as CUSTOM (tasks are surfaced on the existing
- *                 Tasks tab, which lists all reminders).
+ *  - Edit mode  → pass [initial]; the form pre-fills and Save keeps the
+ *                 same row id (and original category) so the existing
+ *                 update pipeline replaces the scheduled alarm.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateTaskScreen(
     isArabic: Boolean,
+    config: SmartReminderFormConfig = SmartReminderFormConfig.Task,
+    initial: ReminderEntity? = null,
     onSave: (ReminderEntity) -> Unit,
     onCancel: () -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var priority by remember { mutableStateOf(TaskPriority.MEDIUM) }
-    var recurrence by remember { mutableStateOf(RecurrenceType.NONE) }
+    var title by remember { mutableStateOf(initial?.title ?: "") }
+    var description by remember { mutableStateOf(initial?.note ?: "") }
+    var priority by remember {
+        mutableStateOf(
+            initial?.let { TaskPriority.fromPreAlerts(it.preAlerts) } ?: TaskPriority.MEDIUM
+        )
+    }
+    var recurrence by remember {
+        mutableStateOf(
+            initial?.let { RecurrenceType.fromString(it.recurrence) } ?: config.defaultRecurrence
+        )
+    }
 
     // Default due moment: tomorrow at 09:00 — same "tomorrow" default the
     // existing AddReminderDialog uses, just with a friendlier fixed hour.
+    // In edit mode the stored due date wins.
     val defaultCal = remember {
         Calendar.getInstance().apply {
-            add(Calendar.DAY_OF_YEAR, 1)
-            set(Calendar.HOUR_OF_DAY, 9)
-            set(Calendar.MINUTE, 0)
+            if (initial != null) {
+                timeInMillis = initial.dueDate
+            } else {
+                add(Calendar.DAY_OF_YEAR, 1)
+                set(Calendar.HOUR_OF_DAY, 9)
+                set(Calendar.MINUTE, 0)
+            }
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
@@ -122,7 +199,12 @@ fun CreateTaskScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = if (isArabic) "مهمة جديدة" else "New Task",
+                        text = when {
+                            initial != null && isArabic -> config.editTitleAr
+                            initial != null -> config.editTitleEn
+                            isArabic -> config.newTitleAr
+                            else -> config.newTitleEn
+                        },
                         fontWeight = FontWeight.SemiBold
                     )
                 },
@@ -238,11 +320,19 @@ fun CreateTaskScreen(
                         set(Calendar.MILLISECOND, 0)
                     }
                     onSave(
-                        ReminderEntity(
+                        // Edit mode keeps the same row id (and createdAt/
+                        // completion state) so the existing update pipeline
+                        // replaces the reminder in place; create mode stores
+                        // this form's category so each Smart Item type keeps
+                        // its identity on the Tasks tab and in backups.
+                        (initial ?: ReminderEntity(
+                            title = "",
+                            dueDate = 0L,
+                            category = config.category.name
+                        )).copy(
                             title = title.trim(),
                             note = description.trim(),
                             dueDate = dueCal.timeInMillis,
-                            category = ReminderCategory.CUSTOM.name,
                             recurrence = recurrence.name,
                             preAlerts = priority.toPreAlertsString()
                         )

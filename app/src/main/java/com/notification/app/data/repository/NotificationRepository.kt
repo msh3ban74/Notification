@@ -34,6 +34,9 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun insertLedgerTransaction(tx: LedgerTransactionEntity): Long =
         db.personLedgerDao().insertTransaction(tx)
 
+    suspend fun updateLedgerTransaction(tx: LedgerTransactionEntity) =
+        db.personLedgerDao().updateTransaction(tx)
+
     suspend fun deleteLedgerTransaction(tx: LedgerTransactionEntity) =
         db.personLedgerDao().deleteTransaction(tx)
 

@@ -31,4 +31,17 @@ enum class TaskPriority(
 
     /** Serialized exactly like [ReminderEntity.preAlerts] expects (comma-separated names). */
     fun toPreAlertsString(): String = preAlerts.joinToString(",") { it.name }
+
+    companion object {
+        /**
+         * Sprint 5 — edit flow. Reverse of [toPreAlertsString]: recovers the
+         * priority a stored reminder was saved with, so the edit form can
+         * pre-select it. Unknown/legacy combinations fall back to MEDIUM
+         * (the same default the create form starts from).
+         */
+        fun fromPreAlerts(preAlerts: String): TaskPriority {
+            val names = preAlerts.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
+            return entries.find { p -> p.preAlerts.map { it.name }.toSet() == names } ?: MEDIUM
+        }
+    }
 }

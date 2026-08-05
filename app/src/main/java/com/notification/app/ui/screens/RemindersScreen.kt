@@ -34,7 +34,11 @@ fun RemindersScreen(
     isArabic: Boolean,
     onAddReminder: (ReminderEntity) -> Unit,
     onToggleReminder: (ReminderEntity) -> Unit,
-    onDeleteReminder: (ReminderEntity) -> Unit
+    onDeleteReminder: (ReminderEntity) -> Unit,
+    // Sprint 5 — edit flow. Optional so existing call sites keep working;
+    // when provided, every card shows an Edit action that hands the
+    // reminder back to the caller (which opens the pre-filled form).
+    onEditReminder: ((ReminderEntity) -> Unit)? = null
 ) {
     var selectedCategoryFilter by remember { mutableStateOf<ReminderCategory?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -125,7 +129,8 @@ fun RemindersScreen(
                             onDelete = { onDeleteReminder(reminder) },
                             onShare = {
                                 shareReminderText(context, reminder, isArabic, dateFormat)
-                            }
+                            },
+                            onEdit = onEditReminder?.let { edit -> { edit(reminder) } }
                         )
                     }
                 }
@@ -152,7 +157,8 @@ fun DetailedReminderCard(
     dateFormat: SimpleDateFormat,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    onEdit: (() -> Unit)? = null
 ) {
     val category = ReminderCategory.fromString(reminder.category)
 
@@ -228,6 +234,15 @@ fun DetailedReminderCard(
                 }
 
                 Row {
+                    if (onEdit != null) {
+                        IconButton(onClick = onEdit) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     IconButton(onClick = onShare) {
                         Icon(
                             imageVector = Icons.Default.Share,

@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Mosque
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import com.notification.app.data.local.entities.AlarmEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
 import com.notification.app.data.local.entities.ReminderEntity
@@ -69,7 +71,9 @@ fun DashboardScreen(
     reminders: List<ReminderEntity> = emptyList(),
     persons: List<PersonEntity> = emptyList(),
     transactions: List<LedgerTransactionEntity> = emptyList(),
+    alarms: List<AlarmEntity> = emptyList(),
     onNavigateToTasks: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = {},
     onNavigateToLedger: () -> Unit = {},
     onNavigateToGam3iya: () -> Unit = {},
     onNavigateToIslamic: () -> Unit = {},
@@ -96,6 +100,13 @@ fun DashboardScreen(
             persons = persons,
             transactions = transactions,
             onClick = onNavigateToLedger
+        )
+
+        UpcomingNotificationsSection(
+            isArabic = isArabic,
+            reminders = reminders,
+            alarms = alarms,
+            onClick = onNavigateToNotifications
         )
 
         QuickActionsSection(
@@ -319,6 +330,68 @@ private fun UpcomingDebtsSection(
                             "و${openBalances.size - 3} حسابات أخرى…"
                         } else {
                             "and ${openBalances.size - 3} more…"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Sprint 5 — Upcoming Notifications: the next scheduled notifications from
+ * the EXISTING data — pending future reminders plus enabled future alarms
+ * (both are what the AlarmManagerScheduler pipeline will actually fire).
+ */
+@Composable
+private fun UpcomingNotificationsSection(
+    isArabic: Boolean,
+    reminders: List<ReminderEntity>,
+    alarms: List<AlarmEntity>,
+    onClick: () -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("EEE dd MMM, hh:mm a", Locale.getDefault()) }
+
+    // (timestamp, isAlarm, title) triples merged and sorted — soonest first.
+    val upcoming = remember(reminders, alarms) {
+        val now = System.currentTimeMillis()
+        val reminderItems = reminders
+            .filter { !it.isCompleted && it.dueDate >= now }
+            .map { Triple(it.dueDate, false, it.title) }
+        val alarmItems = alarms
+            .filter { it.isEnabled && it.timeInMillis >= now }
+            .map { Triple(it.timeInMillis, true, it.title) }
+        (reminderItems + alarmItems).sortedBy { it.first }
+    }
+
+    PremiumCard(onClick = onClick) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Text(
+                text = if (isArabic) "الإشعارات القادمة" else "Upcoming Notifications",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            HorizontalDivider()
+            if (upcoming.isEmpty()) {
+                SectionEmptyText(
+                    if (isArabic) "لا توجد إشعارات مجدولة." else "No scheduled notifications."
+                )
+            } else {
+                upcoming.take(3).forEach { (timestamp, isAlarm, title) ->
+                    SummaryRow(
+                        icon = if (isAlarm) Icons.Default.Alarm else Icons.Default.NotificationsActive,
+                        text = title,
+                        trailing = dateFormat.format(Date(timestamp))
+                    )
+                }
+                if (upcoming.size > 3) {
+                    Text(
+                        text = if (isArabic) {
+                            "و${upcoming.size - 3} إشعارات أخرى…"
+                        } else {
+                            "and ${upcoming.size - 3} more…"
                         },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

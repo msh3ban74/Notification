@@ -6,6 +6,10 @@ enum class ReminderCategory(val displayNameEn: String, val displayNameAr: String
     BIRTHDAY("Birthdays", "أعياد الميلاد", "cake"),
     BILL("Bills & Utilities", "الفواتير والخدمات", "receipt"),
     TUTORING("Tutoring & Lessons", "الدروس والتعليم", "school"),
+    // Sprint 5 — Smart Medicine. Display metadata only (categories are
+    // stored as plain strings, so no schema change): unknown values still
+    // fall back to CUSTOM via fromString below.
+    MEDICINE("Medicine & Health", "الدواء والصحة", "medication"),
     CUSTOM("Custom", "مخصص", "notifications");
 
     companion object {

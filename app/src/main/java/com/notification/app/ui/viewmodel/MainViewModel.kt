@@ -113,6 +113,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return id
     }
 
+    /**
+     * Sprint 5 — edit flow for Tasks (and every other reminder-based Smart
+     * Item). Persists through the existing repository and re-schedules via
+     * the existing AlarmManagerScheduler: the reminder's PendingIntent
+     * request code is derived from its id, so scheduling again simply
+     * replaces the previously scheduled alarm.
+     */
+    fun updateTaskReminder(reminder: ReminderEntity) {
+        viewModelScope.launch {
+            repository.updateReminder(reminder)
+            AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), reminder)
+        }
+    }
+
     fun toggleReminderCompleted(reminder: ReminderEntity) {
         viewModelScope.launch {
             repository.updateReminder(reminder.copy(isCompleted = !reminder.isCompleted))
@@ -135,6 +149,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun addLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
             repository.insertLedgerTransaction(tx)
+        }
+    }
+
+    /** Sprint 5 — edit flow for debts: updates an existing ledger transaction in place. */
+    fun updateLedgerTransaction(tx: LedgerTransactionEntity) {
+        viewModelScope.launch {
+            repository.updateLedgerTransaction(tx)
         }
     }
 
