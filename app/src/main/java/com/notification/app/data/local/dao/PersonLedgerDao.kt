@@ -28,6 +28,11 @@ interface PersonLedgerDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: LedgerTransactionEntity): Long
 
+    // Sprint 5 — edit flow for debts. Plain Room @Update on the EXISTING
+    // entity (mirrors ReminderDao.updateReminder); no schema change.
+    @Update
+    suspend fun updateTransaction(transaction: LedgerTransactionEntity)
+
     @Delete
     suspend fun deleteTransaction(transaction: LedgerTransactionEntity)
 }

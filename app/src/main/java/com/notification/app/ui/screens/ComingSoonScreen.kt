@@ -21,9 +21,10 @@ import com.notification.app.ui.components.EmptyState
  * premium look used by Reminders, Ledger, and Gam3iya's empty states.
  * Same copy, same back navigation — visual only.
  *
- * Reusable placeholder shown after picking any type from the Smart Item
- * bottom sheet (Debt, Gam3iya, Bill, etc). No form, no logic — real
- * per-type forms are built in Sprint 3.
+ * Reusable placeholder shown after picking a type from the Smart Item
+ * bottom sheet that doesn't have a real form yet (Gam3iya, Bill, etc).
+ * Sprint 3/4: Task and Debt now have real forms (CreateTaskScreen /
+ * CreateDebtScreen) and no longer land here.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +52,7 @@ fun ComingSoonScreen(
         EmptyState(
             icon = Icons.Default.Construction,
             title = if (isArabic) "نموذج $titleAr" else "$titleEn Form",
-            subtitle = if (isArabic) "قريبًا في المرحلة 3" else "Coming in Sprint 3",
+            subtitle = if (isArabic) "قريبًا في مرحلة قادمة" else "Coming in a future sprint",
             modifier = Modifier.padding(innerPadding),
             bottomInset = 0.dp
         )

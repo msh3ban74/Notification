@@ -26,6 +26,7 @@ import com.notification.app.domain.calculator.LedgerStatus
 import com.notification.app.domain.calculator.StatementExporter
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.ui.theme.MaroonPrimary
+import com.notification.app.ui.theme.OnPrimary
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -36,7 +37,9 @@ fun LedgerScreen(
     isArabic: Boolean,
     onAddPerson: (name: String, phone: String) -> Unit,
     onAddTransaction: (LedgerTransactionEntity) -> Unit,
-    onDeleteTransaction: (LedgerTransactionEntity) -> Unit
+    onDeleteTransaction: (LedgerTransactionEntity) -> Unit,
+    // Sprint 5 — edit flow. Optional so existing call sites keep working.
+    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null
 ) {
     var selectedPersonForDetail by remember { mutableStateOf<PersonEntity?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Owed to me (لهم), 1: I owe (لي)
@@ -53,6 +56,7 @@ fun LedgerScreen(
             onBack = { selectedPersonForDetail = null },
             onAddTransaction = onAddTransaction,
             onDeleteTransaction = onDeleteTransaction,
+            onUpdateTransaction = onUpdateTransaction,
             onExportStatement = {
                 val statement = StatementExporter.generatePersonLedgerStatement(selectedPersonForDetail!!, personTxs)
                 val intent = Intent(Intent.ACTION_SEND).apply {
@@ -91,7 +95,7 @@ fun LedgerScreen(
             FloatingActionButton(
                 onClick = { showAddPersonDialog = true },
                 containerColor = MaroonPrimary,
-                contentColor = Color.White,
+                contentColor = OnPrimary,
                 shape = CircleShape
             ) {
                 Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Add Person")
@@ -329,10 +333,14 @@ fun PersonDetailScreen(
     onBack: () -> Unit,
     onAddTransaction: (LedgerTransactionEntity) -> Unit,
     onDeleteTransaction: (LedgerTransactionEntity) -> Unit,
-    onExportStatement: () -> Unit
+    onExportStatement: () -> Unit,
+    // Sprint 5 — edit flow. When provided, each transaction row gets an
+    // Edit action that reopens the same dialog pre-filled.
+    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null
 ) {
     val summary = remember(transactions) { LedgerCalculator.calculateNetBalance(transactions) }
     var showAddTxDialog by remember { mutableStateOf(false) }
+    var editingTx by remember { mutableStateOf<LedgerTransactionEntity?>(null) }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
 
     Scaffold(
@@ -355,7 +363,7 @@ fun PersonDetailScreen(
             FloatingActionButton(
                 onClick = { showAddTxDialog = true },
                 containerColor = MaroonPrimary,
-                contentColor = Color.White
+                contentColor = OnPrimary
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Transaction")
             }
@@ -466,6 +474,16 @@ fun PersonDetailScreen(
                                         color = if (txType.isGivingToThem) Color(0xFF27AE60) else Color(0xFFC0392B)
                                     )
 
+                                    if (onUpdateTransaction != null) {
+                                        IconButton(onClick = { editingTx = tx }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Edit",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
                                     IconButton(onClick = { onDeleteTransaction(tx) }) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
@@ -482,14 +500,35 @@ fun PersonDetailScreen(
         }
     }
 
-    if (showAddTxDialog) {
-        var amountText by remember { mutableStateOf("") }
-        var selectedType by remember { mutableStateOf(LedgerTransactionType.GAVE_THEM) }
-        var note by remember { mutableStateOf("") }
+    if (showAddTxDialog || editingTx != null) {
+        // One dialog for both flows: blank for "add", pre-filled for "edit"
+        // (Sprint 5). Keyed on editingTx so switching between the two modes
+        // resets the fields correctly.
+        val editing = editingTx
+        var amountText by remember(editing) { mutableStateOf(editing?.amount?.toString() ?: "") }
+        var selectedType by remember(editing) {
+            mutableStateOf(
+                editing?.let { LedgerTransactionType.fromString(it.type) }
+                    ?: LedgerTransactionType.GAVE_THEM
+            )
+        }
+        var note by remember(editing) { mutableStateOf(editing?.note ?: "") }
+        val dismissDialog = {
+            showAddTxDialog = false
+            editingTx = null
+        }
 
         AlertDialog(
-            onDismissRequest = { showAddTxDialog = false },
-            title = { Text(if (isArabic) "تسجيل معاملة مالية" else "Add Transaction") },
+            onDismissRequest = dismissDialog,
+            title = {
+                Text(
+                    if (editing != null) {
+                        if (isArabic) "تعديل معاملة مالية" else "Edit Transaction"
+                    } else {
+                        if (isArabic) "تسجيل معاملة مالية" else "Add Transaction"
+                    }
+                )
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
@@ -537,16 +576,26 @@ fun PersonDetailScreen(
                     onClick = {
                         val amount = amountText.toDoubleOrNull() ?: 0.0
                         if (amount > 0) {
-                            onAddTransaction(
-                                LedgerTransactionEntity(
-                                    personId = person.id,
-                                    type = selectedType.name,
-                                    amount = amount,
-                                    date = System.currentTimeMillis(),
-                                    note = note
+                            if (editing != null) {
+                                onUpdateTransaction?.invoke(
+                                    editing.copy(
+                                        type = selectedType.name,
+                                        amount = amount,
+                                        note = note
+                                    )
                                 )
-                            )
-                            showAddTxDialog = false
+                            } else {
+                                onAddTransaction(
+                                    LedgerTransactionEntity(
+                                        personId = person.id,
+                                        type = selectedType.name,
+                                        amount = amount,
+                                        date = System.currentTimeMillis(),
+                                        note = note
+                                    )
+                                )
+                            }
+                            dismissDialog()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
@@ -555,7 +604,7 @@ fun PersonDetailScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddTxDialog = false }) {
+                TextButton(onClick = dismissDialog) {
                     Text(if (isArabic) "إلغاء" else "Cancel")
                 }
             }

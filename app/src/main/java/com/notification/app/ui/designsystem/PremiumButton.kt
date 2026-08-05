@@ -28,7 +28,7 @@ fun PremiumButton(
         onClick = onClick,
         modifier = modifier.height(AppDimens.buttonHeight),
         enabled = enabled,
-        shape = AppRadius.small,
+        shape = AppRadius.button,
         contentPadding = PaddingValues(
             horizontal = AppPadding.buttonHorizontal,
             vertical = AppPadding.buttonVertical
@@ -50,7 +50,7 @@ fun PremiumOutlinedButton(
         onClick = onClick,
         modifier = modifier.height(AppDimens.buttonHeight),
         enabled = enabled,
-        shape = AppRadius.small,
+        shape = AppRadius.button,
         contentPadding = PaddingValues(
             horizontal = AppPadding.buttonHorizontal,
             vertical = AppPadding.buttonVertical

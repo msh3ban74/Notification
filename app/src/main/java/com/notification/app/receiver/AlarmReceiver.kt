@@ -54,7 +54,7 @@ class AlarmReceiver : BroadcastReceiver() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "Reminders & Alarms",
+                "Rafeeq — Reminders & Alarms",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Full screen intent alerts for alarms and categorized reminders"

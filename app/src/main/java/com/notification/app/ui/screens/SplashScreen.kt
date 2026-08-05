@@ -1,112 +1,78 @@
 package com.notification.app.ui.screens
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.notification.app.ui.theme.MaroonPrimary
-import com.notification.app.ui.theme.MaroonPrimaryLight
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.notification.app.R
+import com.notification.app.ui.theme.RafeeqRichBlack
 import kotlinx.coroutines.delay
 
+/**
+ * Rafeeq — splash screen.
+ *
+ * The full brand artwork (golden "R" monogram over the sunrise valley,
+ * with the wordmark and the "نظم حياتك ودع رفيق يساعدك" tagline baked
+ * into the art itself) revealed with a smooth cinematic entrance:
+ * a slow fade-in combined with a gentle settle from a slight zoom.
+ *
+ * Navigation behavior (onSplashFinished after a short delay) is
+ * unchanged from the previous splash.
+ */
 @Composable
 fun SplashScreen(
     isArabic: Boolean,
     onSplashFinished: () -> Unit
 ) {
-    var startAnimation by remember { mutableStateOf(false) }
-    val scaleAnim by animateFloatAsState(
-        targetValue = if (startAnimation) 1.1f else 0.4f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+    var start by remember { mutableStateOf(false) }
+
+    // Smooth reveal: fade in while the artwork settles from a soft zoom.
+    val imageAlpha by animateFloatAsState(
+        targetValue = if (start) 1f else 0f,
+        animationSpec = tween(durationMillis = 1000, easing = EaseOutCubic),
+        label = "SplashAlpha"
+    )
+    val imageScale by animateFloatAsState(
+        targetValue = if (start) 1f else 1.08f,
+        animationSpec = tween(durationMillis = 2200, easing = EaseOutCubic),
         label = "SplashScale"
     )
 
     LaunchedEffect(Unit) {
-        startAnimation = true
-        delay(1400)
+        start = true
+        delay(2400)
         onSplashFinished()
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaroonPrimary,
-                        MaroonPrimaryLight
-                    )
-                )
-            ),
+            .background(RafeeqRichBlack),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.scale(scaleAnim)
-        ) {
-            Surface(
-                modifier = Modifier.size(100.dp),
-                shape = CircleShape,
-                color = Color.White.copy(alpha = 0.2f),
-                shadowElevation = 12.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Surface(
-                        modifier = Modifier.size(80.dp),
-                        shape = CircleShape,
-                        color = Color.White
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.NotificationsActive,
-                                contentDescription = "App Logo",
-                                tint = MaroonPrimary,
-                                modifier = Modifier.size(44.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "Notification",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color.White,
-                fontSize = 32.sp,
-                letterSpacing = 1.sp
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = if (isArabic) "منظمك الذكي الشامل" else "Your All-in-One Smart Organizer",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.85f)
-            )
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            CircularProgressIndicator(
-                color = Color.White,
-                strokeWidth = 3.dp,
-                modifier = Modifier.size(28.dp)
-            )
-        }
+        Image(
+            painter = painterResource(id = R.drawable.splash_rafeeq),
+            contentDescription = if (isArabic) "رفيق — نظم حياتك ودع رفيق يساعدك" else "Rafeeq — organize your life and let Rafeeq help you",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(imageAlpha)
+                .scale(imageScale)
+        )
     }
 }

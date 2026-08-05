@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -63,9 +63,10 @@ fun PremiumTopAppBar(
                 .padding(horizontal = AppPadding.screen),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Rafeeq brand mark — the sparkle, matching the launcher icon.
             Icon(
-                imageVector = Icons.Default.NotificationsActive,
-                contentDescription = "App logo",
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = "Rafeeq logo",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(AppDimens.iconSizeMedium)
             )

@@ -24,6 +24,7 @@ import com.notification.app.domain.model.PreAlertOption
 import com.notification.app.domain.model.RecurrenceType
 import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.ui.theme.MaroonPrimary
+import com.notification.app.ui.theme.OnPrimary
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -34,7 +35,11 @@ fun RemindersScreen(
     isArabic: Boolean,
     onAddReminder: (ReminderEntity) -> Unit,
     onToggleReminder: (ReminderEntity) -> Unit,
-    onDeleteReminder: (ReminderEntity) -> Unit
+    onDeleteReminder: (ReminderEntity) -> Unit,
+    // Sprint 5 — edit flow. Optional so existing call sites keep working;
+    // when provided, every card shows an Edit action that hands the
+    // reminder back to the caller (which opens the pre-filled form).
+    onEditReminder: ((ReminderEntity) -> Unit)? = null
 ) {
     var selectedCategoryFilter by remember { mutableStateOf<ReminderCategory?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -52,7 +57,7 @@ fun RemindersScreen(
             FloatingActionButton(
                 onClick = { showAddDialog = true },
                 containerColor = MaroonPrimary,
-                contentColor = Color.White,
+                contentColor = OnPrimary,
                 shape = CircleShape
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Reminder")
@@ -87,7 +92,7 @@ fun RemindersScreen(
                         label = { Text(if (isArabic) "الكل" else "All") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaroonPrimary,
-                            selectedLabelColor = Color.White
+                            selectedLabelColor = OnPrimary
                         )
                     )
                 }
@@ -98,7 +103,7 @@ fun RemindersScreen(
                         label = { Text(if (isArabic) cat.displayNameAr else cat.displayNameEn) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaroonPrimary,
-                            selectedLabelColor = Color.White
+                            selectedLabelColor = OnPrimary
                         )
                     )
                 }
@@ -125,7 +130,8 @@ fun RemindersScreen(
                             onDelete = { onDeleteReminder(reminder) },
                             onShare = {
                                 shareReminderText(context, reminder, isArabic, dateFormat)
-                            }
+                            },
+                            onEdit = onEditReminder?.let { edit -> { edit(reminder) } }
                         )
                     }
                 }
@@ -152,7 +158,8 @@ fun DetailedReminderCard(
     dateFormat: SimpleDateFormat,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    onEdit: (() -> Unit)? = null
 ) {
     val category = ReminderCategory.fromString(reminder.category)
 
@@ -228,6 +235,15 @@ fun DetailedReminderCard(
                 }
 
                 Row {
+                    if (onEdit != null) {
+                        IconButton(onClick = onEdit) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     IconButton(onClick = onShare) {
                         Icon(
                             imageVector = Icons.Default.Share,
@@ -332,9 +348,9 @@ private fun shareReminderText(
     dateFormat: SimpleDateFormat
 ) {
     val text = if (isArabic) {
-        "📌 تذكير: ${reminder.title}\n📅 الموعد: ${dateFormat.format(Date(reminder.dueDate))}\n📝 تفاصيل: ${reminder.note}\nأُرسل عبر تطبيق إشعار"
+        "📌 تذكير: ${reminder.title}\n📅 الموعد: ${dateFormat.format(Date(reminder.dueDate))}\n📝 تفاصيل: ${reminder.note}\nأُرسل عبر تطبيق رفيق"
     } else {
-        "📌 Reminder: ${reminder.title}\n📅 Due Date: ${dateFormat.format(Date(reminder.dueDate))}\n📝 Note: ${reminder.note}\nSent via Notification App"
+        "📌 Reminder: ${reminder.title}\n📅 Due Date: ${dateFormat.format(Date(reminder.dueDate))}\n📝 Note: ${reminder.note}\nSent via Rafeeq"
     }
 
     val intent = Intent(Intent.ACTION_SEND).apply {

@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.notification.app.data.auth.GoogleAuthManager
 import com.notification.app.ui.theme.MaroonPrimary
+import com.notification.app.ui.theme.OnPrimary
 import com.notification.app.ui.theme.MaroonPrimaryDark
 import kotlinx.coroutines.launch
 
@@ -79,9 +81,9 @@ fun AuthScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.NotificationsActive,
-                        contentDescription = "App Logo",
-                        tint = Color.White,
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Rafeeq Logo",
+                        tint = OnPrimary,
                         modifier = Modifier.size(48.dp)
                     )
                 }
@@ -89,7 +91,7 @@ fun AuthScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
-                    text = if (isArabic) "إشعار - Notification" else "Notification",
+                    text = if (isArabic) "رفيق - Rafeeq" else "Rafeeq",
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 30.sp
@@ -98,7 +100,7 @@ fun AuthScreen(
                 )
 
                 Text(
-                    text = if (isArabic) "منظمك الشخصي للتذكيرات، الديون، والجمعيات" else "Your Personal Life & Financial Assistant",
+                    text = if (isArabic) "رفيقك الذكي في كل تفاصيل حياتك" else "Your intelligent companion for everything in life",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -169,7 +171,7 @@ fun AuthScreen(
                     enabled = !isSigningIn,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaroonPrimary,
-                        contentColor = Color.White
+                        contentColor = OnPrimary
                     ),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier

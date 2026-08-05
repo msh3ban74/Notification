@@ -34,6 +34,9 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun insertLedgerTransaction(tx: LedgerTransactionEntity): Long =
         db.personLedgerDao().insertTransaction(tx)
 
+    suspend fun updateLedgerTransaction(tx: LedgerTransactionEntity) =
+        db.personLedgerDao().updateTransaction(tx)
+
     suspend fun deleteLedgerTransaction(tx: LedgerTransactionEntity) =
         db.personLedgerDao().deleteTransaction(tx)
 
@@ -42,6 +45,9 @@ class NotificationRepository(private val db: AppDatabase) {
 
     fun getMembersForGam3iya(gam3iyaId: Long): Flow<List<Gam3iyaMemberEntity>> =
         db.gam3iyaDao().getMembersForGam3iya(gam3iyaId)
+
+    // Sprint 6 — Executive Dashboard (read-only observation).
+    val allGam3iyaMembers: Flow<List<Gam3iyaMemberEntity>> = db.gam3iyaDao().getAllMembers()
 
     suspend fun getGam3iyaById(id: Long): Gam3iyaEntity? = db.gam3iyaDao().getGam3iyaById(id)
 

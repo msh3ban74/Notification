@@ -11,6 +11,9 @@ import com.notification.app.data.repository.GeminiRepository
 import com.notification.app.data.repository.NotificationRepository
 import com.notification.app.domain.calculator.PrayerTime
 import com.notification.app.domain.calculator.PrayerTimesCalculator
+import com.notification.app.domain.model.AiSuggestion
+import com.notification.app.domain.model.LedgerTransactionType
+import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.domain.scheduler.AlarmManagerScheduler
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -48,27 +51,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val alarmRingtoneUri: StateFlow<String> = preferencesRepository.alarmRingtoneUriFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
-    // Database Flows
+    // Database Flows.
+    // Sprint 6 — performance: core dashboard flows use SharingStarted.Lazily
+    // so Room keeps them HOT for the ViewModel's whole life. Switching tabs
+    // never tears the subscription down, so returning to the Dashboard (or
+    // any list screen) renders instantly from the cached StateFlow value —
+    // Room pushes fresh values in the background when data changes.
     val allReminders: StateFlow<List<ReminderEntity>> = repository.allReminders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val pendingReminders: StateFlow<List<ReminderEntity>> = repository.pendingReminders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allPersons: StateFlow<List<PersonEntity>> = repository.allPersons
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allTransactions: StateFlow<List<LedgerTransactionEntity>> = repository.allTransactions
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allGam3iyas: StateFlow<List<Gam3iyaEntity>> = repository.allGam3iyas
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    // Sprint 6 — Executive Dashboard: upcoming gam3iya payouts widget.
+    val allGam3iyaMembers: StateFlow<List<Gam3iyaMemberEntity>> = repository.allGam3iyaMembers
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allAlarms: StateFlow<List<AlarmEntity>> = repository.allAlarms
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allWorkNotes: StateFlow<List<WorkNoteEntity>> = repository.allWorkNotes
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     // Islamic Prayers State
     private val _prayerTimes = MutableStateFlow<List<PrayerTime>>(emptyList())
@@ -80,6 +92,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isAiLoading = MutableStateFlow(false)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
+
+    // Dashboard "Rafeeq Suggestions" — produced by the EXISTING Gemini
+    // pipeline from real data (see GeminiRepository.generateDashboardSuggestions).
+    private val _aiSuggestions = MutableStateFlow<List<AiSuggestion>>(emptyList())
+    val aiSuggestions: StateFlow<List<AiSuggestion>> = _aiSuggestions.asStateFlow()
+
+    private val _aiSuggestionsLoading = MutableStateFlow(false)
+    val aiSuggestionsLoading: StateFlow<Boolean> = _aiSuggestionsLoading.asStateFlow()
+
+    // Sprint 6 — TTL cache for AI suggestions: within the TTL the cached
+    // list is served instantly with no network call; pull-to-refresh
+    // passes force=true to bypass. The UI is never blocked either way.
+    private var aiSuggestionsFetchedAt = 0L
+
+    /**
+     * Refreshes the dashboard AI suggestions. Reuses the existing Gemini
+     * repository and API-key resolution; on failure the previous list is
+     * kept (or stays empty, letting the dashboard fall back to its local
+     * rule-based insights).
+     */
+    fun refreshAiSuggestions(isArabic: Boolean, force: Boolean = false) {
+        if (_aiSuggestionsLoading.value) return
+        val fresh = System.currentTimeMillis() - aiSuggestionsFetchedAt < AI_SUGGESTIONS_TTL_MS
+        if (!force && _aiSuggestions.value.isNotEmpty() && fresh) return
+        viewModelScope.launch {
+            _aiSuggestionsLoading.value = true
+            val result = geminiRepository.generateDashboardSuggestions(
+                isArabic = isArabic,
+                customApiKey = geminiApiKey.value
+            )
+            if (result.isNotEmpty()) {
+                _aiSuggestions.value = result
+                aiSuggestionsFetchedAt = System.currentTimeMillis()
+            }
+            _aiSuggestionsLoading.value = false
+        }
+    }
+
+    companion object {
+        /** How long cached AI suggestions stay fresh before a silent re-fetch. */
+        const val AI_SUGGESTIONS_TTL_MS: Long = 15 * 60 * 1000L
+    }
 
     // Water counter state
     private val _waterCount = MutableStateFlow(0)
@@ -96,9 +150,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Reminders Actions
     fun addReminder(reminder: ReminderEntity) {
         viewModelScope.launch {
-            val id = repository.insertReminder(reminder)
-            val fullReminder = reminder.copy(id = id)
-            AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), fullReminder)
+            insertAndScheduleReminder(reminder)
+        }
+    }
+
+    /**
+     * The single insert-and-schedule path for every reminder in the app.
+     * Sprint 3/4 reuse: called by [addReminder] (Tasks) and by [addDebt]
+     * (due-date reminder), so there is exactly ONE scheduling pipeline.
+     */
+    private suspend fun insertAndScheduleReminder(reminder: ReminderEntity): Long {
+        val id = repository.insertReminder(reminder)
+        AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), reminder.copy(id = id))
+        return id
+    }
+
+    /**
+     * Sprint 5 — edit flow for Tasks (and every other reminder-based Smart
+     * Item). Persists through the existing repository and re-schedules via
+     * the existing AlarmManagerScheduler: the reminder's PendingIntent
+     * request code is derived from its id, so scheduling again simply
+     * replaces the previously scheduled alarm.
+     */
+    fun updateTaskReminder(reminder: ReminderEntity) {
+        viewModelScope.launch {
+            repository.updateReminder(reminder)
+            AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), reminder)
         }
     }
 
@@ -127,9 +204,70 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Sprint 5 — edit flow for debts: updates an existing ledger transaction in place. */
+    fun updateLedgerTransaction(tx: LedgerTransactionEntity) {
+        viewModelScope.launch {
+            repository.updateLedgerTransaction(tx)
+        }
+    }
+
     fun deleteLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
             repository.deleteLedgerTransaction(tx)
+        }
+    }
+
+    /**
+     * Sprint 4 — Smart Debt.
+     *
+     * Creates a debt by COMPOSING the existing Ledger implementation:
+     *  - person       → existing [PersonEntity] (or a new one via the
+     *                   existing repository.insertPerson).
+     *  - the debt     → the existing [LedgerTransactionEntity]
+     *                   (GAVE_THEM = lent / THEY_GAVE_ME = borrowed).
+     *  - due date     → the existing reminder pipeline
+     *                   ([insertAndScheduleReminder]) linked through the
+     *                   entity's existing linkedReminderId column.
+     * No new entities, no duplicated debt logic, no new scheduler.
+     */
+    fun addDebt(
+        existingPersonId: Long?,
+        personName: String,
+        amount: Double,
+        isLent: Boolean,
+        dueDate: Long?,
+        note: String
+    ) {
+        viewModelScope.launch {
+            val personId = existingPersonId
+                ?: repository.insertPerson(PersonEntity(name = personName))
+
+            val linkedReminderId = if (dueDate != null && dueDate > System.currentTimeMillis()) {
+                val isArabic = language.value == "ar"
+                insertAndScheduleReminder(
+                    ReminderEntity(
+                        title = if (isArabic) "استحقاق دين: $personName" else "Debt due: $personName",
+                        note = note,
+                        dueDate = dueDate,
+                        category = ReminderCategory.MONEY.name
+                    )
+                )
+            } else null
+
+            repository.insertLedgerTransaction(
+                LedgerTransactionEntity(
+                    personId = personId,
+                    type = if (isLent) {
+                        LedgerTransactionType.GAVE_THEM.name
+                    } else {
+                        LedgerTransactionType.THEY_GAVE_ME.name
+                    },
+                    amount = amount,
+                    date = System.currentTimeMillis(),
+                    note = note,
+                    linkedReminderId = linkedReminderId
+                )
+            )
         }
     }
 

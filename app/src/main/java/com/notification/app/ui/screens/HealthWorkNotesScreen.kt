@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.notification.app.data.local.entities.WorkNoteEntity
 import com.notification.app.ui.theme.MaroonPrimary
+import com.notification.app.ui.theme.OnPrimary
 
 @Composable
 fun HealthWorkNotesScreen(
@@ -39,7 +40,7 @@ fun HealthWorkNotesScreen(
             FloatingActionButton(
                 onClick = { showAddNoteDialog = true },
                 containerColor = MaroonPrimary,
-                contentColor = Color.White,
+                contentColor = OnPrimary,
                 shape = CircleShape
             ) {
                 Icon(imageVector = Icons.Default.NoteAdd, contentDescription = "Add Work Note")

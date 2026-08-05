@@ -7,60 +7,70 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
+/**
+ * Rafeeq Royal theme — black & champagne gold.
+ *
+ * Dark mode is the flagship look from the brand board: rich black
+ * backgrounds, charcoal surfaces, champagne-gold primary, cream text.
+ * Light mode is its ivory twin: cream backgrounds with deep gold.
+ */
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryLight,
-    onPrimary = OnPrimary,
-    primaryContainer = Color(0xFF1E40AF),
-    onPrimaryContainer = Color(0xFFDBEAFE),
+    primary = Primary,                 // Champagne Gold
+    onPrimary = OnPrimary,             // near-black on gold
+    primaryContainer = GoldContainerDark,
+    onPrimaryContainer = PrimaryLight, // Soft Gold
     secondary = Secondary,
     onSecondary = OnSecondary,
-    secondaryContainer = Color(0xFF1E293B),
-    onSecondaryContainer = Color(0xFFBFDBFE),
-    background = Color(0xFF0F172A),
-    onBackground = OnSurface,
-    surface = Color(0xFF1E293B),
-    onSurface = OnSurface,
-    surfaceVariant = Color(0xFF334155),
-    onSurfaceVariant = Color(0xFF94A3B8),
-    outline = Color(0xFF475569),
+    secondaryContainer = DarkSlate,
+    onSecondaryContainer = PrimaryLight,
+    background = RichBlack,
+    onBackground = Cream,
+    surface = Charcoal,
+    onSurface = Cream,
+    surfaceVariant = DarkSlate,
+    onSurfaceVariant = MutedBronze,
+    outline = GoldOutlineDark,
     error = Error,
     onError = Color.White,
-    errorContainer = Color(0xFF7F1D1D),
-    onErrorContainer = Color(0xFFFECACA)
+    errorContainer = Color(0xFF4A1F1F),
+    onErrorContainer = Color(0xFFF2C8C8)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Primary,
-    onPrimary = OnPrimary,
-    primaryContainer = Color(0xFFDBEAFE),
-    onPrimaryContainer = Color(0xFF1E40AF),
-    secondary = Secondary,
-    onSecondary = OnSecondary,
-    secondaryContainer = Color(0xFFEFF6FF),
-    onSecondaryContainer = Color(0xFF1E40AF),
-    background = Background,
+    primary = PrimaryDark,             // deep gold — readable on cream
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFF3E7C4),
+    onPrimaryContainer = Color(0xFF4A3B10),
+    secondary = PrimaryDark,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF7EFDC),
+    onSecondaryContainer = Color(0xFF4A3B10),
+    background = Background,           // Cream
     onBackground = OnBackground,
     surface = Surface,
     onSurface = OnSurface,
     surfaceVariant = SurfaceVariant,
     onSurfaceVariant = OnSurfaceVariant,
-    outline = Color(0xFFCBD5E1),
+    outline = Color(0xFFD5CBB4),
     error = Error,
     onError = Color.White,
-    errorContainer = Color(0xFFFEE2E2),
-    onErrorContainer = Color(0xFF7F1D1D)
+    errorContainer = Color(0xFFF6DEDE),
+    onErrorContainer = Color(0xFF5C1F1F)
 )
 
 @Composable
 fun NotificationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    isArabic: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        // Rafeeq premium typography: Cinzel titles + Lexend body (EN),
+        // Cairo everywhere (AR). RTL/LTR handling is unaffected.
+        typography = rafeeqTypography(isArabic),
         shapes = Shapes,
         content = content
     )
