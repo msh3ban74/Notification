@@ -26,6 +26,7 @@ import com.notification.app.domain.calculator.LedgerStatus
 import com.notification.app.domain.calculator.StatementExporter
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.ui.theme.MaroonPrimary
+import com.notification.app.ui.theme.OnPrimary
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -94,7 +95,7 @@ fun LedgerScreen(
             FloatingActionButton(
                 onClick = { showAddPersonDialog = true },
                 containerColor = MaroonPrimary,
-                contentColor = Color.White,
+                contentColor = OnPrimary,
                 shape = CircleShape
             ) {
                 Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Add Person")
@@ -362,7 +363,7 @@ fun PersonDetailScreen(
             FloatingActionButton(
                 onClick = { showAddTxDialog = true },
                 containerColor = MaroonPrimary,
-                contentColor = Color.White
+                contentColor = OnPrimary
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Transaction")
             }

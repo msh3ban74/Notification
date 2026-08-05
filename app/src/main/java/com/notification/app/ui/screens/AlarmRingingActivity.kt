@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.notification.app.service.AlarmService
 import com.notification.app.ui.theme.MaroonContainerDark
+import com.notification.app.ui.theme.OnPrimary
 import com.notification.app.ui.theme.MaroonPrimary
 import com.notification.app.ui.theme.NotificationTheme
 import com.notification.app.ui.theme.PlatinumDarkBackground
@@ -207,7 +208,7 @@ fun AlarmRingingScreen(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaroonPrimary,
-                        contentColor = Color.White
+                        contentColor = OnPrimary
                     ),
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier

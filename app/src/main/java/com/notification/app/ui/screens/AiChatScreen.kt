@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.notification.app.data.remote.GeminiContent
 import com.notification.app.ui.theme.MaroonPrimary
+import com.notification.app.ui.theme.OnPrimary
 
 @Composable
 fun AiChatScreen(
@@ -57,7 +58,7 @@ fun AiChatScreen(
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = Color.White
+                        tint = OnPrimary
                     )
                 }
 
@@ -65,7 +66,7 @@ fun AiChatScreen(
 
                 Column {
                     Text(
-                        text = if (isArabic) "مساعد Notification الذكي" else "Notification AI Assistant",
+                        text = if (isArabic) "مساعد رفيق الذكي" else "Rafeeq AI Assistant",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -175,7 +176,7 @@ fun AiChatScreen(
                 Icon(
                     imageVector = Icons.Default.Send,
                     contentDescription = "Send",
-                    tint = Color.White
+                    tint = OnPrimary
                 )
             }
         }
@@ -190,7 +191,7 @@ fun ChatBubble(text: String, isUser: Boolean) {
     ) {
         Surface(
             color = if (isUser) MaroonPrimary else MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = if (isUser) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+            contentColor = if (isUser) OnPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
             shape = RoundedCornerShape(
                 topStart = 18.dp,
                 topEnd = 18.dp,

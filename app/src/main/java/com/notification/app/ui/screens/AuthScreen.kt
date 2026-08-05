@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.notification.app.data.auth.GoogleAuthManager
 import com.notification.app.ui.theme.MaroonPrimary
+import com.notification.app.ui.theme.OnPrimary
 import com.notification.app.ui.theme.MaroonPrimaryDark
 import kotlinx.coroutines.launch
 
@@ -79,9 +81,9 @@ fun AuthScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.NotificationsActive,
-                        contentDescription = "App Logo",
-                        tint = Color.White,
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Rafeeq Logo",
+                        tint = OnPrimary,
                         modifier = Modifier.size(48.dp)
                     )
                 }
@@ -169,7 +171,7 @@ fun AuthScreen(
                     enabled = !isSigningIn,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaroonPrimary,
-                        contentColor = Color.White
+                        contentColor = OnPrimary
                     ),
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier

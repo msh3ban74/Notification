@@ -22,6 +22,7 @@ import com.notification.app.data.local.entities.Gam3iyaMemberEntity
 import com.notification.app.domain.calculator.Gam3iyaCalculator
 import com.notification.app.domain.calculator.StatementExporter
 import com.notification.app.ui.theme.MaroonPrimary
+import com.notification.app.ui.theme.OnPrimary
 import kotlinx.coroutines.flow.Flow
 import java.text.SimpleDateFormat
 import java.util.*
@@ -70,7 +71,7 @@ fun Gam3iyaScreen(
             FloatingActionButton(
                 onClick = { showCreateDialog = true },
                 containerColor = MaroonPrimary,
-                contentColor = Color.White,
+                contentColor = OnPrimary,
                 shape = CircleShape
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Create Gam3iya")

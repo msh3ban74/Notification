@@ -24,6 +24,7 @@ import com.notification.app.domain.model.PreAlertOption
 import com.notification.app.domain.model.RecurrenceType
 import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.ui.theme.MaroonPrimary
+import com.notification.app.ui.theme.OnPrimary
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -56,7 +57,7 @@ fun RemindersScreen(
             FloatingActionButton(
                 onClick = { showAddDialog = true },
                 containerColor = MaroonPrimary,
-                contentColor = Color.White,
+                contentColor = OnPrimary,
                 shape = CircleShape
             ) {
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Reminder")
@@ -91,7 +92,7 @@ fun RemindersScreen(
                         label = { Text(if (isArabic) "الكل" else "All") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaroonPrimary,
-                            selectedLabelColor = Color.White
+                            selectedLabelColor = OnPrimary
                         )
                     )
                 }
@@ -102,7 +103,7 @@ fun RemindersScreen(
                         label = { Text(if (isArabic) cat.displayNameAr else cat.displayNameEn) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaroonPrimary,
-                            selectedLabelColor = Color.White
+                            selectedLabelColor = OnPrimary
                         )
                     )
                 }
