@@ -83,20 +83,48 @@ jobs:
           name: rafeeq-debug-apk
           path: app/build/outputs/apk/debug/*.apk
 
-      - name: Publish APK to the debug-latest release
-        # Keeps ONE rolling prerelease ("debug-latest") holding the newest
-        # debug APK, so there is always a permanent public download link:
-        # https://github.com/<owner>/<repo>/releases/download/debug-latest/Rafeeq-debug.apk
+      # ---- Signed RELEASE build — same secrets and signing key as the
+      # ---- existing "Extract ZIP & Build Signed Release APK" workflow,
+      # ---- so the APK carries the user's real (Firebase-registered)
+      # ---- certificate.
+      - name: Decode release keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ github.workspace }}/release-key.jks"
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/release-key.jks
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Remove keystore file
+        if: always()
+        run: rm -f "${{ github.workspace }}/release-key.jks"
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rafeeq-release-apk
+          path: app/build/outputs/apk/release/*.apk
+
+      - name: Publish APKs to the rafeeq-latest release
+        # ONE rolling release ("rafeeq-latest") always holding the newest
+        # signed release APK (primary) plus the debug APK — permanent
+        # public download links:
+        # .../releases/download/rafeeq-latest/Rafeeq-release.apk
+        # .../releases/download/rafeeq-latest/Rafeeq-debug.apk
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
-          cp "$APK" Rafeeq-debug.apk
-          if ! gh release view debug-latest --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release create debug-latest \
+          cp "$(ls app/build/outputs/apk/release/*.apk | head -1)" Rafeeq-release.apk
+          cp "$(ls app/build/outputs/apk/debug/*.apk | head -1)" Rafeeq-debug.apk
+          if ! gh release view rafeeq-latest --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create rafeeq-latest \
               --repo "$GITHUB_REPOSITORY" \
-              --title "Rafeeq Debug (latest)" \
-              --notes "Rolling prerelease: newest debug APK built by Rafeeq Branch CI." \
-              --prerelease
+              --title "Rafeeq (latest)" \
+              --notes "Rolling release: newest signed release APK (and debug APK) built by Rafeeq Branch CI."
           fi
-          gh release upload debug-latest Rafeeq-debug.apk --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload rafeeq-latest Rafeeq-release.apk Rafeeq-debug.apk --repo "$GITHUB_REPOSITORY" --clobber
+          # One-time cleanup of the older debug-only rolling release.
+          gh release delete debug-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
