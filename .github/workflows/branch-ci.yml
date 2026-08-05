@@ -110,113 +110,17 @@ jobs:
 
       - name: Emulator deep UI test (walk every screen)
         # Boots a real Android emulator, installs the signed release APK,
-        # then walks the WHOLE app: skip auth → Dashboard (scroll) → every
-        # bottom-nav tab → the "+" sheet and every Smart Item form →
-        # Settings → AI suggestion pill → finally 400 random monkey events.
-        # After EVERY step it checks logcat for FATAL EXCEPTION and fails
-        # with the stack printed; a screenshot of each screen is uploaded.
+        # and runs ci/emulator_ui_test.sh — a full walk of every screen
+        # with per-step crash checks and screenshots. The test lives in a
+        # real bash file because this action executes each script line
+        # with a separate `sh -c`, which breaks multi-line constructs.
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: |
-            mkdir -p shots
-            adb install -r "$(ls app/build/outputs/apk/release/*.apk | head -1)"
-            adb logcat -c
-            adb shell am start -n com.notification.app/.MainActivity
-            sleep 22
-
-            snap() { adb exec-out screencap -p > "shots/$1.png" || true; }
-
-            checkpoint() {
-              sleep 1
-              if adb logcat -d | grep -q "FATAL EXCEPTION"; then
-                echo "==================== CRASH at step: $1 ===================="
-                adb logcat -d | grep -A 40 "FATAL EXCEPTION" | head -100
-                snap "CRASH-$1"
-                exit 1
-              fi
-              echo "OK: $1"
-              snap "$1"
-            }
-
-            tap_text() {
-              adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
-              adb pull /sdcard/ui.xml ui.xml >/dev/null 2>&1 || true
-              COORDS=$(python3 -c "
-            import re, sys
-            try:
-                xml = open('ui.xml', encoding='utf-8').read()
-            except Exception:
-                print(''); sys.exit()
-            pat = sys.argv[1]
-            for node in re.finditer(r'<node[^>]*>', xml):
-                n = node.group(0)
-                if re.search('(text|content-desc)=\"[^\"]*' + re.escape(pat) + '[^\"]*\"', n):
-                    b = re.search(r'bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"', n)
-                    if b:
-                        print((int(b.group(1)) + int(b.group(3))) // 2,
-                              (int(b.group(2)) + int(b.group(4))) // 2)
-                        sys.exit()
-            print('')
-            " "$1")
-              if [ -n "$COORDS" ]; then
-                adb shell input tap $COORDS
-                echo "tapped '$1' at $COORDS"
-                sleep 2
-              else
-                echo "NOT FOUND (skipping): '$1'"
-              fi
-            }
-
-            checkpoint "01-launch-auth"
-            tap_text "تخطي"; tap_text "Skip"
-            checkpoint "02-dashboard"
-
-            adb shell input swipe 540 1800 540 600 400; sleep 1
-            adb shell input swipe 540 600 540 1800 400; sleep 1
-            checkpoint "03-dashboard-scroll"
-
-            tap_text "المساعد";  checkpoint "04-ai-tab"
-            tap_text "المهام";   checkpoint "05-tasks-tab"
-            tap_text "الإشعارات"; checkpoint "06-notifications-tab"
-            tap_text "الرئيسية"; checkpoint "07-back-to-dashboard"
-
-            # The "+" smart item sheet and every real form
-            tap_text "إضافة"; tap_text "Add"
-            checkpoint "08-smart-sheet"
-            for ITEM in "مهمة" "فاتورة" "موعد" "دواء" "دين" "جمعية"; do
-              tap_text "$ITEM"
-              checkpoint "09-form-$ITEM"
-              adb shell input keyevent 4; sleep 1
-              tap_text "إضافة"; tap_text "Add"
-            done
-            adb shell input keyevent 4; sleep 1
-
-            # Settings via the profile button, then back
-            tap_text "الرئيسية"; sleep 1
-            adb shell input tap 90 145 || true; sleep 2
-            checkpoint "10-settings-or-topbar"
-            adb shell input keyevent 4; sleep 1
-
-            # AI: tap a suggestion pill (network may fail — must not crash)
-            tap_text "المساعد"; sleep 1
-            tap_text "مهامي اليوم"
-            sleep 6
-            checkpoint "11-ai-suggestion-sent"
-
-            # Random exploration
-            adb shell monkey -p com.notification.app --throttle 250 --pct-syskeys 0 400 || true
-            sleep 4
-            adb logcat -d > logcat-full.txt || true
-            if grep -q "FATAL EXCEPTION" logcat-full.txt; then
-              echo "==================== CRASH during monkey ===================="
-              grep -A 40 "FATAL EXCEPTION" logcat-full.txt | head -100
-              exit 1
-            fi
-            echo "Deep UI test passed — every screen visited, no fatal exceptions."
+          script: bash ci/emulator_ui_test.sh
 
       - name: Upload smoke-test logcat and screenshots
         if: always()
