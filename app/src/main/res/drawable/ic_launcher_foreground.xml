@@ -1,20 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Rafeeq launcher foreground — the "Rafeeq spark" (شرارة رفيق):
+  a platinum four-point guiding star with a smaller golden companion
+  spark beside it. The companion star IS the brand story — Rafeeq is
+  the constant companion at your side. The gold accent (#E5C378)
+  carries over the app's champagne-gold heritage accent.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Bell Motif in Platinum (#F4F4F6) with Gold Accent (#E5C378) -->
-    <!-- Bell body -->
+
+    <!-- Halo glow behind the star -->
     <path
-        android:fillColor="#F4F4F6"
-        android:pathData="M54,28c-11.05,0 -20,8.95 -20,20v14c0,2.2 -1.8,4 -4,4h-2c-1.1,0 -2,0.9 -2,2s0.9,2 2,2h52c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2h-2c-2.2,0 -4,-1.8 -4,-4V48c0,-11.05 -8.95,-20 -20,-20z" />
-    <!-- Bell clapper -->
+        android:fillColor="#14FFFFFF"
+        android:pathData="M54,22 A32,32 0 1,1 53.99,22 Z" />
     <path
-        android:fillColor="#E5C378"
-        android:pathData="M54,74c3.31,0 6,-2.69 6,-6h-12c0,3.31 2.69,6 6,6z" />
-    <!-- Notification sound wave spark -->
-    <path
-        android:fillColor="#E5C378"
-        android:pathData="M72,32c2,2 3.5,4.5 4,7.5l2.5,-1c-0.8,-3.8 -2.7,-7 -5.5,-9.5l-1,3z" />
+        android:fillColor="#10FFFFFF"
+        android:pathData="M54,28 A26,26 0 1,1 53.99,28 Z" />
+
+    <!-- Main guiding star (platinum gradient) -->
+    <path android:pathData="M54,27 Q60.2,47.8 81,54 Q60.2,60.2 54,81 Q47.8,60.2 27,54 Q47.8,47.8 54,27 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="42"
+                android:startY="36"
+                android:endX="68"
+                android:endY="74"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFFFFFFF" />
+                <item android:offset="1.0" android:color="#FFC9D8F2" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Companion spark (champagne gold) -->
+    <path android:pathData="M76,25 Q77.8,31.2 84,33 Q77.8,34.8 76,41 Q74.2,34.8 68,33 Q74.2,31.2 76,25 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="71"
+                android:startY="27"
+                android:endX="81"
+                android:endY="39"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FFF3DFAE" />
+                <item android:offset="1.0" android:color="#FFE5C378" />
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>

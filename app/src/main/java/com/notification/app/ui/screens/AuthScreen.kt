@@ -89,7 +89,7 @@ fun AuthScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
-                    text = if (isArabic) "إشعار - Notification" else "Notification",
+                    text = if (isArabic) "رفيق - Rafeeq" else "Rafeeq",
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 30.sp
@@ -98,7 +98,7 @@ fun AuthScreen(
                 )
 
                 Text(
-                    text = if (isArabic) "منظمك الشخصي للتذكيرات، الديون، والجمعيات" else "Your Personal Life & Financial Assistant",
+                    text = if (isArabic) "رفيقك الذكي في كل تفاصيل حياتك" else "Your intelligent companion for everything in life",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

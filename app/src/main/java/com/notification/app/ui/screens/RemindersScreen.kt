@@ -347,9 +347,9 @@ private fun shareReminderText(
     dateFormat: SimpleDateFormat
 ) {
     val text = if (isArabic) {
-        "📌 تذكير: ${reminder.title}\n📅 الموعد: ${dateFormat.format(Date(reminder.dueDate))}\n📝 تفاصيل: ${reminder.note}\nأُرسل عبر تطبيق إشعار"
+        "📌 تذكير: ${reminder.title}\n📅 الموعد: ${dateFormat.format(Date(reminder.dueDate))}\n📝 تفاصيل: ${reminder.note}\nأُرسل عبر تطبيق رفيق"
     } else {
-        "📌 Reminder: ${reminder.title}\n📅 Due Date: ${dateFormat.format(Date(reminder.dueDate))}\n📝 Note: ${reminder.note}\nSent via Notification App"
+        "📌 Reminder: ${reminder.title}\n📅 Due Date: ${dateFormat.format(Date(reminder.dueDate))}\n📝 Note: ${reminder.note}\nSent via Rafeeq"
     }
 
     val intent = Intent(Intent.ACTION_SEND).apply {

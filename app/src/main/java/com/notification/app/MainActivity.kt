@@ -163,7 +163,7 @@ class MainActivity : ComponentActivity() {
                                     title = if (currentScreen != null) {
                                         if (isArabic) currentScreen.titleAr else currentScreen.titleEn
                                     } else {
-                                        "Notification"
+                                        if (isArabic) "رفيق" else "Rafeeq"
                                     },
                                     onProfileClick = { navController.navigate(Screen.Settings.route) }
                                 )

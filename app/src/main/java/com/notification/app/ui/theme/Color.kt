@@ -29,6 +29,11 @@ val GradientBlueEnd = Color(0xFF06B6D4)
 val GradientPurpleStart = Color(0xFF7C4DFF)
 val GradientPurpleEnd = Color(0xFFEC4899)
 
+// Rafeeq brand-mark colors (launcher icon + splash "Rafeeq spark")
+val PlatinumTint = Color(0xFFC9D8F2)
+val ChampagneGoldLight = Color(0xFFF3DFAE)
+val ChampagneGoldDeep = Color(0xFFE5C378)
+
 // Legacy aliases for backward compatibility
 val MaroonPrimary = Primary
 val MaroonPrimaryLight = PrimaryLight

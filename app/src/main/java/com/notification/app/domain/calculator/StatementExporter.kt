@@ -60,7 +60,7 @@ object StatementExporter {
         }
         sb.append("$statusText\n")
         sb.append("========================================\n")
-        sb.append("Generated via Notification App")
+        sb.append("Generated via Rafeeq")
 
         return sb.toString()
     }
@@ -95,7 +95,7 @@ object StatementExporter {
         sb.append("Total Paid: ${summary.totalPaidAmount} EGP\n")
         sb.append("Total Remaining: ${summary.totalRemainingAmount} EGP\n")
         sb.append("========================================\n")
-        sb.append("Generated via Notification App")
+        sb.append("Generated via Rafeeq")
 
         return sb.toString()
     }
