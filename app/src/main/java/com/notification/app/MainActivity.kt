@@ -22,19 +22,30 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.notification.app.ui.components.PremiumTopAppBar
 import com.notification.app.ui.screens.*
 import com.notification.app.ui.theme.NotificationTheme
 import com.notification.app.ui.viewmodel.MainViewModel
 
 sealed class Screen(val route: String, val titleEn: String, val titleAr: String, val icon: ImageVector) {
     object Splash : Screen("splash", "Splash", "البداية", Icons.Default.Notifications)
+
+    // Sprint 1 — the four primary Bottom Navigation destinations.
+    object Dashboard : Screen("dashboard", "Dashboard", "الرئيسية", Icons.Default.Dashboard)
+    object AiChat : Screen("ai_chat", "AI Assistant", "المساعد الذكي", Icons.Default.AutoAwesome)
+    object Tasks : Screen("tasks", "Tasks", "المهام", Icons.Default.Assignment)
+    object Notifications : Screen("notifications", "Notifications", "الإشعارات", Icons.Default.NotificationsActive)
+
+    // Existing feature screens — kept fully intact and reachable from
+    // Dashboard's Quick Actions, but no longer shown in Bottom Navigation.
     object Home : Screen("home", "Home", "الرئيسية", Icons.Default.Home)
     object Reminders : Screen("reminders", "Reminders", "التذكيرات", Icons.Default.NotificationsActive)
     object Ledger : Screen("ledger", "Ledger", "دفتر الديون", Icons.Default.AccountBalanceWallet)
     object Gam3iya : Screen("gam3iya", "Gam3iya", "الجمعيات", Icons.Default.Group)
-    object AiChat : Screen("ai_chat", "AI Assistant", "المساعد الذكي", Icons.Default.AutoAwesome)
     object Islamic : Screen("islamic", "Islamic", "إسلاميات", Icons.Default.Mosque)
     object HealthNotes : Screen("health_notes", "Health/Notes", "الصحة", Icons.Default.WaterDrop)
+
+    // Settings — reachable ONLY from the profile button in the Top App Bar.
     object Settings : Screen("settings", "Settings", "الإعدادات", Icons.Default.Settings)
     object Auth : Screen("auth", "Auth", "دخول", Icons.Default.Lock)
 }
@@ -74,27 +85,45 @@ class MainActivity : ComponentActivity() {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
 
+                    // Sprint 1: Bottom Navigation contains ONLY these four
+                    // primary destinations. Settings is intentionally
+                    // excluded — it's reachable only from the Top App Bar's
+                    // profile button.
                     val bottomBarScreens = listOf(
-                        Screen.Home,
-                        Screen.Reminders,
-                        Screen.Ledger,
-                        Screen.Gam3iya,
-                        Screen.Islamic,
+                        Screen.Dashboard,
                         Screen.AiChat,
-                        Screen.HealthNotes,
-                        Screen.Settings
+                        Screen.Tasks,
+                        Screen.Notifications
                     )
 
+                    // Screens that show the Bottom Navigation + Top App Bar
+                    // "chrome". Splash and Auth are full-bleed and excluded.
+                    val chromeRoutes = bottomBarScreens.map { it.route }
+                    val showChrome = currentRoute in chromeRoutes
+
                     Scaffold(
+                        topBar = {
+                            if (showChrome) {
+                                val currentScreen = bottomBarScreens.firstOrNull { it.route == currentRoute }
+                                PremiumTopAppBar(
+                                    title = if (currentScreen != null) {
+                                        if (isArabic) currentScreen.titleAr else currentScreen.titleEn
+                                    } else {
+                                        "Notification"
+                                    },
+                                    onProfileClick = { navController.navigate(Screen.Settings.route) }
+                                )
+                            }
+                        },
                         bottomBar = {
-                            if (currentRoute != Screen.Auth.route && currentRoute != Screen.Splash.route) {
+                            if (showChrome) {
                                 NavigationBar {
                                     bottomBarScreens.forEach { screen ->
                                         NavigationBarItem(
                                             selected = currentRoute == screen.route,
                                             onClick = {
                                                 navController.navigate(screen.route) {
-                                                    popUpTo(Screen.Home.route) {
+                                                    popUpTo(Screen.Dashboard.route) {
                                                         saveState = true
                                                     }
                                                     launchSingleTop = true
@@ -156,12 +185,41 @@ class MainActivity : ComponentActivity() {
                                 SplashScreen(
                                     isArabic = isArabic,
                                     onSplashFinished = {
-                                        val destination = if (isLoggedIn) Screen.Home.route else Screen.Auth.route
+                                        // Sprint 1: Dashboard is now the default landing screen.
+                                        val destination = if (isLoggedIn) Screen.Dashboard.route else Screen.Auth.route
                                         navController.navigate(destination) {
                                             popUpTo(Screen.Splash.route) { inclusive = true }
                                         }
                                     }
                                 )
+                            }
+
+                            composable(Screen.Dashboard.route) {
+                                DashboardScreen(
+                                    isArabic = isArabic,
+                                    onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
+                                    onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
+                                    onNavigateToIslamic = { navController.navigate(Screen.Islamic.route) },
+                                    onNavigateToHealthNotes = { navController.navigate(Screen.HealthNotes.route) }
+                                )
+                            }
+
+                            composable(Screen.Tasks.route) {
+                                // Sprint 1: "Tasks" reuses the existing, fully
+                                // functional RemindersScreen and its real
+                                // ViewModel-backed data. RemindersScreen.kt
+                                // itself is untouched.
+                                RemindersScreen(
+                                    reminders = reminders,
+                                    isArabic = isArabic,
+                                    onAddReminder = { viewModel.addReminder(it) },
+                                    onToggleReminder = { viewModel.toggleReminderCompleted(it) },
+                                    onDeleteReminder = { viewModel.deleteReminder(it) }
+                                )
+                            }
+
+                            composable(Screen.Notifications.route) {
+                                NotificationsScreen(isArabic = isArabic)
                             }
 
                             composable(Screen.Home.route) {
@@ -264,12 +322,12 @@ class MainActivity : ComponentActivity() {
                                     onSignInSuccess = { name, email ->
                                         viewModel.setUserAuth(name, email, true)
                                         viewModel.restoreFromBackup()
-                                        navController.navigate(Screen.Home.route) {
+                                        navController.navigate(Screen.Dashboard.route) {
                                             popUpTo(Screen.Auth.route) { inclusive = true }
                                         }
                                     },
                                     onSkip = {
-                                        navController.navigate(Screen.Home.route) {
+                                        navController.navigate(Screen.Dashboard.route) {
                                             popUpTo(Screen.Auth.route) { inclusive = true }
                                         }
                                     },
