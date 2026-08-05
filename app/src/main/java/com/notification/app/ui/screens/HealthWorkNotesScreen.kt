@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.notification.app.data.local.entities.WorkNoteEntity
 import com.notification.app.ui.theme.MaroonPrimary
@@ -79,7 +80,15 @@ fun HealthWorkNotesScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        // QA fix (device screenshots): the old text Button got
+                        // width-squeezed by the long title and its label wrapped
+                        // vertically into a giant pill overflowing the card.
+                        // A weighted title column + fixed-size icon button can
+                        // never overflow, in RTL or LTR.
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)
@@ -89,34 +98,45 @@ fun HealthWorkNotesScreen(
                                 Icon(
                                     imageVector = Icons.Default.WaterDrop,
                                     contentDescription = null,
-                                    tint = Color.White
+                                    tint = OnPrimary
                                 )
                             }
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = if (isArabic) "تتبع شرب الماء اليومي" else "Daily Water Tracker",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = if (isArabic) "عدد الكواب اليوم: $waterCount كاسات" else "Count Today: $waterCount cups",
+                                    text = if (isArabic) "أكواب اليوم: $waterCount من ٨" else "Today: $waterCount of 8 cups",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
 
-                        Button(
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        FilledIconButton(
                             onClick = onIncrementWater,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaroonPrimary,
+                                contentColor = OnPrimary
+                            ),
+                            modifier = Modifier.size(48.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = if (isArabic) "شربت كأس" else "+1 Cup")
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = if (isArabic) "شربت كأس" else "Log a cup"
+                            )
                         }
                     }
                 }

@@ -29,6 +29,14 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = Cream,
     surfaceVariant = DarkSlate,
     onSurfaceVariant = MutedBronze,
+    // Visual polish — REAL surface depth hierarchy: backgrounds, cards,
+    // elevated cards, and dialogs each live one level brighter, so the
+    // UI reads as layered depth instead of one flat black.
+    surfaceContainerLowest = Color(0xFF0E0F13),
+    surfaceContainerLow = Charcoal,
+    surfaceContainer = Color(0xFF191B21),
+    surfaceContainerHigh = Color(0xFF1F2128),
+    surfaceContainerHighest = Color(0xFF262932),
     outline = GoldOutlineDark,
     error = Error,
     onError = Color.White,

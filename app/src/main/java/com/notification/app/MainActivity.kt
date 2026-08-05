@@ -103,11 +103,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val language by viewModel.language.collectAsState()
-            val isDarkMode by viewModel.isDarkMode.collectAsState()
             val isLoggedIn by viewModel.isLoggedIn.collectAsState()
             val userName by viewModel.userName.collectAsState()
             val userEmail by viewModel.userEmail.collectAsState()
-            val geminiApiKey by viewModel.geminiApiKey.collectAsState()
             val lastSyncTime by viewModel.lastSyncTime.collectAsState()
 
             val reminders by viewModel.allReminders.collectAsState()
@@ -127,7 +125,8 @@ class MainActivity : ComponentActivity() {
             val isArabic = language == "ar"
             val layoutDirection = if (isArabic) LayoutDirection.Rtl else LayoutDirection.Ltr
 
-            NotificationTheme(darkTheme = isDarkMode, isArabic = isArabic) {
+            // Stability sprint — Rafeeq is officially dark-theme only.
+            NotificationTheme(darkTheme = true, isArabic = isArabic) {
                 CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                     val navController = rememberNavController()
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -227,6 +226,11 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 FloatingActionButton(
                                     onClick = { showSmartItemSheet = true },
+                                    // Visual polish — the FAB is the app's
+                                    // primary gold accent: full champagne
+                                    // gold with a deep floating shadow.
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary,
                                     elevation = FloatingActionButtonDefaults.elevation(
                                         defaultElevation = com.notification.app.ui.designsystem.AppElevation.high,
                                         pressedElevation = com.notification.app.ui.designsystem.AppElevation.high + com.notification.app.ui.designsystem.AppElevation.medium
@@ -293,6 +297,8 @@ class MainActivity : ComponentActivity() {
                                 // already collected above — no fake data.
                                 DashboardScreen(
                                     isArabic = isArabic,
+                                    userName = userName,
+                                    gam3iyas = gam3iyas,
                                     reminders = reminders,
                                     persons = persons,
                                     transactions = transactions,
@@ -366,7 +372,14 @@ class MainActivity : ComponentActivity() {
                                 NotificationsScreen(
                                     reminders = reminders,
                                     alarms = alarms,
-                                    isArabic = isArabic
+                                    isArabic = isArabic,
+                                    onCreateFirst = {
+                                        navController.navigate(Screen.Tasks.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
                                 )
                             }
 
@@ -425,7 +438,22 @@ class MainActivity : ComponentActivity() {
                                     messages = chatMessages,
                                     isLoading = isAiLoading,
                                     isArabic = isArabic,
-                                    onSendMessage = { viewModel.sendAiMessage(it) }
+                                    onSendMessage = { viewModel.sendAiMessage(it) },
+                                    onOpenTasks = {
+                                        navController.navigate(Screen.Tasks.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
+                                    onOpenLedger = { navController.navigate(Screen.Ledger.route) },
+                                    onOpenNotifications = {
+                                        navController.navigate(Screen.Notifications.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    }
                                 )
                             }
 
@@ -451,20 +479,25 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.Settings.route) {
                                 SettingsScreen(
                                     currentLanguage = language,
-                                    isDarkMode = isDarkMode,
                                     isLoggedIn = isLoggedIn,
                                     userName = userName,
                                     userEmail = userEmail,
-                                    geminiApiKey = geminiApiKey,
                                     lastSyncTime = lastSyncTime,
                                     isArabic = isArabic,
                                     onSetLanguage = { viewModel.setLanguage(it) },
-                                    onSetDarkMode = { viewModel.setDarkMode(it) },
-                                    onSetGeminiKey = { viewModel.setGeminiApiKey(it) },
                                     onTriggerBackup = { viewModel.triggerBackupSync() },
                                     onSignOut = {
+                                        // Stability sprint — REAL logout:
+                                        // Firebase sign-out + persisted session
+                                        // cleared + cached AI/user state reset +
+                                        // back stack fully cleared so Back can
+                                        // never return into authed screens.
                                         com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-                                        viewModel.setUserAuth("Guest User", "", false)
+                                        viewModel.onLogout()
+                                        navController.navigate(Screen.Auth.route) {
+                                            popUpTo(0) { inclusive = true }
+                                            launchSingleTop = true
+                                        }
                                     }
                                 )
                             }

@@ -6,7 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.notification.app.data.local.AppDatabase
 import com.notification.app.data.local.entities.*
 import com.notification.app.data.preferences.UserPreferencesRepository
+import android.util.Log
+import com.notification.app.BuildConfig
 import com.notification.app.data.remote.GeminiContent
+import com.notification.app.data.remote.GeminiPart
 import com.notification.app.data.repository.GeminiRepository
 import com.notification.app.data.repository.NotificationRepository
 import com.notification.app.domain.calculator.PrayerTime
@@ -17,6 +20,7 @@ import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.domain.scheduler.AlarmManagerScheduler
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Date
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -40,9 +44,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "User")
 
     val userEmail: StateFlow<String> = preferencesRepository.userEmailFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
-
-    val geminiApiKey: StateFlow<String> = preferencesRepository.geminiApiKeyFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
     val lastSyncTime: StateFlow<Long> = preferencesRepository.lastSyncTimeFlow
@@ -119,8 +120,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _aiSuggestionsLoading.value = true
             val result = geminiRepository.generateDashboardSuggestions(
-                isArabic = isArabic,
-                customApiKey = geminiApiKey.value
+                isArabic = isArabic
             )
             if (result.isNotEmpty()) {
                 _aiSuggestions.value = result
@@ -130,9 +130,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Stability sprint — full logout: Firebase sign-out happens at the
+     * call site; here we clear the persisted session and every piece of
+     * cached user-scoped state so the app is truly signed out (and stays
+     * signed out after restart via the persisted isLoggedIn=false).
+     */
+    fun onLogout() {
+        viewModelScope.launch {
+            preferencesRepository.setUserAuth("Guest User", "", false)
+        }
+        _chatMessages.value = emptyList()
+        _aiSuggestions.value = emptyList()
+        aiSuggestionsFetchedAt = 0L
+        _isAiLoading.value = false
+    }
+
     companion object {
         /** How long cached AI suggestions stay fresh before a silent re-fetch. */
         const val AI_SUGGESTIONS_TTL_MS: Long = 15 * 60 * 1000L
+
+        /** Hard ceiling for a single AI generation before a friendly cancel. */
+        const val AI_GENERATION_TIMEOUT_MS: Long = 15_000L
     }
 
     // Water counter state
@@ -140,6 +159,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val waterCount: StateFlow<Int> = _waterCount.asStateFlow()
 
     init {
+        // Stability sprint — runtime verification of the key pipeline
+        // (GitHub Secret -> .env -> BuildConfig). Logs availability ONLY.
+        Log.i("Rafeeq", "API Key Available = " + BuildConfig.GEMINI_API_KEY.isNotBlank())
         updatePrayerTimes()
     }
 
@@ -347,19 +369,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // AI Chat
+    /**
+     * Stability sprint — reliable AI pipeline:
+     *  - the user's message appears in the conversation IMMEDIATELY
+     *    (optimistic append) and the typing indicator follows instantly;
+     *  - single-flight: while a generation is active, new sends are
+     *    ignored, so duplicate requests are impossible;
+     *  - a hard 15s timeout cancels a hung generation and posts a
+     *    friendly retry message — the conversation can never freeze;
+     *  - repository-level failures (network / API / parsing) already
+     *    return readable error replies, so nothing fails silently;
+     *  - the API key comes from BuildConfig only (no Settings key).
+     */
     fun sendAiMessage(userText: String) {
         if (userText.isBlank()) return
+        if (_isAiLoading.value) return
+        val previousHistory = _chatMessages.value
+
+        // Optimistic UI: show the user's bubble right away.
+        _chatMessages.value = previousHistory +
+            GeminiContent(role = "user", parts = listOf(GeminiPart(text = userText)))
+        _isAiLoading.value = true
+
         viewModelScope.launch {
-            _isAiLoading.value = true
-            val (reply, newHistory) = geminiRepository.sendMessage(
-                history = _chatMessages.value,
-                userMessage = userText,
-                customApiKey = geminiApiKey.value,
-                onAlarmCreated = { alarm ->
-                    AlarmManagerScheduler.scheduleExactAlarm(getApplication(), alarm)
-                }
-            )
-            _chatMessages.value = newHistory
+            val result = withTimeoutOrNull(AI_GENERATION_TIMEOUT_MS) {
+                geminiRepository.sendMessage(
+                    history = previousHistory,
+                    userMessage = userText,
+                    onAlarmCreated = { alarm ->
+                        AlarmManagerScheduler.scheduleExactAlarm(getApplication(), alarm)
+                    }
+                )
+            }
+            _chatMessages.value = if (result != null) {
+                result.second
+            } else {
+                _chatMessages.value + GeminiContent(
+                    role = "model",
+                    parts = listOf(
+                        GeminiPart(
+                            text = "استغرق الرد وقتًا أطول من المعتاد فأوقفته — جرّب مرة أخرى الآن 🙏\n" +
+                                "That took longer than usual, so I stopped it — please try again."
+                        )
+                    )
+                )
+            }
             _isAiLoading.value = false
         }
     }
@@ -375,10 +429,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setUserAuth(name: String, email: String, isLoggedIn: Boolean) {
         viewModelScope.launch { preferencesRepository.setUserAuth(name, email, isLoggedIn) }
-    }
-
-    fun setGeminiApiKey(key: String) {
-        viewModelScope.launch { preferencesRepository.setGeminiApiKey(key) }
     }
 
     fun setAlarmRingtoneUri(uri: String) {

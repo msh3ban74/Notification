@@ -114,7 +114,9 @@ fun RemindersScreen(
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.EventAvailable,
                     title = if (isArabic) "لا توجد تذكيرات حالياً" else "No Reminders Found",
-                    subtitle = if (isArabic) "اضغط على زر الإضافة (+) لإنشاء تذكير جديد وتنبيهاتك القادمة" else "Tap the (+) button below to schedule your upcoming alerts and tasks"
+                    subtitle = if (isArabic) "أنشئ أول مهمة وستتولى تنبيهاتها تلقائيًا" else "Create your first task and Rafeeq will handle the alerts",
+                    actionLabel = if (isArabic) "أضف مهمة" else "Add Task",
+                    onAction = { showAddDialog = true }
                 )
             } else {
                 LazyColumn(

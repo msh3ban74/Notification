@@ -88,6 +88,16 @@ class GoogleAuthManager(private val context: Context) {
             } else {
                 AuthResult.Failure("Unexpected credential type returned by Credential Manager.")
             }
+        } catch (e: androidx.credentials.exceptions.NoCredentialException) {
+            // Most common causes: the app's signing certificate SHA-1 is not
+            // registered in Firebase (Project settings → Add fingerprint),
+            // or no Google account exists on the device.
+            AuthResult.Failure(
+                "تعذر العثور على حساب جوجل صالح — تأكد من وجود حساب جوجل على الجهاز، " +
+                    "وأن بصمة توقيع التطبيق (SHA-1) مضافة في إعدادات Firebase.\n" +
+                    "No valid Google credentials — make sure a Google account exists on this " +
+                    "device and the app's SHA-1 fingerprint is registered in Firebase."
+            )
         } catch (e: GetCredentialException) {
             AuthResult.Failure(e.message ?: "Sign-in was cancelled or failed.")
         } catch (e: GoogleIdTokenParsingException) {

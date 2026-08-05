@@ -47,7 +47,12 @@ fun AiChatScreen(
     messages: List<GeminiContent>,
     isLoading: Boolean,
     isArabic: Boolean,
-    onSendMessage: (String) -> Unit
+    onSendMessage: (String) -> Unit,
+    // v1.0 Copilot — execute buttons under Rafeeq's replies, wired to
+    // EXISTING navigation flows only.
+    onOpenTasks: () -> Unit = {},
+    onOpenLedger: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {}
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -94,6 +99,24 @@ fun AiChatScreen(
 
                     if (isLoading) {
                         item { ThinkingIndicator(isArabic = isArabic) }
+                    }
+
+                    // v1.0 Copilot — contextual execute buttons derived from
+                    // Rafeeq's LAST reply: each action opens an EXISTING flow.
+                    if (!isLoading) {
+                        val lastReply = messages.lastOrNull { it.role == "model" }
+                            ?.parts?.firstOrNull()?.text
+                        if (lastReply != null) {
+                            item {
+                                ActionChipsRow(
+                                    replyText = lastReply,
+                                    isArabic = isArabic,
+                                    onOpenTasks = onOpenTasks,
+                                    onOpenLedger = onOpenLedger,
+                                    onOpenNotifications = onOpenNotifications
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -313,9 +336,97 @@ private fun ThinkingIndicator(isArabic: Boolean) {
 }
 
 /**
+ * v1.0 Copilot — contextual execute buttons under Rafeeq's last reply.
+ * Simple keyword routing; every chip opens an EXISTING flow, so the
+ * assistant's advice is always one tap from action.
+ */
+@Composable
+private fun ActionChipsRow(
+    replyText: String,
+    isArabic: Boolean,
+    onOpenTasks: () -> Unit,
+    onOpenLedger: () -> Unit,
+    onOpenNotifications: () -> Unit
+) {
+    data class ChipAction(val label: String, val onClick: () -> Unit)
+
+    val lower = replyText.lowercase()
+    val chips = buildList {
+        if ("فاتورة" in replyText || "فواتير" in replyText || "bill" in lower) {
+            add(ChipAction(if (isArabic) "افتح الفواتير" else "Open Bills", onOpenTasks))
+        }
+        if ("دين" in replyText || "ديون" in replyText || "فلوس" in replyText ||
+            "debt" in lower || "owe" in lower
+        ) {
+            add(ChipAction(if (isArabic) "افتح الدفتر" else "Open Ledger", onOpenLedger))
+        }
+        if ("مهمة" in replyText || "مهام" in replyText || "تذكير" in replyText ||
+            "task" in lower || "reminder" in lower
+        ) {
+            add(ChipAction(if (isArabic) "افتح المهام" else "Open Tasks", onOpenTasks))
+        }
+        if ("منبه" in replyText || "alarm" in lower) {
+            add(ChipAction(if (isArabic) "افتح التنبيهات" else "Open Alerts", onOpenNotifications))
+        }
+    }.distinctBy { it.label }.take(3)
+
+    if (chips.isEmpty()) return
+
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        chips.forEach { chip ->
+            AssistChip(
+                onClick = chip.onClick,
+                label = { Text(chip.label, maxLines = 1) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaroonPrimary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Markdown-lite for Rafeeq's replies: **bold** spans and "- " bullets
+ * render properly instead of showing raw markdown characters.
+ */
+private fun renderMarkdownLite(text: String): androidx.compose.ui.text.AnnotatedString {
+    return androidx.compose.ui.text.buildAnnotatedString {
+        text.split("\n").forEachIndexed { lineIndex, rawLine ->
+            if (lineIndex > 0) append("\n")
+            val line = when {
+                rawLine.trimStart().startsWith("- ") ->
+                    rawLine.replaceFirst("- ", "• ")
+                rawLine.trimStart().startsWith("* ") ->
+                    rawLine.replaceFirst("* ", "• ")
+                else -> rawLine
+            }
+            var rest = line
+            while (true) {
+                val start = rest.indexOf("**")
+                val end = if (start >= 0) rest.indexOf("**", start + 2) else -1
+                if (start < 0 || end < 0) {
+                    append(rest)
+                    break
+                }
+                append(rest.substring(0, start))
+                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
+                append(rest.substring(start + 2, end))
+                pop()
+                rest = rest.substring(end + 2)
+            }
+        }
+    }
+}
+
+/**
  * Premium chat bubble: large 22dp roundness with a subtle tail,
  * gold for the user, calm charcoal for Rafeeq. Max width keeps
- * lines comfortable to read.
+ * lines comfortable to read; Rafeeq's replies render markdown-lite.
  */
 @Composable
 fun ChatBubble(text: String, isUser: Boolean) {
@@ -335,7 +446,11 @@ fun ChatBubble(text: String, isUser: Boolean) {
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
             Text(
-                text = text,
+                text = if (isUser) {
+                    androidx.compose.ui.text.AnnotatedString(text)
+                } else {
+                    renderMarkdownLite(text)
+                },
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)
             )

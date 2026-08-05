@@ -69,11 +69,26 @@ interface GeminiApiService {
 object RetrofitClient {
     private const val BASE_URL = "https://generativelanguage.googleapis.com/"
 
+    // Stability sprint — the old 60s×3 timeouts let a bad connection hang a
+    // "frozen" conversation for minutes. Tight budgets fail fast; the
+    // ViewModel adds its own 15s generation ceiling with a friendly retry.
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
-        .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY })
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(25, TimeUnit.SECONDS)
+        // SECURITY (v1.0): BODY logging printed full AI payloads and the
+        // key-bearing request URL to logcat on user devices. Verbose only
+        // in debug builds; silent in release.
+        .addInterceptor(
+            HttpLoggingInterceptor().apply {
+                level = if (com.notification.app.BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.BODY
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
+            }
+        )
         .build()
 
     private val moshi = Moshi.Builder()

@@ -18,11 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.notification.app.ui.theme.MaroonPrimary
 import java.text.SimpleDateFormat
@@ -31,22 +27,16 @@ import java.util.*
 @Composable
 fun SettingsScreen(
     currentLanguage: String,
-    isDarkMode: Boolean,
     isLoggedIn: Boolean,
     userName: String,
     userEmail: String,
-    geminiApiKey: String,
     lastSyncTime: Long,
     isArabic: Boolean,
     onSetLanguage: (String) -> Unit,
-    onSetDarkMode: (Boolean) -> Unit,
-    onSetGeminiKey: (String) -> Unit,
     onTriggerBackup: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val context = LocalContext.current
-    var apiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
-    var isKeyVisible by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
 
     LazyColumn(
@@ -59,10 +49,20 @@ fun SettingsScreen(
 
         item {
             Text(
-                text = if (isArabic) "الإعدادات والتفضلات" else "Settings & Preferences",
+                text = if (isArabic) "الإعدادات" else "Settings",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+
+        // ── Section: Account ─────────────────────────────────────────
+        item {
+            Text(
+                text = if (isArabic) "الحساب والنسخ الاحتياطي" else "Account & Backup",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
             )
         }
 
@@ -183,47 +183,34 @@ fun SettingsScreen(
                         }
 
                         Row {
+                            // QA fix: labels wrapped to two lines on device
+                            // ("Engl/ish") — force a single unwrapped line.
                             FilterChip(
                                 selected = currentLanguage == "ar",
                                 onClick = { onSetLanguage("ar") },
-                                label = { Text("العربية") }
+                                label = { Text("العربية", maxLines = 1, softWrap = false) }
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             FilterChip(
                                 selected = currentLanguage == "en",
                                 onClick = { onSetLanguage("en") },
-                                label = { Text("English") }
+                                label = { Text("English", maxLines = 1, softWrap = false) }
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Divider()
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.DarkMode,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = if (isArabic) "الوضع الليلي (Dark Mode)" else "Dark Theme",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        Switch(checked = isDarkMode, onCheckedChange = onSetDarkMode)
-                    }
                 }
             }
+        }
+
+        // ── Section: Notifications ───────────────────────────────────
+        item {
+            Text(
+                text = if (isArabic) "الإشعارات والتنبيهات" else "Notifications",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
         }
 
         // Battery Optimization Exemption Prompt
@@ -271,52 +258,37 @@ fun SettingsScreen(
             }
         }
 
-        // Smart Assistant API Settings
+        // ── Section: About ───────────────────────────────────────────
+        item {
+            Text(
+                text = if (isArabic) "حول" else "About",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
                     Text(
-                        text = if (isArabic) "مفتاح تفعيل المساعد الذكي" else "Custom Assistant API Key",
+                        text = if (isArabic) "رفيق — Rafeeq" else "Rafeeq — رفيق",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = if (isArabic) "يمكنك إدخال مفتاح الخدمة الخاص بك أو ترك الحقل فارغاً لاستخدام المفتاح المدمج" else "Enter custom API key or leave empty to use built-in key",
+                        text = if (isArabic) "الإصدار 1.0 • رفيقك الذكي في كل تفاصيل حياتك" else "Version 1.0 • Your intelligent life companion",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    OutlinedTextField(
-                        value = apiKeyInput,
-                        onValueChange = { apiKeyInput = it },
-                        label = { Text("API Key") },
-                        modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = if (isKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        trailingIcon = {
-                            IconButton(onClick = { isKeyVisible = !isKeyVisible }) {
-                                Icon(
-                                    imageVector = if (isKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (isKeyVisible) "Hide Key" else "Show Key"
-                                )
-                            }
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = { onSetGeminiKey(apiKeyInput) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary),
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text(if (isArabic) "حفظ المفتاح" else "Save Key")
-                    }
                 }
             }
         }

@@ -15,8 +15,16 @@ on:
       - "develop"
   workflow_dispatch:
 
+# contents: write so the workflow can publish the debug APK to the
+# "debug-latest" release — a permanent public download link.
 permissions:
-  contents: read
+  contents: write
+
+# A newer push supersedes and cancels any still-running build of the same
+# branch, so a hung emulator can never block the pipeline.
+concurrency:
+  group: rafeeq-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-debug:
@@ -45,6 +53,9 @@ jobs:
       - name: Write local.properties from secrets
         run: |
           echo "GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID }}" >> local.properties
+          if [ -z "${{ secrets.GOOGLE_WEB_CLIENT_ID }}" ]; then
+            echo "::warning::GOOGLE_WEB_CLIENT_ID secret is empty — Google Sign-In will not work in this APK. Add it in repo Settings → Secrets → Actions."
+          fi
 
       - name: Ensure Gradle Wrapper exists
         run: |
@@ -77,3 +88,74 @@ jobs:
         with:
           name: rafeeq-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      # ---- Signed RELEASE build — same secrets and signing key as the
+      # ---- existing "Extract ZIP & Build Signed Release APK" workflow,
+      # ---- so the APK carries the user's real (Firebase-registered)
+      # ---- certificate.
+      - name: Decode release keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ github.workspace }}/release-key.jks"
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/release-key.jks
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Remove keystore file
+        if: always()
+        run: rm -f "${{ github.workspace }}/release-key.jks"
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rafeeq-release-apk
+          path: app/build/outputs/apk/release/*.apk
+
+      - name: Emulator deep UI test (walk every screen)
+        timeout-minutes: 25
+        # Boots a real Android emulator, installs the signed release APK,
+        # and runs ci/emulator_ui_test.sh — a full walk of every screen
+        # with per-step crash checks and screenshots. The test lives in a
+        # real bash file because this action executes each script line
+        # with a separate `sh -c`, which breaks multi-line constructs.
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: bash ci/emulator_ui_test.sh
+
+      - name: Upload smoke-test logcat and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logcat
+          path: |
+            logcat-full.txt
+            shots/
+          if-no-files-found: ignore
+
+      - name: Publish APKs to the rafeeq-latest release
+        # ONE rolling release ("rafeeq-latest") always holding the newest
+        # signed release APK (primary) plus the debug APK — permanent
+        # public download links:
+        # .../releases/download/rafeeq-latest/Rafeeq-release.apk
+        # .../releases/download/rafeeq-latest/Rafeeq-debug.apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp "$(ls app/build/outputs/apk/release/*.apk | head -1)" Rafeeq-release.apk
+          cp "$(ls app/build/outputs/apk/debug/*.apk | head -1)" Rafeeq-debug.apk
+          if ! gh release view rafeeq-latest --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create rafeeq-latest \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Rafeeq (latest)" \
+              --notes "Rolling release: newest signed release APK (and debug APK) built by Rafeeq Branch CI."
+          fi
+          gh release upload rafeeq-latest Rafeeq-release.apk Rafeeq-debug.apk --repo "$GITHUB_REPOSITORY" --clobber
+          # One-time cleanup of the older debug-only rolling release.
+          gh release delete debug-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
