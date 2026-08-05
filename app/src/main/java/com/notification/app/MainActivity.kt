@@ -166,17 +166,36 @@ class MainActivity : ComponentActivity() {
                         },
                         floatingActionButton = {
                             // Sprint 2 — Smart Item Engine Foundation.
-                            // Standard Material 3 FAB, floats above the
-                            // Bottom Navigation (Scaffold handles the
-                            // offset automatically), visible only on
-                            // Dashboard — Rafeeq's primary "+" action.
-                            if (currentRoute == Screen.Dashboard.route) {
+                            // Sprint 2 (UI/UX Polish) — same behavior (opens
+                            // the Smart Item sheet, Dashboard-only), only the
+                            // visual weight was refined: a slightly larger
+                            // touch target, a stronger resting elevation
+                            // that lifts further on press, and a scale-in
+                            // entrance so it doesn't just pop into place.
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = currentRoute == Screen.Dashboard.route,
+                                enter = androidx.compose.animation.scaleIn(
+                                    animationSpec = tween(com.notification.app.ui.designsystem.AppAnimationDuration.normal)
+                                ) + androidx.compose.animation.fadeIn(
+                                    animationSpec = tween(com.notification.app.ui.designsystem.AppAnimationDuration.normal)
+                                ),
+                                exit = androidx.compose.animation.scaleOut(
+                                    animationSpec = tween(com.notification.app.ui.designsystem.AppAnimationDuration.fast)
+                                ) + androidx.compose.animation.fadeOut(
+                                    animationSpec = tween(com.notification.app.ui.designsystem.AppAnimationDuration.fast)
+                                )
+                            ) {
                                 FloatingActionButton(
-                                    onClick = { showSmartItemSheet = true }
+                                    onClick = { showSmartItemSheet = true },
+                                    elevation = FloatingActionButtonDefaults.elevation(
+                                        defaultElevation = com.notification.app.ui.designsystem.AppElevation.high,
+                                        pressedElevation = com.notification.app.ui.designsystem.AppElevation.high + com.notification.app.ui.designsystem.AppElevation.medium
+                                    )
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Add,
-                                        contentDescription = if (isArabic) "إضافة" else "Add"
+                                        contentDescription = if (isArabic) "إضافة" else "Add",
+                                        modifier = Modifier.size(com.notification.app.ui.designsystem.AppDimens.fabIconSize)
                                     )
                                 }
                             }

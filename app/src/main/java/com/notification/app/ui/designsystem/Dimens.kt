@@ -20,7 +20,11 @@ object AppDimens {
 
     // Bars
     val topBarHeight = 64.dp
+    val topBarHeightCompact = 56.dp
     val bottomNavHeight = 80.dp
+
+    // FAB
+    val fabIconSize = 26.dp
 
     // Buttons
     val buttonHeight = 48.dp

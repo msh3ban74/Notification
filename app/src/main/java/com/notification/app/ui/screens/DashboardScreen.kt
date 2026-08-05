@@ -2,6 +2,7 @@ package com.notification.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Group
@@ -22,14 +25,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.notification.app.ui.designsystem.AppDimens
 import com.notification.app.ui.designsystem.AppPadding
 import com.notification.app.ui.designsystem.PremiumCard
+import com.notification.app.ui.theme.Spacing
 
 /**
  * Sprint 1 — Application Foundation.
+ * Sprint 2 — UI/UX Polish: reworked spacing, hierarchy, alignment and
+ * card proportions. No sections were added or removed, and none of the
+ * placeholder copy or navigation targets changed — only how the same
+ * content is laid out.
  *
  * Dashboard: the new default landing screen after Splash.
  *
@@ -54,8 +62,10 @@ fun DashboardScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(AppPadding.screen),
-        verticalArrangement = Arrangement.spacedBy(AppPadding.card)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = AppPadding.screen)
+            .padding(top = Spacing.sm, bottom = Spacing.xl),
+        verticalArrangement = Arrangement.spacedBy(Spacing.lg)
     ) {
         GreetingSection(isArabic = isArabic)
 
@@ -77,10 +87,11 @@ fun DashboardScreen(
 
 @Composable
 private fun GreetingSection(isArabic: Boolean) {
-    Column {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         Text(
             text = if (isArabic) "أهلاً بيك 👋" else "Welcome back 👋",
-            style = MaterialTheme.typography.headlineSmall
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold
         )
         Text(
             text = if (isArabic) "نظرة سريعة على يومك" else "Here's a quick look at your day",
@@ -90,13 +101,24 @@ private fun GreetingSection(isArabic: Boolean) {
     }
 }
 
+/** Shared section header style, used above every card group on this screen. */
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold
+    )
+}
+
 @Composable
 private fun TodaysSummarySection(isArabic: Boolean) {
     PremiumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
                 text = if (isArabic) "ملخص اليوم" else "Today's Summary",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
             )
             HorizontalDivider()
             Text(
@@ -126,11 +148,8 @@ private fun QuickActionsSection(
     onNavigateToIslamic: () -> Unit,
     onNavigateToHealthNotes: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = if (isArabic) "إجراءات سريعة" else "Quick Actions",
-            style = MaterialTheme.typography.titleMedium
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        SectionTitle(if (isArabic) "إجراءات سريعة" else "Quick Actions")
 
         val actions = listOf(
             QuickAction(
@@ -153,19 +172,22 @@ private fun QuickActionsSection(
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(4),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             modifier = Modifier.fillMaxWidth()
         ) {
             items(actions) { action ->
                 PremiumCard(
                     onClick = action.onClick,
-                    contentPadding = AppPadding.cardCompact
+                    contentPadding = AppPadding.cardCompact,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(0.95f)
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         Icon(
                             imageVector = action.icon,
@@ -177,7 +199,8 @@ private fun QuickActionsSection(
                             text = if (isArabic) action.labelAr else action.labelEn,
                             style = MaterialTheme.typography.labelSmall,
                             textAlign = TextAlign.Center,
-                            maxLines = 1
+                            maxLines = 1,
+                            modifier = Modifier.padding(top = Spacing.xs)
                         )
                     }
                 }
@@ -189,10 +212,11 @@ private fun QuickActionsSection(
 @Composable
 private fun RecentActivitySection(isArabic: Boolean) {
     PremiumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
                 text = if (isArabic) "النشاط الأخير" else "Recent Activity",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
             )
             HorizontalDivider()
             Text(
@@ -210,10 +234,11 @@ private fun RecentActivitySection(isArabic: Boolean) {
 @Composable
 private fun AiSuggestionsSection(isArabic: Boolean) {
     PremiumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
                 text = if (isArabic) "اقتراحات الذكاء الاصطناعي" else "AI Suggestions",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
             )
             HorizontalDivider()
             Text(
