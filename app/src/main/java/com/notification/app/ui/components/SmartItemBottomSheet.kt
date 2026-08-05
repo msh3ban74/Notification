@@ -17,7 +17,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -44,9 +43,13 @@ import com.notification.app.ui.designsystem.PremiumCard
 fun SmartItemBottomSheet(
     isArabic: Boolean,
     onDismiss: () -> Unit,
-    onItemSelected: (SmartItemType) -> Unit,
-    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    onItemSelected: (SmartItemType) -> Unit
 ) {
+    // sheetState is created internally (rather than exposed as a default
+    // parameter) so this function's public signature stays free of
+    // experimental Material3 types — that way callers like MainActivity
+    // don't need their own @OptIn just to invoke this composable.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +38,7 @@ import com.notification.app.ui.designsystem.AppDimens
  * intentionally NOT part of Bottom Navigation — this button is its only
  * entry point.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PremiumTopAppBar(
     title: String,
