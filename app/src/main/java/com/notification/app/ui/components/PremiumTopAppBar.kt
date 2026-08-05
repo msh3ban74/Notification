@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.notification.app.ui.designsystem.AppDimens
 import com.notification.app.ui.designsystem.AppElevation
 import com.notification.app.ui.designsystem.AppPadding
@@ -88,21 +89,23 @@ fun PremiumTopAppBar(
                     .padding(horizontal = AppPadding.cardCompact)
             )
 
+            // Stability sprint — Settings must be immediately discoverable:
+            // a larger, gold-filled avatar instead of the old faint chip.
             IconButton(onClick = onProfileClick) {
                 Box(
                     modifier = Modifier
-                        .size(AppDimens.avatarSizeSmall)
+                        .size(40.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
+                            color = MaterialTheme.colorScheme.primary,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
-                        contentDescription = "Profile / Settings",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(AppDimens.iconSizeSmall)
+                        contentDescription = "الإعدادات / Settings",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(AppDimens.iconSizeMedium)
                     )
                 }
             }

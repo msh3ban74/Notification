@@ -114,7 +114,7 @@ fun HealthWorkNotesScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = if (isArabic) "عدد الكواب اليوم: $waterCount" else "Count today: $waterCount cups",
+                                    text = if (isArabic) "أكواب اليوم: $waterCount من ٨" else "Today: $waterCount of 8 cups",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                                     maxLines = 1,

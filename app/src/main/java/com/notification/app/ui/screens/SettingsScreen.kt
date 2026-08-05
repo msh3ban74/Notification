@@ -18,11 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.notification.app.ui.theme.MaroonPrimary
 import java.text.SimpleDateFormat
@@ -31,22 +27,16 @@ import java.util.*
 @Composable
 fun SettingsScreen(
     currentLanguage: String,
-    isDarkMode: Boolean,
     isLoggedIn: Boolean,
     userName: String,
     userEmail: String,
-    geminiApiKey: String,
     lastSyncTime: Long,
     isArabic: Boolean,
     onSetLanguage: (String) -> Unit,
-    onSetDarkMode: (Boolean) -> Unit,
-    onSetGeminiKey: (String) -> Unit,
     onTriggerBackup: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val context = LocalContext.current
-    var apiKeyInput by remember(geminiApiKey) { mutableStateOf(geminiApiKey) }
-    var isKeyVisible by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
 
     LazyColumn(
@@ -59,7 +49,7 @@ fun SettingsScreen(
 
         item {
             Text(
-                text = if (isArabic) "الإعدادات والتفضلات" else "Settings & Preferences",
+                text = if (isArabic) "الإعدادات" else "Settings",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -209,31 +199,6 @@ fun SettingsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Divider()
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.DarkMode,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = if (isArabic) "الوضع الليلي (Dark Mode)" else "Dark Theme",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        Switch(checked = isDarkMode, onCheckedChange = onSetDarkMode)
-                    }
                 }
             }
         }
@@ -288,66 +253,6 @@ fun SettingsScreen(
 
                     OutlinedButton(onClick = { requestBatteryOptimizationExemption(context) }) {
                         Text(if (isArabic) "تفعيل" else "Enable")
-                    }
-                }
-            }
-        }
-
-        // ── Section: AI ──────────────────────────────────────────────
-        item {
-            Text(
-                text = if (isArabic) "الذكاء الاصطناعي" else "AI Assistant",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        // Smart Assistant API Settings
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = if (isArabic) "مفتاح تفعيل المساعد الذكي" else "Custom Assistant API Key",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (isArabic) "يمكنك إدخال مفتاح الخدمة الخاص بك أو ترك الحقل فارغاً لاستخدام المفتاح المدمج" else "Enter custom API key or leave empty to use built-in key",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = apiKeyInput,
-                        onValueChange = { apiKeyInput = it },
-                        label = { Text("API Key") },
-                        modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = if (isKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        trailingIcon = {
-                            IconButton(onClick = { isKeyVisible = !isKeyVisible }) {
-                                Icon(
-                                    imageVector = if (isKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (isKeyVisible) "Hide Key" else "Show Key"
-                                )
-                            }
-                        }
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = { onSetGeminiKey(apiKeyInput) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary),
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text(if (isArabic) "حفظ المفتاح" else "Save Key")
                     }
                 }
             }
