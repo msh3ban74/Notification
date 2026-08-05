@@ -8,6 +8,9 @@ data class PersonEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val phoneNumber: String = "",
+    // Final Product sprint (Phase A) — WhatsApp number for the one-tap
+    // reminder action. Added via Migration 1→2 (no data loss).
+    val whatsapp: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 

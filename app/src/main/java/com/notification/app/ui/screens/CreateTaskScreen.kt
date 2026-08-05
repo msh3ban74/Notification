@@ -13,6 +13,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Repeat
@@ -22,7 +24,9 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -37,7 +41,9 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -139,6 +145,29 @@ data class SmartReminderFormConfig(
  *                 same row id (and original category) so the existing
  *                 update pipeline replaces the scheduled alarm.
  */
+/**
+ * Encodes/decodes a task checklist to the reminders.checklist column.
+ * Format: items joined by "||", each "1:text" (done) or "0:text".
+ * Round-trip safe: newlines and the "||" separator are stripped from
+ * item text on encode.
+ */
+object ChecklistCodec {
+    fun decode(raw: String): List<Pair<Boolean, String>> {
+        if (raw.isBlank()) return emptyList()
+        return raw.split("||").mapNotNull { part ->
+            val idx = part.indexOf(':')
+            if (idx <= 0) null
+            else (part.substring(0, idx) == "1") to part.substring(idx + 1)
+        }
+    }
+
+    fun encode(items: List<Pair<Boolean, String>>): String =
+        items.filter { it.second.isNotBlank() }.joinToString("||") { (done, text) ->
+            val clean = text.replace("||", "/").replace("\n", " ")
+            (if (done) "1:" else "0:") + clean
+        }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateTaskScreen(
@@ -160,6 +189,16 @@ fun CreateTaskScreen(
             initial?.let { RecurrenceType.fromString(it.recurrence) } ?: config.defaultRecurrence
         )
     }
+    // Phase A — rich fields.
+    var tags by remember { mutableStateOf(initial?.tags ?: "") }
+    var location by remember { mutableStateOf(initial?.location ?: "") }
+    var progress by remember { mutableFloatStateOf((initial?.progress ?: 0).toFloat()) }
+    val checklist = remember {
+        mutableStateListOf<Pair<Boolean, String>>().apply {
+            addAll(ChecklistCodec.decode(initial?.checklist ?: ""))
+        }
+    }
+    var newChecklistItem by remember { mutableStateOf("") }
 
     // Default due moment: tomorrow at 09:00 — same "tomorrow" default the
     // existing AddReminderDialog uses, just with a friendlier fixed hour.
@@ -302,6 +341,86 @@ fun CreateTaskScreen(
                 }
             }
 
+            // Tags + Location (Phase A rich fields).
+            OutlinedTextField(
+                value = tags,
+                onValueChange = { tags = it },
+                label = { Text(if (isArabic) "وسوم (مفصولة بفاصلة)" else "Tags (comma separated)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = location,
+                onValueChange = { location = it },
+                label = { Text(if (isArabic) "المكان (اختياري)" else "Location (optional)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Progress slider.
+            Text(
+                text = (if (isArabic) "التقدّم: " else "Progress: ") + "${progress.toInt()}%",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Slider(
+                value = progress,
+                onValueChange = { progress = it },
+                valueRange = 0f..100f,
+                steps = 9,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Checklist editor.
+            Text(
+                text = if (isArabic) "قائمة المهام الفرعية" else "Checklist",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            checklist.forEachIndexed { index, item ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Checkbox(
+                        checked = item.first,
+                        onCheckedChange = { checklist[index] = item.copy(first = it) }
+                    )
+                    Text(
+                        text = item.second,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { checklist.removeAt(index) }) {
+                        Icon(Icons.Default.Close, contentDescription = if (isArabic) "حذف" else "Remove")
+                    }
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = newChecklistItem,
+                    onValueChange = { newChecklistItem = it },
+                    label = { Text(if (isArabic) "أضف بندًا" else "Add item") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = {
+                        val t = newChecklistItem.trim()
+                        if (t.isNotEmpty()) {
+                            checklist.add(false to t)
+                            newChecklistItem = ""
+                        }
+                    }
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = if (isArabic) "إضافة" else "Add")
+                }
+            }
+
             PremiumButton(
                 text = if (isArabic) "حفظ" else "Save",
                 enabled = title.isNotBlank(),
@@ -334,7 +453,11 @@ fun CreateTaskScreen(
                             note = description.trim(),
                             dueDate = dueCal.timeInMillis,
                             recurrence = recurrence.name,
-                            preAlerts = priority.toPreAlertsString()
+                            preAlerts = priority.toPreAlertsString(),
+                            tags = tags.trim(),
+                            location = location.trim(),
+                            progress = progress.toInt(),
+                            checklist = ChecklistCodec.encode(checklist)
                         )
                     )
                 },
