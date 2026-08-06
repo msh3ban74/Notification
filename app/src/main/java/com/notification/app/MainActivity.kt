@@ -458,6 +458,7 @@ class MainActivity : ComponentActivity() {
                                     transactions = transactions,
                                     isArabic = isArabic,
                                     onAddPerson = { name, phone -> viewModel.addPerson(name, phone) },
+                                    onAddPersonFull = { viewModel.addPersonFull(it) },
                                     onAddTransaction = { viewModel.addLedgerTransaction(it) },
                                     onDeleteTransaction = { viewModel.deleteLedgerTransaction(it) },
                                     onUpdateTransaction = { viewModel.updateLedgerTransaction(it) }

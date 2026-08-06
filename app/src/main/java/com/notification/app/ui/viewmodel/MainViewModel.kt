@@ -364,6 +364,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addPersonFull(person: PersonEntity) {
+        viewModelScope.launch { repository.insertPerson(person) }
+    }
+
+    fun updatePerson(person: PersonEntity) {
+        viewModelScope.launch { repository.insertPerson(person) }
+    }
+
     fun addLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
             repository.insertLedgerTransaction(tx)
@@ -588,14 +596,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_backupState.value == "syncing") return
         _backupState.value = "syncing"
         viewModelScope.launch {
-            when (val result = backupRepository.backupNow()) {
+            // Hard 30s ceiling so a stalled Firestore call can NEVER leave
+            // the UI spinning forever — the sprint's non-negotiable rule.
+            val result = withTimeoutOrNull(30_000L) { backupRepository.backupNow() }
+            _backupState.value = when (result) {
                 is com.notification.app.data.repository.BackupRepository.BackupResult.Success -> {
                     preferencesRepository.updateLastSyncTime(System.currentTimeMillis())
-                    _backupState.value = "success"
+                    "success"
                 }
-                is com.notification.app.data.repository.BackupRepository.BackupResult.Failure -> {
-                    _backupState.value = "error: ${result.message}"
-                }
+                is com.notification.app.data.repository.BackupRepository.BackupResult.Failure ->
+                    "error: ${result.message}"
+                null ->
+                    "error: " + (if (language.value == "ar")
+                        "استغرقت المزامنة وقتًا طويلًا — تأكد من الاتصال وحاول مجددًا"
+                    else "Sync timed out — check your connection and try again")
             }
         }
     }

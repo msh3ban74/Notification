@@ -22,7 +22,7 @@ import com.notification.app.data.local.entities.*
         HabitEntity::class,
         HabitLogEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -136,6 +136,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration 5→6 — Product Completion: full contact profile on
+         * ledger persons. Plain additive ALTER TABLEs, defaults mirror
+         * the entity, no data touched.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE persons ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN address TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN category TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -143,7 +156,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "notification_app_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 // Safety net only — real migrations above preserve data.
                 .fallbackToDestructiveMigration()
                 .build()

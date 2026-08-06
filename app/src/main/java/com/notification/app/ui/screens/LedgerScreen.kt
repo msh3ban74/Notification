@@ -4,6 +4,8 @@ import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -39,6 +41,8 @@ fun LedgerScreen(
     transactions: List<LedgerTransactionEntity>,
     isArabic: Boolean,
     onAddPerson: (name: String, phone: String) -> Unit,
+    // Product Completion — full contact profile capture.
+    onAddPersonFull: (PersonEntity) -> Unit = { onAddPerson(it.name, it.phoneNumber) },
     onAddTransaction: (LedgerTransactionEntity) -> Unit,
     onDeleteTransaction: (LedgerTransactionEntity) -> Unit,
     // Sprint 5 — edit flow. Optional so existing call sites keep working.
@@ -139,7 +143,7 @@ fun LedgerScreen(
                     unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     text = {
                         Text(
-                            if (isArabic) "يطلبوني / استلمت (لهم)" else "Owed to Me",
+                            if (isArabic) "مستحقات لي" else "Owed to me",
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -151,7 +155,7 @@ fun LedgerScreen(
                     unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     text = {
                         Text(
-                            if (isArabic) "أطلبهم / أعطيتهم (لي)" else "I Owe",
+                            if (isArabic) "مستحقات عليّ" else "I owe",
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -231,37 +235,67 @@ fun LedgerScreen(
     if (showAddPersonDialog) {
         var name by remember { mutableStateOf("") }
         var phone by remember { mutableStateOf("") }
+        var whatsapp by remember { mutableStateOf("") }
+        var email by remember { mutableStateOf("") }
+        var address by remember { mutableStateOf("") }
+        var category by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showAddPersonDialog = false },
-            title = { Text(if (isArabic) "إضافة شخص جديد" else "Add New Contact") },
+            title = { Text(if (isArabic) "جهة اتصال جديدة" else "New Contact") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
                     OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
+                        value = name, onValueChange = { name = it },
                         label = { Text(if (isArabic) "الاسم" else "Name") },
-                        modifier = Modifier.fillMaxWidth()
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
-                        value = phone,
-                        onValueChange = { phone = it },
-                        label = { Text(if (isArabic) "رقم الهاتف (اختياري)" else "Phone Number (Optional)") },
-                        modifier = Modifier.fillMaxWidth()
+                        value = phone, onValueChange = { phone = it },
+                        label = { Text(if (isArabic) "رقم الهاتف" else "Phone") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = whatsapp, onValueChange = { whatsapp = it },
+                        label = { Text(if (isArabic) "واتساب" else "WhatsApp") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = email, onValueChange = { email = it },
+                        label = { Text(if (isArabic) "البريد الإلكتروني" else "Email") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = address, onValueChange = { address = it },
+                        label = { Text(if (isArabic) "العنوان" else "Address") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = category, onValueChange = { category = it },
+                        label = { Text(if (isArabic) "التصنيف (عائلة، أصدقاء، عملاء…)" else "Category (family, friends, clients…)") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
                 Button(
+                    enabled = name.isNotBlank(),
                     onClick = {
-                        if (name.isNotBlank()) {
-                            onAddPerson(name, phone)
-                            showAddPersonDialog = false
-                        }
+                        onAddPersonFull(
+                            PersonEntity(
+                                name = name.trim(), phoneNumber = phone.trim(),
+                                whatsapp = whatsapp.trim(), email = email.trim(),
+                                address = address.trim(), category = category.trim()
+                            )
+                        )
+                        showAddPersonDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
                 ) {
-                    Text(if (isArabic) "إضافة" else "Add")
+                    Text(if (isArabic) "حفظ" else "Save")
                 }
             },
             dismissButton = {
@@ -420,9 +454,9 @@ fun PersonDetailScreen(
                     )
 
                     val netString = when (summary.status) {
-                        LedgerStatus.THEY_OWE_ME -> if (isArabic) "يطالبك بـ ${summary.netAmount} ج.م" else "They owe you ${summary.netAmount} EGP"
-                        LedgerStatus.I_OWE_THEM -> if (isArabic) "تطالبه بـ ${summary.netAmount} ج.م" else "You owe them ${summary.netAmount} EGP"
-                        LedgerStatus.SETTLED -> if (isArabic) "الحساب مسدد بالكامل (خالص)" else "Settled (0 EGP)"
+                        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${summary.netAmount} ج.م" else "Owed to you: ${summary.netAmount} EGP"
+                        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${summary.netAmount} ج.م" else "You owe: ${summary.netAmount} EGP"
+                        LedgerStatus.SETTLED -> if (isArabic) "الحساب مسدد بالكامل" else "Fully settled"
                     }
 
                     Text(
