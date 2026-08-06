@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.notification.app.data.local.entities.FinancialItemEntity
 import com.notification.app.domain.model.FinancialType
 import com.notification.app.ui.components.EmptyState
