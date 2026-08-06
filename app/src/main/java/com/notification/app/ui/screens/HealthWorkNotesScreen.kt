@@ -188,7 +188,7 @@ fun HealthWorkNotesScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = if (isArabic) "اضغط على زر (+ ملاحظة) لتدوين التكليفات والمهام اليومية" else "Tap (+ Note) below to add tasks and keep track of work assignments",
+                                text = if (isArabic) "دوّن تكليفاتك وملاحظات شغلك وتابع إنجازها من مكان واحد" else "Capture assignments and work notes, then track them through to done",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

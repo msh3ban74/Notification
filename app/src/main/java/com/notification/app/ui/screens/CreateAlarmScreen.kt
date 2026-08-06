@@ -89,6 +89,24 @@ fun CreateAlarmScreen(
         }
     }
 
+    // Any audio file from the device — music, downloads, recordings.
+    // OpenDocument grants a URI we persist so the alarm can read it later,
+    // even weeks after it was picked.
+    val audioFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { picked: Uri? ->
+        if (picked != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    picked, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            ringtoneUri = picked.toString()
+            ringtoneName = displayNameForUri(context, picked)
+                ?: (if (isArabic) "ملف صوتي" else "Audio file")
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -185,12 +203,23 @@ fun CreateAlarmScreen(
                         )
                     }
                     Text(
-                        text = if (isArabic) "تغيير" else "Change",
+                        text = if (isArabic) "نغمات النظام" else "System",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
+
+            // Second source — pick ANY audio file (music, downloads…).
+            PremiumOutlinedButton(
+                text = if (isArabic) "اختر ملفًا صوتيًا من الجهاز" else "Choose audio from device",
+                onClick = {
+                    audioFilePicker.launch(
+                        arrayOf("audio/*")
+                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             PremiumButton(
                 text = if (isArabic) "احفظ المنبه" else "Save Alarm",
@@ -242,4 +271,14 @@ private fun currentRingtoneTitle(
     return runCatching {
         RingtoneManager.getRingtone(context, Uri.parse(uri))?.getTitle(context)
     }.getOrNull() ?: (if (isArabic) "الافتراضي" else "Default")
+}
+
+/** Human-readable file name for a picked content:// audio document. */
+private fun displayNameForUri(context: android.content.Context, uri: Uri): String? {
+    return runCatching {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
+        }
+    }.getOrNull()
 }

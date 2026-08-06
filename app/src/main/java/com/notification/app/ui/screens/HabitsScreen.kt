@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -88,6 +89,15 @@ fun HabitsScreen(
     }
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var expandedHabitId by rememberSaveable { mutableStateOf(-1L) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+
+    val visibleHabits = remember(habits, searchQuery) {
+        val query = searchQuery.trim()
+        if (query.isEmpty()) habits
+        else habits.filter {
+            it.title.contains(query, ignoreCase = true) || it.note.contains(query, ignoreCase = true)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -128,15 +138,36 @@ fun HabitsScreen(
                 )
             }
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(horizontal = AppPadding.screen),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                contentPadding = PaddingValues(top = Spacing.sm, bottom = 96.dp)
+                    .padding(horizontal = AppPadding.screen)
             ) {
-                items(habits, key = { it.id }) { habit ->
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text(if (isArabic) "ابحث في عاداتك…" else "Search your habits…") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.sm)
+                )
+                if (visibleHabits.isEmpty()) {
+                    Text(
+                        text = if (isArabic) "لا توجد عادة بهذا الاسم" else "No habit matches your search",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(Spacing.sm)
+                    )
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    contentPadding = PaddingValues(top = Spacing.sm, bottom = 96.dp)
+                ) {
+                items(visibleHabits, key = { it.id }) { habit ->
                     val days = daysByHabit[habit.id] ?: emptySet()
                     HabitCard(
                         isArabic = isArabic,
@@ -151,6 +182,7 @@ fun HabitsScreen(
                         onArchive = { onArchiveHabit(habit.copy(isArchived = true)) },
                         onDelete = { onDeleteHabit(habit) }
                     )
+                }
                 }
             }
         }

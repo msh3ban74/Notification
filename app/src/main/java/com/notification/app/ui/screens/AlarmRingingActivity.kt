@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.notification.app.domain.scheduler.AlarmManagerScheduler
 import com.notification.app.service.AlarmService
 import com.notification.app.ui.theme.MaroonContainerDark
 import com.notification.app.ui.theme.OnPrimary
@@ -55,6 +56,10 @@ class AlarmRingingActivity : ComponentActivity() {
         val title = intent.getStringExtra("EXTRA_TITLE") ?: "Alarm Ringing"
         val note = intent.getStringExtra("EXTRA_NOTE") ?: ""
         val category = intent.getStringExtra("EXTRA_CATEGORY") ?: "Alarm"
+        val isAlarm = intent.getBooleanExtra("EXTRA_IS_ALARM", true)
+        val alarmId = intent.getLongExtra("EXTRA_ALARM_ID", -1L)
+        val reminderId = intent.getLongExtra("EXTRA_REMINDER_ID", -1L)
+        val ringtoneUri = intent.getStringExtra("EXTRA_RINGTONE_URI") ?: ""
 
         setContent {
             NotificationTheme(darkTheme = true) {
@@ -68,11 +73,27 @@ class AlarmRingingActivity : ComponentActivity() {
                     },
                     onSnooze = {
                         stopAlarmService()
+                        // Snooze actually re-schedules the SAME alert +10m.
+                        AlarmManagerScheduler.snooze(
+                            context = this,
+                            minutes = SNOOZE_MINUTES,
+                            isAlarm = isAlarm,
+                            alarmId = alarmId,
+                            reminderId = reminderId,
+                            title = title,
+                            note = note,
+                            category = category,
+                            ringtoneUri = ringtoneUri
+                        )
                         finish()
                     }
                 )
             }
         }
+    }
+
+    companion object {
+        const val SNOOZE_MINUTES = 10
     }
 
     private fun stopAlarmService() {

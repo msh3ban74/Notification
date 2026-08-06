@@ -117,11 +117,44 @@ data class SmartReminderFormConfig(
             savedMessageAr = "تم حفظ تذكير الدواء بنجاح"
         )
 
+        val Study = SmartReminderFormConfig(
+            newTitleEn = "New Study Plan", newTitleAr = "خطة مذاكرة جديدة",
+            editTitleEn = "Edit Study Plan", editTitleAr = "تعديل خطة المذاكرة",
+            category = ReminderCategory.TUTORING,
+            savedMessageEn = "Study plan saved.",
+            savedMessageAr = "تم حفظ خطة المذاكرة"
+        )
+        val Work = SmartReminderFormConfig(
+            newTitleEn = "New Work Item", newTitleAr = "مهمة شغل جديدة",
+            editTitleEn = "Edit Work Item", editTitleAr = "تعديل مهمة الشغل",
+            category = ReminderCategory.WORK,
+            savedMessageEn = "Work item saved.",
+            savedMessageAr = "تم حفظ مهمة الشغل"
+        )
+        val Event = SmartReminderFormConfig(
+            newTitleEn = "New Event", newTitleAr = "مناسبة جديدة",
+            editTitleEn = "Edit Event", editTitleAr = "تعديل المناسبة",
+            category = ReminderCategory.EVENT,
+            savedMessageEn = "Event saved.",
+            savedMessageAr = "تم حفظ المناسبة"
+        )
+        val Personal = SmartReminderFormConfig(
+            newTitleEn = "New Personal Item", newTitleAr = "أمر شخصي جديد",
+            editTitleEn = "Edit Personal Item", editTitleAr = "تعديل الأمر الشخصي",
+            category = ReminderCategory.PERSONAL,
+            savedMessageEn = "Saved.",
+            savedMessageAr = "تم الحفظ"
+        )
+
         /** Maps a SmartItemType id from the "+" bottom sheet to its form config. */
         fun forItemId(itemId: String?): SmartReminderFormConfig = when (itemId) {
             "bill" -> Bill
             "appointment" -> Appointment
             "medicine" -> Medicine
+            "study" -> Study
+            "work" -> Work
+            "event" -> Event
+            "personal" -> Personal
             else -> Task
         }
     }

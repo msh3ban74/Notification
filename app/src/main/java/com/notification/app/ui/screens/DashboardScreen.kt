@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Medication
@@ -46,6 +47,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.notification.app.data.local.entities.AlarmEntity
 import com.notification.app.data.local.entities.FinancialItemEntity
 import com.notification.app.data.local.entities.Gam3iyaEntity
+import com.notification.app.data.local.entities.HabitEntity
+import com.notification.app.data.local.entities.HabitLogEntity
 import com.notification.app.data.local.entities.Gam3iyaMemberEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
@@ -56,6 +59,7 @@ import com.notification.app.ui.components.SmartWidget
 import com.notification.app.ui.designsystem.PremiumButton
 import com.notification.app.ui.designsystem.SkeletonLine
 import androidx.compose.ui.unit.dp
+import com.notification.app.domain.calculator.HabitCalculator
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.calculator.LedgerStatus
 import com.notification.app.domain.model.AiSuggestion
@@ -102,6 +106,8 @@ fun DashboardScreen(
     workNotes: List<WorkNoteEntity> = emptyList(),
     waterCount: Int = 0,
     financialItems: List<FinancialItemEntity> = emptyList(),
+    habits: List<HabitEntity> = emptyList(),
+    habitLogs: List<HabitLogEntity> = emptyList(),
     aiSuggestions: List<AiSuggestion> = emptyList(),
     aiSuggestionsLoading: Boolean = false,
     onRefreshSuggestions: () -> Unit = {},
@@ -114,7 +120,8 @@ fun DashboardScreen(
     onNavigateToGam3iya: () -> Unit = {},
     onNavigateToIslamic: () -> Unit = {},
     onNavigateToHealthNotes: () -> Unit = {},
-    onNavigateToFinancial: () -> Unit = {}
+    onNavigateToFinancial: () -> Unit = {},
+    onNavigateToHabits: () -> Unit = {}
 ) {
     // Ask the existing Gemini pipeline for fresh suggestions once per
     // dashboard entry (the ViewModel guards with a TTL cache, so this is
@@ -213,12 +220,15 @@ fun DashboardScreen(
             workNotes = workNotes,
             waterCount = waterCount,
             financialItems = financialItems,
+            habits = habits,
+            habitLogs = habitLogs,
             onWaterClick = onWaterClick,
             onNavigateToTasks = onNavigateToTasks,
             onNavigateToGam3iya = onNavigateToGam3iya,
             onNavigateToIslamic = onNavigateToIslamic,
             onNavigateToHealthNotes = onNavigateToHealthNotes,
-            onNavigateToFinancial = onNavigateToFinancial
+            onNavigateToFinancial = onNavigateToFinancial,
+            onNavigateToHabits = onNavigateToHabits
         )
 
         RafeeqSuggestionsSection(
@@ -684,12 +694,15 @@ private fun SmartWidgetsSection(
     workNotes: List<WorkNoteEntity>,
     waterCount: Int,
     financialItems: List<FinancialItemEntity>,
+    habits: List<HabitEntity>,
+    habitLogs: List<HabitLogEntity>,
     onWaterClick: () -> Unit,
     onNavigateToTasks: () -> Unit,
     onNavigateToGam3iya: () -> Unit,
     onNavigateToIslamic: () -> Unit,
     onNavigateToHealthNotes: () -> Unit,
-    onNavigateToFinancial: () -> Unit
+    onNavigateToFinancial: () -> Unit,
+    onNavigateToHabits: () -> Unit
 ) {
     val now = System.currentTimeMillis()
     val dayAhead = now + 24L * 60 * 60 * 1000
@@ -779,6 +792,24 @@ private fun SmartWidgetsSection(
             primaryLine = nextFinancial?.title ?: "",
             secondaryLine = nextFinancial?.let { dateOnlyFormat.format(Date(it.dueDate)) },
             onClick = onNavigateToFinancial
+        )
+
+        // Habit engine — today's progress at a glance, tap to log.
+        val today = remember { HabitCalculator.dayStartOf() }
+        val doneToday = remember(habitLogs) { habitLogs.count { it.dayStart == today } }
+        SmartWidget(
+            visible = habits.isNotEmpty(),
+            icon = Icons.Default.Repeat,
+            title = if (isArabic) "عاداتك اليوم" else "Today's habits",
+            primaryLine = if (isArabic) "أنجزت $doneToday من ${habits.size}"
+            else "$doneToday of ${habits.size} completed",
+            secondaryLine = when {
+                habits.isEmpty() -> null
+                doneToday >= habits.size ->
+                    if (isArabic) "يوم مكتمل — واصل السلسلة 🔥" else "Perfect day — keep the streak 🔥"
+                else -> if (isArabic) "اضغط لتسجيل إنجازك" else "Tap to check in"
+            },
+            onClick = onNavigateToHabits
         )
 
         SmartWidget(

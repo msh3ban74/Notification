@@ -54,18 +54,6 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     object Settings : Screen("settings", "Settings", "الإعدادات", Icons.Default.Settings)
     object Auth : Screen("auth", "Auth", "دخول", Icons.Default.Lock)
 
-    // Sprint 2 — Smart Item Engine Foundation. Placeholder destination
-    // reached from the Dashboard "+" bottom sheet. Parametrized by the
-    // SmartItemType id (e.g. "gam3iya", "bill"). No chrome (top/bottom
-    // bar) is shown here, same as Splash/Auth. Types that already have a
-    // real form (Task — Sprint 3, Debt — Sprint 4) route to their own
-    // screens below instead.
-    object SmartItemPlaceholder : Screen(
-        "smart_item/{itemId}", "Coming Soon", "قريبًا", Icons.Default.Add
-    ) {
-        fun createRoute(itemId: String) = "smart_item/$itemId"
-    }
-
     // Sprint 3 — Smart Task: the first real Smart Item form. Reuses the
     // existing Reminder pipeline (entity, ViewModel, scheduler).
     // Sprint 5 — also the EDIT destination: an optional reminderId argument
@@ -144,6 +132,8 @@ class MainActivity : ComponentActivity() {
             val gam3iyaMembers by viewModel.allGam3iyaMembers.collectAsState()
             val alarms by viewModel.allAlarms.collectAsState()
             val financialItems by viewModel.allFinancialItems.collectAsState()
+            val habits by viewModel.allHabits.collectAsState()
+            val habitLogs by viewModel.allHabitLogs.collectAsState()
             val prayerTimes by viewModel.prayerTimes.collectAsState()
             val workNotes by viewModel.allWorkNotes.collectAsState()
             val chatMessages by viewModel.chatMessages.collectAsState()
@@ -379,7 +369,10 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
                                     onNavigateToIslamic = { navController.navigate(Screen.Islamic.route) },
                                     onNavigateToHealthNotes = { navController.navigate(Screen.HealthNotes.route) },
-                                    onNavigateToFinancial = { navController.navigate(Screen.Financial.route) }
+                                    onNavigateToFinancial = { navController.navigate(Screen.Financial.route) },
+                                    habits = habits,
+                                    habitLogs = habitLogs,
+                                    onNavigateToHabits = { navController.navigate(Screen.Habits.route) }
                                 )
                             }
 
@@ -392,7 +385,6 @@ class MainActivity : ComponentActivity() {
                                 RemindersScreen(
                                     reminders = reminders,
                                     isArabic = isArabic,
-                                    onAddReminder = { viewModel.addReminder(it) },
                                     onToggleReminder = { viewModel.toggleReminderCompleted(it) },
                                     onDeleteReminder = { viewModel.deleteReminder(it) },
                                     onEditReminder = { reminder ->
@@ -444,7 +436,6 @@ class MainActivity : ComponentActivity() {
                                 RemindersScreen(
                                     reminders = reminders,
                                     isArabic = isArabic,
-                                    onAddReminder = { viewModel.addReminder(it) },
                                     onToggleReminder = { viewModel.toggleReminderCompleted(it) },
                                     onDeleteReminder = { viewModel.deleteReminder(it) },
                                     onEditReminder = { reminder ->
@@ -467,6 +458,7 @@ class MainActivity : ComponentActivity() {
                                     transactions = transactions,
                                     isArabic = isArabic,
                                     onAddPerson = { name, phone -> viewModel.addPerson(name, phone) },
+                                    onAddPersonFull = { viewModel.addPersonFull(it) },
                                     onAddTransaction = { viewModel.addLedgerTransaction(it) },
                                     onDeleteTransaction = { viewModel.deleteLedgerTransaction(it) },
                                     onUpdateTransaction = { viewModel.updateLedgerTransaction(it) }
@@ -570,23 +562,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     isArabic = isArabic
-                                )
-                            }
-
-                            // Sprint 2 — Smart Item Engine Foundation.
-                            // Single placeholder destination reused for the
-                            // types that don't have a real form yet.
-                            composable(
-                                route = Screen.SmartItemPlaceholder.route,
-                                arguments = listOf(navArgument("itemId") { type = NavType.StringType })
-                            ) { backStackEntry ->
-                                val itemId = backStackEntry.arguments?.getString("itemId")
-                                val item = SmartItemType.all.firstOrNull { it.id == itemId }
-                                ComingSoonScreen(
-                                    titleEn = item?.titleEn ?: "",
-                                    titleAr = item?.titleAr ?: "",
-                                    isArabic = isArabic,
-                                    onBack = { navController.popBackStack() }
                                 )
                             }
 
@@ -768,8 +743,6 @@ class MainActivity : ComponentActivity() {
 
                             // Phase C — the habit engine.
                             composable(Screen.Habits.route) {
-                                val habits by viewModel.allHabits.collectAsState()
-                                val habitLogs by viewModel.allHabitLogs.collectAsState()
                                 HabitsScreen(
                                     isArabic = isArabic,
                                     habits = habits,
@@ -861,8 +834,11 @@ class MainActivity : ComponentActivity() {
                                     )
                                     "gam3iya" -> navController.navigate(Screen.CreateGam3iya.route)
                                     "habit" -> navController.navigate(Screen.Habits.route)
+                                    // study / work / event / personal / more —
+                                    // every remaining type opens the REAL shared
+                                    // reminder form with its own category preset.
                                     else -> navController.navigate(
-                                        Screen.SmartItemPlaceholder.createRoute(item.id)
+                                        Screen.CreateSmartReminder.createRoute(item.id)
                                     )
                                 }
                             }

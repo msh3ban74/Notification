@@ -11,6 +11,12 @@ data class PersonEntity(
     // Final Product sprint (Phase A) — WhatsApp number for the one-tap
     // reminder action. Added via Migration 1→2 (no data loss).
     val whatsapp: String = "",
+    // Product Completion sprint — full contact profile, added via
+    // Migration 5→6 (additive, no data loss). category groups people
+    // (family / friends / work / clients...).
+    val email: String = "",
+    val address: String = "",
+    val category: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 

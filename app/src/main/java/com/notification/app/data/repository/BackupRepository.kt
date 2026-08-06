@@ -155,7 +155,8 @@ class BackupRepository(
 
     private fun personToMap(p: PersonEntity) = mapOf(
         "id" to p.id, "name" to p.name, "phoneNumber" to p.phoneNumber,
-        "whatsapp" to p.whatsapp, "createdAt" to p.createdAt
+        "whatsapp" to p.whatsapp, "email" to p.email, "address" to p.address,
+        "category" to p.category, "createdAt" to p.createdAt
     )
 
     private fun transactionToMap(t: LedgerTransactionEntity) = mapOf(
@@ -236,7 +237,8 @@ class BackupRepository(
         val name = getString("name") ?: return null
         return PersonEntity(
             id = lng("id"), name = name, phoneNumber = str("phoneNumber"),
-            whatsapp = str("whatsapp"), createdAt = lng("createdAt")
+            whatsapp = str("whatsapp"), email = str("email"), address = str("address"),
+            category = str("category"), createdAt = lng("createdAt")
         )
     }
 

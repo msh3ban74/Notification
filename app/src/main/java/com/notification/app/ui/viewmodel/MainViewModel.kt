@@ -16,6 +16,7 @@ import com.notification.app.domain.calculator.PrayerTime
 import com.notification.app.domain.calculator.PrayerTimesCalculator
 import com.notification.app.domain.model.AiSuggestion
 import com.notification.app.domain.model.LedgerTransactionType
+import com.notification.app.domain.model.RecurrenceType
 import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.domain.scheduler.AlarmManagerScheduler
 import kotlinx.coroutines.flow.*
@@ -87,16 +88,87 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val allFinancialItems: StateFlow<List<FinancialItemEntity>> = repository.allFinancialItems
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    /**
+     * Money items are never silent: every bill/installment/subscription
+     * carries a linked due-date reminder that rides the SAME reminder +
+     * scheduler pipeline as tasks (linkedReminderId ties them together).
+     * Paying an item completes its reminder; unpaying reactivates it;
+     * deleting the item removes it. Recurring items get MONTHLY recurrence.
+     */
+    private fun financialReminderFor(
+        item: FinancialItemEntity,
+        base: ReminderEntity? = null
+    ): ReminderEntity {
+        val isArabic = language.value == "ar"
+        val typeLabel = when (item.type) {
+            "INSTALLMENT" -> if (isArabic) "قسط مستحق" else "Installment due"
+            "SUBSCRIPTION" -> if (isArabic) "تجديد اشتراك" else "Subscription renewal"
+            else -> if (isArabic) "فاتورة مستحقة" else "Bill due"
+        }
+        val amount = if (item.monthlyAmount > 0) item.monthlyAmount else item.amount
+        val amountLabel = if (amount > 0) " — ${amount.toLong()} ${if (isArabic) "ج.م" else "EGP"}" else ""
+        val recurrence = if (item.recurring || item.type == "INSTALLMENT") {
+            RecurrenceType.MONTHLY.name
+        } else {
+            RecurrenceType.NONE.name
+        }
+        return (base ?: ReminderEntity(title = "", dueDate = 0L, category = ReminderCategory.BILL.name)).copy(
+            title = item.title,
+            note = "$typeLabel$amountLabel",
+            dueDate = item.dueDate,
+            category = ReminderCategory.BILL.name,
+            recurrence = recurrence,
+            isCompleted = item.isPaid
+        )
+    }
+
     fun addFinancialItem(item: FinancialItemEntity) {
-        viewModelScope.launch { repository.insertFinancialItem(item) }
+        viewModelScope.launch {
+            val reminderId = insertAndScheduleReminder(financialReminderFor(item))
+            repository.insertFinancialItem(item.copy(linkedReminderId = reminderId))
+        }
     }
 
     fun updateFinancialItem(item: FinancialItemEntity) {
-        viewModelScope.launch { repository.updateFinancialItem(item) }
+        viewModelScope.launch {
+            val linked = item.linkedReminderId?.let { repository.getReminderById(it) }
+            val toStore = when {
+                // Paid: silence the alert and check off the linked reminder.
+                item.isPaid -> {
+                    linked?.let {
+                        repository.updateReminder(financialReminderFor(item, base = it))
+                        AlarmManagerScheduler.cancelReminderAlarm(getApplication(), it.id)
+                    }
+                    item
+                }
+                // Unpaid with a live link: refresh its fields and re-arm.
+                linked != null -> {
+                    val updated = financialReminderFor(item, base = linked)
+                    repository.updateReminder(updated)
+                    AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), updated)
+                    item
+                }
+                // Unpaid but the link is gone (older item or reminder was
+                // deleted from the Tasks list) — create a fresh one.
+                else -> {
+                    val reminderId = insertAndScheduleReminder(financialReminderFor(item))
+                    item.copy(linkedReminderId = reminderId)
+                }
+            }
+            repository.updateFinancialItem(toStore)
+        }
     }
 
     fun deleteFinancialItem(item: FinancialItemEntity) {
-        viewModelScope.launch { repository.deleteFinancialItem(item) }
+        viewModelScope.launch {
+            item.linkedReminderId?.let { linkedId ->
+                repository.getReminderById(linkedId)?.let { reminder ->
+                    AlarmManagerScheduler.cancelReminderAlarm(getApplication(), reminder.id)
+                    repository.deleteReminder(reminder)
+                }
+            }
+            repository.deleteFinancialItem(item)
+        }
     }
 
     // Phase C — habit engine. The log flow feeds HabitCalculator
@@ -290,6 +362,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.insertPerson(PersonEntity(name = name, phoneNumber = phone))
         }
+    }
+
+    fun addPersonFull(person: PersonEntity) {
+        viewModelScope.launch { repository.insertPerson(person) }
+    }
+
+    fun updatePerson(person: PersonEntity) {
+        viewModelScope.launch { repository.insertPerson(person) }
     }
 
     fun addLedgerTransaction(tx: LedgerTransactionEntity) {
@@ -516,14 +596,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_backupState.value == "syncing") return
         _backupState.value = "syncing"
         viewModelScope.launch {
-            when (val result = backupRepository.backupNow()) {
+            // Hard 30s ceiling so a stalled Firestore call can NEVER leave
+            // the UI spinning forever — the sprint's non-negotiable rule.
+            val result = withTimeoutOrNull(30_000L) { backupRepository.backupNow() }
+            _backupState.value = when (result) {
                 is com.notification.app.data.repository.BackupRepository.BackupResult.Success -> {
                     preferencesRepository.updateLastSyncTime(System.currentTimeMillis())
-                    _backupState.value = "success"
+                    "success"
                 }
-                is com.notification.app.data.repository.BackupRepository.BackupResult.Failure -> {
-                    _backupState.value = "error: ${result.message}"
-                }
+                is com.notification.app.data.repository.BackupRepository.BackupResult.Failure ->
+                    "error: ${result.message}"
+                null ->
+                    "error: " + (if (language.value == "ar")
+                        "استغرقت المزامنة وقتًا طويلًا — تأكد من الاتصال وحاول مجددًا"
+                    else "Sync timed out — check your connection and try again")
             }
         }
     }

@@ -35,7 +35,6 @@ import java.util.*
 fun RemindersScreen(
     reminders: List<ReminderEntity>,
     isArabic: Boolean,
-    onAddReminder: (ReminderEntity) -> Unit,
     onToggleReminder: (ReminderEntity) -> Unit,
     onDeleteReminder: (ReminderEntity) -> Unit,
     // Sprint 5 — edit flow. Optional so existing call sites keep working;
@@ -51,7 +50,6 @@ fun RemindersScreen(
     onCreateTask: (() -> Unit)? = null
 ) {
     var selectedCategoryFilter by remember { mutableStateOf<ReminderCategory?>(null) }
-    var showAddDialog by remember { mutableStateOf(false) }
 
     // Phase D — search / sort / archive view state.
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -88,7 +86,7 @@ fun RemindersScreen(
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = onCreateTask ?: { showAddDialog = true },
+                onClick = { onCreateTask?.invoke() },
                 containerColor = MaroonPrimary,
                 contentColor = OnPrimary,
                 shape = CircleShape
@@ -206,9 +204,9 @@ fun RemindersScreen(
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.EventAvailable,
                     title = if (isArabic) "لا توجد تذكيرات حالياً" else "No Reminders Found",
-                    subtitle = if (isArabic) "أنشئ أول مهمة وستتولى تنبيهاتها تلقائيًا" else "Create your first task and Rafeeq will handle the alerts",
+                    subtitle = if (isArabic) "مساحتك صافية — سجّل ما يشغل بالك وسيتولى رفيق تذكيرك في الوقت المناسب" else "All clear — capture what matters and Rafeeq will remind you right on time",
                     actionLabel = if (isArabic) "أضف مهمة" else "Add Task",
-                    onAction = onCreateTask ?: { showAddDialog = true }
+                    onAction = { onCreateTask?.invoke() }
                 )
             } else {
                 LazyColumn(
@@ -238,16 +236,6 @@ fun RemindersScreen(
         }
     }
 
-    if (showAddDialog) {
-        AddReminderDialog(
-            isArabic = isArabic,
-            onDismiss = { showAddDialog = false },
-            onConfirm = { reminder ->
-                onAddReminder(reminder)
-                showAddDialog = false
-            }
-        )
-    }
 }
 
 @Composable
@@ -407,83 +395,6 @@ fun DetailedReminderCard(
             }
         }
     }
-}
-
-@Composable
-fun AddReminderDialog(
-    isArabic: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: (ReminderEntity) -> Unit
-) {
-    var title by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(ReminderCategory.MONEY) }
-    var selectedRecurrence by remember { mutableStateOf(RecurrenceType.NONE) }
-
-    val cal = remember { Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) } }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (isArabic) "إضافة تذكير جديد" else "Add New Reminder") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(if (isArabic) "العنوان" else "Title") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text(if (isArabic) "تفاصيل/ملاحظة" else "Note/Details") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Text(
-                    text = if (isArabic) "الفئة:" else "Category:",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(ReminderCategory.entries) { cat ->
-                        FilterChip(
-                            selected = selectedCategory == cat,
-                            onClick = { selectedCategory = cat },
-                            label = { Text(if (isArabic) cat.displayNameAr else cat.displayNameEn) }
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (title.isNotBlank()) {
-                        onConfirm(
-                            ReminderEntity(
-                                title = title,
-                                note = note,
-                                dueDate = cal.timeInMillis,
-                                category = selectedCategory.name,
-                                recurrence = selectedRecurrence.name
-                            )
-                        )
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
-            ) {
-                Text(if (isArabic) "حفظ" else "Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isArabic) "إلغاء" else "Cancel")
-            }
-        }
-    )
 }
 
 /** Phase D — sort options for the tasks list (pinned always first). */

@@ -4,6 +4,8 @@ import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -23,6 +25,7 @@ import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.calculator.LedgerStatus
+import com.notification.app.domain.calculator.LedgerSummary
 import com.notification.app.domain.calculator.StatementExporter
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.ui.theme.MaroonPrimary
@@ -38,6 +41,8 @@ fun LedgerScreen(
     transactions: List<LedgerTransactionEntity>,
     isArabic: Boolean,
     onAddPerson: (name: String, phone: String) -> Unit,
+    // Product Completion — full contact profile capture.
+    onAddPersonFull: (PersonEntity) -> Unit = { onAddPerson(it.name, it.phoneNumber) },
     onAddTransaction: (LedgerTransactionEntity) -> Unit,
     onDeleteTransaction: (LedgerTransactionEntity) -> Unit,
     // Sprint 5 — edit flow. Optional so existing call sites keep working.
@@ -46,6 +51,7 @@ fun LedgerScreen(
     var selectedPersonForDetail by remember { mutableStateOf<PersonEntity?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Owed to me (لهم), 1: I owe (لي)
     var showAddPersonDialog by remember { mutableStateOf(false) }
+    var personSearch by remember { mutableStateOf("") }
 
     val context = LocalContext.current
 
@@ -137,7 +143,7 @@ fun LedgerScreen(
                     unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     text = {
                         Text(
-                            if (isArabic) "يطلبوني / استلمت (لهم)" else "Owed to Me",
+                            if (isArabic) "مستحقات لي" else "Owed to me",
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -149,22 +155,41 @@ fun LedgerScreen(
                     unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     text = {
                         Text(
-                            if (isArabic) "أطلبهم / أعطيتهم (لي)" else "I Owe",
+                            if (isArabic) "مستحقات عليّ" else "I owe",
                             fontWeight = FontWeight.Bold
                         )
                     }
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            val currentList = if (selectedTab == 0) owedToMeList else iOweList
+            // Search across everyone in the ledger by name or phone.
+            OutlinedTextField(
+                value = personSearch,
+                onValueChange = { personSearch = it },
+                placeholder = { Text(if (isArabic) "ابحث بالاسم أو الهاتف…" else "Search by name or phone…") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            )
+
+            val searchFilter: (Triple<PersonEntity, LedgerSummary, List<LedgerTransactionEntity>>) -> Boolean = {
+                val query = personSearch.trim()
+                query.isEmpty() ||
+                    it.first.name.contains(query, ignoreCase = true) ||
+                    it.first.phoneNumber.contains(query, ignoreCase = true)
+            }
+            val currentList = (if (selectedTab == 0) owedToMeList else iOweList).filter(searchFilter)
+            val visibleSettled = settledList.filter(searchFilter)
 
             if (currentList.isEmpty() && settledList.isEmpty()) {
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.AccountBalanceWallet,
                     title = if (isArabic) "لا توجد سجلات ديون" else "No Debt Records Found",
-                    subtitle = if (isArabic) "أنشئ أول دفتر وتتبع صافي المديونية لكل شخص" else "Create your first ledger and track per-person balances",
+                    subtitle = if (isArabic) "احفظ حقوقك وحقوق الآخرين — صافي المديونية لكل شخص يُحسب لحظيًا" else "Every balance accounted for — per-person net debt, calculated live",
                     actionLabel = if (isArabic) "أضف شخصًا" else "Add Person",
                     onAction = { showAddPersonDialog = true }
                 )
@@ -182,7 +207,7 @@ fun LedgerScreen(
                         )
                     }
 
-                    if (settledList.isNotEmpty()) {
+                    if (visibleSettled.isNotEmpty()) {
                         item {
                             Text(
                                 text = if (isArabic) "معاملات مسددة بالكامل" else "Settled Accounts",
@@ -193,7 +218,7 @@ fun LedgerScreen(
                             )
                         }
 
-                        items(settledList) { (person, summary, txs) ->
+                        items(visibleSettled) { (person, summary, txs) ->
                             PersonLedgerSummaryCard(
                                 person = person,
                                 summary = summary,
@@ -210,37 +235,67 @@ fun LedgerScreen(
     if (showAddPersonDialog) {
         var name by remember { mutableStateOf("") }
         var phone by remember { mutableStateOf("") }
+        var whatsapp by remember { mutableStateOf("") }
+        var email by remember { mutableStateOf("") }
+        var address by remember { mutableStateOf("") }
+        var category by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showAddPersonDialog = false },
-            title = { Text(if (isArabic) "إضافة شخص جديد" else "Add New Contact") },
+            title = { Text(if (isArabic) "جهة اتصال جديدة" else "New Contact") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
                     OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
+                        value = name, onValueChange = { name = it },
                         label = { Text(if (isArabic) "الاسم" else "Name") },
-                        modifier = Modifier.fillMaxWidth()
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
-                        value = phone,
-                        onValueChange = { phone = it },
-                        label = { Text(if (isArabic) "رقم الهاتف (اختياري)" else "Phone Number (Optional)") },
-                        modifier = Modifier.fillMaxWidth()
+                        value = phone, onValueChange = { phone = it },
+                        label = { Text(if (isArabic) "رقم الهاتف" else "Phone") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = whatsapp, onValueChange = { whatsapp = it },
+                        label = { Text(if (isArabic) "واتساب" else "WhatsApp") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = email, onValueChange = { email = it },
+                        label = { Text(if (isArabic) "البريد الإلكتروني" else "Email") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = address, onValueChange = { address = it },
+                        label = { Text(if (isArabic) "العنوان" else "Address") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = category, onValueChange = { category = it },
+                        label = { Text(if (isArabic) "التصنيف (عائلة، أصدقاء، عملاء…)" else "Category (family, friends, clients…)") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
                 Button(
+                    enabled = name.isNotBlank(),
                     onClick = {
-                        if (name.isNotBlank()) {
-                            onAddPerson(name, phone)
-                            showAddPersonDialog = false
-                        }
+                        onAddPersonFull(
+                            PersonEntity(
+                                name = name.trim(), phoneNumber = phone.trim(),
+                                whatsapp = whatsapp.trim(), email = email.trim(),
+                                address = address.trim(), category = category.trim()
+                            )
+                        )
+                        showAddPersonDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
                 ) {
-                    Text(if (isArabic) "إضافة" else "Add")
+                    Text(if (isArabic) "حفظ" else "Save")
                 }
             },
             dismissButton = {
@@ -399,9 +454,9 @@ fun PersonDetailScreen(
                     )
 
                     val netString = when (summary.status) {
-                        LedgerStatus.THEY_OWE_ME -> if (isArabic) "يطالبك بـ ${summary.netAmount} ج.م" else "They owe you ${summary.netAmount} EGP"
-                        LedgerStatus.I_OWE_THEM -> if (isArabic) "تطالبه بـ ${summary.netAmount} ج.م" else "You owe them ${summary.netAmount} EGP"
-                        LedgerStatus.SETTLED -> if (isArabic) "الحساب مسدد بالكامل (خالص)" else "Settled (0 EGP)"
+                        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${summary.netAmount} ج.م" else "Owed to you: ${summary.netAmount} EGP"
+                        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${summary.netAmount} ج.م" else "You owe: ${summary.netAmount} EGP"
+                        LedgerStatus.SETTLED -> if (isArabic) "الحساب مسدد بالكامل" else "Fully settled"
                     }
 
                     Text(

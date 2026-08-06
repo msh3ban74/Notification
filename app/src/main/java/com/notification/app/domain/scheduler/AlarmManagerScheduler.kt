@@ -31,6 +31,43 @@ object AlarmManagerScheduler {
         scheduleExactOrFallback(alarmManager, alarm.timeInMillis, pendingIntent)
     }
 
+    /**
+     * Snooze — re-fires the SAME alert [minutes] from now. Clock alarms
+     * keep their id/ringtone; reminders keep theirs. Reuses the existing
+     * request-code namespaces so nothing collides.
+     */
+    fun snooze(
+        context: Context,
+        minutes: Int,
+        isAlarm: Boolean,
+        alarmId: Long,
+        reminderId: Long,
+        title: String,
+        note: String,
+        category: String,
+        ringtoneUri: String
+    ) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val triggerAt = System.currentTimeMillis() + minutes * 60_000L
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = if (isAlarm) "com.notification.app.ACTION_ALARM_TRIGGER"
+            else "com.notification.app.ACTION_REMINDER_TRIGGER"
+            putExtra("EXTRA_ALARM_ID", alarmId)
+            putExtra("EXTRA_REMINDER_ID", reminderId)
+            putExtra("EXTRA_TITLE", title)
+            putExtra("EXTRA_NOTE", note)
+            putExtra("EXTRA_CATEGORY", category)
+            putExtra("EXTRA_RINGTONE_URI", ringtoneUri)
+            putExtra("EXTRA_IS_ALARM", isAlarm)
+        }
+        val requestCode = if (isAlarm) alarmId.toInt() else (reminderId + 100000).toInt()
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        scheduleExactOrFallback(alarmManager, triggerAt, pendingIntent)
+    }
+
     fun scheduleReminderAlarm(context: Context, reminder: ReminderEntity) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AlarmReceiver::class.java).apply {
@@ -82,6 +119,25 @@ object AlarmManagerScheduler {
                 AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent
             )
         }
+    }
+
+    /**
+     * Cancels a reminder's scheduled alert — mirrors [scheduleReminderAlarm]
+     * exactly (same action + the id+100000 request-code namespace), because
+     * AlarmManager matches on the Intent action/class and request code.
+     */
+    fun cancelReminderAlarm(context: Context, reminderId: Long) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_REMINDER_TRIGGER"
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            (reminderId + 100000).toInt(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
     }
 
     fun cancelAlarm(context: Context, alarmId: Long) {
