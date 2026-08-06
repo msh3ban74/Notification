@@ -10,6 +10,11 @@ enum class ReminderCategory(val displayNameEn: String, val displayNameAr: String
     // stored as plain strings, so no schema change): unknown values still
     // fall back to CUSTOM via fromString below.
     MEDICINE("Medicine & Health", "الدواء والصحة", "medication"),
+    // Final Product — real categories for the remaining smart-item types
+    // (stored as plain strings; additive and fully backward-compatible).
+    WORK("Work & Projects", "الشغل والمشاريع", "work"),
+    EVENT("Events & Occasions", "المناسبات والاحتفالات", "celebration"),
+    PERSONAL("Personal", "أموري الشخصية", "person"),
     CUSTOM("Custom", "مخصص", "notifications");
 
     companion object {

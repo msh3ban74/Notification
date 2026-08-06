@@ -23,6 +23,7 @@ import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.calculator.LedgerStatus
+import com.notification.app.domain.calculator.LedgerSummary
 import com.notification.app.domain.calculator.StatementExporter
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.ui.theme.MaroonPrimary
@@ -46,6 +47,7 @@ fun LedgerScreen(
     var selectedPersonForDetail by remember { mutableStateOf<PersonEntity?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Owed to me (لهم), 1: I owe (لي)
     var showAddPersonDialog by remember { mutableStateOf(false) }
+    var personSearch by remember { mutableStateOf("") }
 
     val context = LocalContext.current
 
@@ -156,15 +158,34 @@ fun LedgerScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            val currentList = if (selectedTab == 0) owedToMeList else iOweList
+            // Search across everyone in the ledger by name or phone.
+            OutlinedTextField(
+                value = personSearch,
+                onValueChange = { personSearch = it },
+                placeholder = { Text(if (isArabic) "ابحث بالاسم أو الهاتف…" else "Search by name or phone…") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            )
+
+            val searchFilter: (Triple<PersonEntity, LedgerSummary, List<LedgerTransactionEntity>>) -> Boolean = {
+                val query = personSearch.trim()
+                query.isEmpty() ||
+                    it.first.name.contains(query, ignoreCase = true) ||
+                    it.first.phoneNumber.contains(query, ignoreCase = true)
+            }
+            val currentList = (if (selectedTab == 0) owedToMeList else iOweList).filter(searchFilter)
+            val visibleSettled = settledList.filter(searchFilter)
 
             if (currentList.isEmpty() && settledList.isEmpty()) {
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.AccountBalanceWallet,
                     title = if (isArabic) "لا توجد سجلات ديون" else "No Debt Records Found",
-                    subtitle = if (isArabic) "أنشئ أول دفتر وتتبع صافي المديونية لكل شخص" else "Create your first ledger and track per-person balances",
+                    subtitle = if (isArabic) "احفظ حقوقك وحقوق الآخرين — صافي المديونية لكل شخص يُحسب لحظيًا" else "Every balance accounted for — per-person net debt, calculated live",
                     actionLabel = if (isArabic) "أضف شخصًا" else "Add Person",
                     onAction = { showAddPersonDialog = true }
                 )
@@ -182,7 +203,7 @@ fun LedgerScreen(
                         )
                     }
 
-                    if (settledList.isNotEmpty()) {
+                    if (visibleSettled.isNotEmpty()) {
                         item {
                             Text(
                                 text = if (isArabic) "معاملات مسددة بالكامل" else "Settled Accounts",
@@ -193,7 +214,7 @@ fun LedgerScreen(
                             )
                         }
 
-                        items(settledList) { (person, summary, txs) ->
+                        items(visibleSettled) { (person, summary, txs) ->
                             PersonLedgerSummaryCard(
                                 person = person,
                                 summary = summary,

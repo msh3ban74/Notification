@@ -2,6 +2,7 @@ package com.notification.app.data.repository
 
 import com.notification.app.BuildConfig
 import com.notification.app.data.local.entities.AlarmEntity
+import com.notification.app.data.local.entities.HabitEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
 import com.notification.app.data.local.entities.ReminderEntity
@@ -76,6 +77,29 @@ class GeminiRepository(
                     name = "getHabits",
                     description = "Get the user's habits with current streaks and whether each is done today.",
                     parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
+                ),
+                GeminiFunctionDeclaration(
+                    name = "addHabit",
+                    description = "Create a new daily habit for the user to track.",
+                    parameters = mapOf(
+                        "type" to "OBJECT",
+                        "properties" to mapOf(
+                            "title" to mapOf("type" to "STRING", "description" to "Habit name, e.g. 'Read 10 pages'"),
+                            "emoji" to mapOf("type" to "STRING", "description" to "Optional single emoji for the habit")
+                        ),
+                        "required" to listOf("title")
+                    )
+                ),
+                GeminiFunctionDeclaration(
+                    name = "completeHabitToday",
+                    description = "Mark one of the user's habits as completed for today (by its name).",
+                    parameters = mapOf(
+                        "type" to "OBJECT",
+                        "properties" to mapOf(
+                            "habitName" to mapOf("type" to "STRING", "description" to "Name (or part of the name) of the habit to check off")
+                        ),
+                        "required" to listOf("habitName")
+                    )
                 ),
                 GeminiFunctionDeclaration(
                     name = "setSmartAlarm",
@@ -379,6 +403,29 @@ class GeminiRepository(
                         "${habit.emoji} ${habit.title}: streak ${HabitCalculator.currentStreak(days, today)} days, " +
                             (if (today in days) "done today" else "NOT done today")
                     }
+                }
+            }
+            "addHabit" -> {
+                val title = call.args["title"]?.toString()?.trim().orEmpty()
+                if (title.isBlank()) {
+                    "Cannot create a habit without a name."
+                } else {
+                    val emoji = call.args["emoji"]?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: "✅"
+                    notificationRepository.insertHabit(HabitEntity(title = title, emoji = emoji))
+                    "Habit '$title' created. It appears in the Habits screen and on the dashboard."
+                }
+            }
+            "completeHabitToday" -> {
+                val query = call.args["habitName"]?.toString()?.trim().orEmpty()
+                val habits = notificationRepository.allHabits.first()
+                val habit = habits.firstOrNull { it.title.contains(query, ignoreCase = true) }
+                if (habit == null) {
+                    "No habit matching '$query'. Current habits: ${habits.joinToString(", ") { it.title }.ifBlank { "none" }}"
+                } else {
+                    notificationRepository.setHabitDone(habit.id, HabitCalculator.dayStartOf(), true)
+                    val days = notificationRepository.allHabitLogs.first()
+                        .filter { it.habitId == habit.id }.map { it.dayStart }.toSet()
+                    "'${habit.title}' checked off for today. Current streak: ${HabitCalculator.currentStreak(days)} days."
                 }
             }
             "setSmartAlarm" -> {

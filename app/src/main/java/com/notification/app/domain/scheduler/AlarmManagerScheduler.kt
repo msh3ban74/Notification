@@ -84,6 +84,25 @@ object AlarmManagerScheduler {
         }
     }
 
+    /**
+     * Cancels a reminder's scheduled alert — mirrors [scheduleReminderAlarm]
+     * exactly (same action + the id+100000 request-code namespace), because
+     * AlarmManager matches on the Intent action/class and request code.
+     */
+    fun cancelReminderAlarm(context: Context, reminderId: Long) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_REMINDER_TRIGGER"
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            (reminderId + 100000).toInt(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
+    }
+
     fun cancelAlarm(context: Context, alarmId: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AlarmReceiver::class.java)

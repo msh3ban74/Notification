@@ -51,8 +51,7 @@ fun EmptyState(
     /**
      * Extra bottom inset so the centered card doesn't sit under a
      * floating action button on screens that have the bottom nav + FAB
-     * chrome. Screens without that chrome (e.g. [com.notification.app.ui.screens.ComingSoonScreen],
-     * which has its own back-only TopAppBar) pass 0.dp.
+     * chrome. Screens without that chrome (back-only TopAppBar) pass 0.dp.
      */
     bottomInset: androidx.compose.ui.unit.Dp = AppDimens.bottomNavHeight
 ) {

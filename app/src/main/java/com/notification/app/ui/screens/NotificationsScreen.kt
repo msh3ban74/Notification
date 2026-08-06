@@ -80,7 +80,7 @@ fun NotificationsScreen(
             icon = Icons.Default.NotificationsNone,
             title = if (isArabic) "لا توجد إشعارات مجدولة" else "No scheduled notifications",
             subtitle = if (isArabic) {
-                "جدول أول تذكير وستظهر إشعاراته هنا تلقائيًا"
+                "الهدوء التام — كل تنبيه قادم سيظهر هنا في موعده"
             } else {
                 "Schedule your first reminder and its alerts will appear here"
             },

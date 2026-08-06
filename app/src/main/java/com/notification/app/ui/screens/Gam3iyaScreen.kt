@@ -43,7 +43,16 @@ fun Gam3iyaScreen(
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
     var selectedGam3iyaForDetail by remember { mutableStateOf<Gam3iyaEntity?>(null) }
+    var gam3iyaSearch by remember { mutableStateOf("") }
     val context = LocalContext.current
+
+    val visibleGam3iyas = remember(gam3iyas, gam3iyaSearch) {
+        val query = gam3iyaSearch.trim()
+        if (query.isEmpty()) gam3iyas
+        else gam3iyas.filter {
+            it.title.contains(query, ignoreCase = true) || it.note.contains(query, ignoreCase = true)
+        }
+    }
 
     if (selectedGam3iyaForDetail != null) {
         val membersFlow = getMembersForGam3iya(selectedGam3iyaForDetail!!.id)
@@ -97,14 +106,31 @@ fun Gam3iyaScreen(
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.Group,
                     title = if (isArabic) "لا توجد جمعيات قائمة" else "No Active Savings Groups",
-                    subtitle = if (isArabic) "اضغط على زر الإضافة (+) لإنشاء جمعية جديدة وتحديد أدوار الأعضاء والمواعيد" else "Tap (+) below to set up a new rotating savings group with automated turn tracking"
+                    subtitle = if (isArabic) "نظّم ادخارك الجماعي — أدوار الأعضاء ومواعيد القبض تُحسب وتُتابع تلقائيًا" else "Organized group savings — member turns and payout dates calculated and tracked for you"
                 )
             } else {
+                OutlinedTextField(
+                    value = gam3iyaSearch,
+                    onValueChange = { gam3iyaSearch = it },
+                    placeholder = { Text(if (isArabic) "ابحث في جمعياتك…" else "Search your groups…") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                )
+                if (visibleGam3iyas.isEmpty()) {
+                    Text(
+                        text = if (isArabic) "لا توجد جمعية بهذا الاسم" else "No group matches your search",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 100.dp)
                 ) {
-                    items(gam3iyas, key = { it.id }) { gam3iya ->
+                    items(visibleGam3iyas, key = { it.id }) { gam3iya ->
                         val membersFlow = getMembersForGam3iya(gam3iya.id)
                         val members by membersFlow.collectAsState(initial = emptyList())
                         val summary = remember(gam3iya, members) {
