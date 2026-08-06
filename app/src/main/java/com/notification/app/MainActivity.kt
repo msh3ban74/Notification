@@ -498,7 +498,10 @@ class MainActivity : ComponentActivity() {
                                             launchSingleTop = true
                                             restoreState = true
                                         }
-                                    }
+                                    },
+                                    onStopGeneration = { viewModel.stopAiGeneration() },
+                                    onRegenerate = { viewModel.regenerateLastResponse() },
+                                    onClearChat = { viewModel.clearChat() }
                                 )
                             }
 

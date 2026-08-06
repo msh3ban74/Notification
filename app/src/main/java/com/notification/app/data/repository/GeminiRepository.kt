@@ -95,6 +95,11 @@ class GeminiRepository(
                     )
                 ),
                 GeminiFunctionDeclaration(
+                    name = "logWater",
+                    description = "Record that the user drank one glass of water (adds to today's water tracker).",
+                    parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
+                ),
+                GeminiFunctionDeclaration(
                     name = "completeHabitToday",
                     description = "Mark one of the user's habits as completed for today (by its name).",
                     parameters = mapOf(
@@ -132,7 +137,8 @@ class GeminiRepository(
         customApiKey: String? = null,
         isArabic: Boolean = false,
         onAlarmCreated: suspend (AlarmEntity) -> Unit = {},
-        onReminderCreated: suspend (Long) -> Unit = {}
+        onReminderCreated: suspend (Long) -> Unit = {},
+        onLogWater: suspend () -> Unit = {}
     ): Pair<String, List<GeminiContent>> {
         val apiKey = if (!customApiKey.isNullOrBlank()) customApiKey else BuildConfig.GEMINI_API_KEY
         val updatedHistory = history.toMutableList()
@@ -157,7 +163,7 @@ class GeminiRepository(
                 systemInstruction = systemInstruction
             )
 
-            val response = RetrofitClient.geminiService.generateContent(apiKey, request)
+            val response = generateWithRetry(apiKey, request)
             val candidateContent = response.candidates?.firstOrNull()?.content
 
             if (candidateContent != null) {
@@ -169,7 +175,7 @@ class GeminiRepository(
                     // The tool runs NOW — its effect (alarm set, reminder
                     // added…) is already committed regardless of what the
                     // second round does.
-                    val toolResult = executeTool(fnCall, isArabic, onAlarmCreated, onReminderCreated)
+                    val toolResult = executeTool(fnCall, isArabic, onAlarmCreated, onReminderCreated, onLogWater)
 
                     // Provide function response back to model
                     val toolResponseContent = GeminiContent(
@@ -219,10 +225,65 @@ class GeminiRepository(
             updatedHistory.add(GeminiContent(role = "model", parts = listOf(GeminiPart(text = fallback))))
             return Pair(fallback, updatedHistory)
         } catch (e: Exception) {
-            val errorText = "عذراً، تعذّر الوصول للمساعد الآن — تأكد من الاتصال وحاول مجددًا 🙏\n" +
-                "Sorry, I couldn't reach the assistant — check your connection and try again."
+            val errorText = friendlyError(e, isArabic)
             updatedHistory.add(GeminiContent(role = "model", parts = listOf(GeminiPart(text = errorText))))
             return Pair(errorText, updatedHistory)
+        }
+    }
+
+    /**
+     * Maps any pipeline failure to a professional, localized message — the
+     * user always learns WHAT went wrong (network, quota, key, server…)
+     * and never sees a raw stack trace or a silent empty bubble. Internal
+     * exception text is never surfaced (security).
+     */
+    /**
+     * One automatic retry for TRANSIENT failures only (server 5xx or a
+     * timeout) with a short backoff — recovers from a blip without the
+     * user noticing. Permanent errors (bad key, quota, 4xx) throw
+     * immediately so the mapped message shows at once.
+     */
+    private suspend fun generateWithRetry(apiKey: String, request: GeminiRequest): GeminiResponse {
+        var lastError: Exception? = null
+        repeat(2) { attempt ->
+            try {
+                return RetrofitClient.geminiService.generateContent(apiKey, request)
+            } catch (e: Exception) {
+                lastError = e
+                val transient = e is java.net.SocketTimeoutException ||
+                    e is java.io.InterruptedIOException ||
+                    ((e as? retrofit2.HttpException)?.code() ?: 0) >= 500
+                if (!transient || attempt == 1) throw e
+                kotlinx.coroutines.delay(800)
+            }
+        }
+        throw lastError ?: IllegalStateException("unreachable")
+    }
+
+    private fun friendlyError(e: Exception, isArabic: Boolean): String {
+        val http = (e as? retrofit2.HttpException)?.code()
+        return when {
+            e is java.net.UnknownHostException || e is java.net.ConnectException ->
+                if (isArabic) "لا يوجد اتصال بالإنترنت — تأكد من الشبكة وحاول مجددًا 🌐"
+                else "No internet connection — check your network and try again 🌐"
+            e is java.net.SocketTimeoutException || e is java.io.InterruptedIOException ->
+                if (isArabic) "المساعد تأخّر في الرد — جرّب مرة أخرى ⏱️"
+                else "The assistant took too long — please try again ⏱️"
+            http == 400 || http == 403 ->
+                if (isArabic) "تعذّر التحقق من خدمة المساعد. حاول لاحقًا 🔑"
+                else "Couldn't authorize the assistant service. Try again later 🔑"
+            http == 429 ->
+                if (isArabic) "الخدمة مشغولة الآن (تجاوز الحد) — انتظر دقيقة وحاول مجددًا ⏳"
+                else "The service is busy right now (rate limit) — wait a minute and retry ⏳"
+            http != null && http >= 500 ->
+                if (isArabic) "خادم المساعد غير متاح مؤقتًا — حاول بعد قليل 🛠️"
+                else "The assistant server is temporarily down — try again shortly 🛠️"
+            e is com.squareup.moshi.JsonDataException ->
+                if (isArabic) "وصل رد غير مفهوم — جرّب صياغة السؤال بشكل مختلف 🙏"
+                else "Got an unreadable reply — try rephrasing your question 🙏"
+            else ->
+                if (isArabic) "تعذّر الوصول للمساعد الآن — تأكد من الاتصال وحاول مجددًا 🙏"
+                else "Couldn't reach the assistant — check your connection and try again 🙏"
         }
     }
 
@@ -337,7 +398,8 @@ class GeminiRepository(
         call: GeminiFunctionCall,
         isArabic: Boolean,
         onAlarmCreated: suspend (AlarmEntity) -> Unit,
-        onReminderCreated: suspend (Long) -> Unit
+        onReminderCreated: suspend (Long) -> Unit,
+        onLogWater: suspend () -> Unit
     ): Any {
         val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
         return when (call.name) {
@@ -460,6 +522,10 @@ class GeminiRepository(
                     if (isArabic) "سجّلت إنجاز \"${habit.title}\" النهارده 🔥 سلسلتك الحالية $streak يوم"
                     else "'${habit.title}' checked off for today 🔥 current streak: $streak days"
                 }
+            }
+            "logWater" -> {
+                onLogWater()
+                if (isArabic) "سجّلت إنك شربت كوب ماء 💧" else "Logged a glass of water 💧"
             }
             "setSmartAlarm" -> {
                 val title = call.args["title"]?.toString() ?: "Smart Alarm"
