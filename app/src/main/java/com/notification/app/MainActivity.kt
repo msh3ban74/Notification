@@ -101,6 +101,13 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
         fun createRoute(itemId: Long) = "edit_financial/$itemId"
     }
 
+    // Installment payment-plan detail (payments, history, attachments).
+    object InstallmentDetail : Screen(
+        "installment_detail/{itemId}", "Installment", "قسط", Icons.Default.CreditCard
+    ) {
+        fun createRoute(itemId: Long) = "installment_detail/$itemId"
+    }
+
     // The money list (bills / installments / subscriptions).
     object Financial : Screen("financial", "Money", "المالية", Icons.Default.AccountBalanceWallet)
 
@@ -714,6 +721,30 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
+                            // Sprint 6 — installment payment-plan detail.
+                            composable(
+                                route = Screen.InstallmentDetail.route,
+                                arguments = listOf(navArgument("itemId") { type = NavType.LongType })
+                            ) { backStackEntry ->
+                                val itemId = backStackEntry.arguments?.getLong("itemId") ?: -1L
+                                val target = financialItems.firstOrNull { it.id == itemId }
+                                if (target != null) {
+                                    InstallmentDetailScreen(
+                                        viewModel = viewModel,
+                                        item = target,
+                                        isArabic = isArabic,
+                                        onBack = { navController.popBackStack() },
+                                        onEdit = { navController.navigate(Screen.EditFinancial.createRoute(target.id)) },
+                                        onDelete = {
+                                            viewModel.deleteFinancialItem(target)
+                                            navController.popBackStack()
+                                        }
+                                    )
+                                } else {
+                                    androidx.compose.runtime.LaunchedEffect(Unit) { navController.popBackStack() }
+                                }
+                            }
+
                             // Phase B — the money list.
                             composable(Screen.Financial.route) {
                                 FinancialListScreen(
@@ -721,6 +752,7 @@ class MainActivity : ComponentActivity() {
                                     items = financialItems,
                                     onBack = { navController.popBackStack() },
                                     onEdit = { navController.navigate(Screen.EditFinancial.createRoute(it.id)) },
+                                    onOpenDetail = { navController.navigate(Screen.InstallmentDetail.createRoute(it.id)) },
                                     onDelete = { viewModel.deleteFinancialItem(it) },
                                     onTogglePaid = { viewModel.updateFinancialItem(it.copy(isPaid = !it.isPaid)) },
                                     onAdd = { navController.navigate(Screen.CreateFinancial.createRoute("BILL")) },

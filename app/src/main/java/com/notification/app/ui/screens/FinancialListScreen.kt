@@ -66,7 +66,9 @@ fun FinancialListScreen(
     onTogglePaid: (FinancialItemEntity) -> Unit,
     onAdd: () -> Unit,
     // Phase D — duplicate an item as a fresh unpaid copy.
-    onDuplicate: ((FinancialItemEntity) -> Unit)? = null
+    onDuplicate: ((FinancialItemEntity) -> Unit)? = null,
+    // Sprint 6 — installments open the payment-plan detail; other types edit.
+    onOpenDetail: ((FinancialItemEntity) -> Unit)? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
 
@@ -189,7 +191,13 @@ fun FinancialListScreen(
                     else -> "${item.amount.toLong()} ${if (isArabic) "ج.م" else "EGP"}"
                 }
 
-                PremiumCard(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) {
+                PremiumCard(
+                    onClick = {
+                        if (item.type == "INSTALLMENT" && onOpenDetail != null) onOpenDetail(item)
+                        else onEdit(item)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.md),

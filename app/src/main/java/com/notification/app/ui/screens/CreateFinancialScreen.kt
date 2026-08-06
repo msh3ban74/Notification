@@ -73,6 +73,18 @@ fun CreateFinancialScreen(
     var seller by remember { mutableStateOf(initial?.seller ?: "") }
     var note by remember { mutableStateOf(initial?.note ?: "") }
     var recurring by remember { mutableStateOf(initial?.recurring ?: (type != FinancialType.INSTALLMENT)) }
+    // Installment profile (Sprint 6 fields; only shown for INSTALLMENT).
+    var brand by remember { mutableStateOf(initial?.brand ?: "") }
+    var store by remember { mutableStateOf(initial?.store ?: "") }
+    var storePhone by remember { mutableStateOf(initial?.storePhone ?: "") }
+    var storeWhatsapp by remember { mutableStateOf(initial?.storeWhatsapp ?: "") }
+    var category by remember { mutableStateOf(initial?.category ?: "") }
+    var currency by remember { mutableStateOf(initial?.currency ?: "EGP") }
+    var interest by remember { mutableStateOf(initial?.interestAmount?.takeIf { it > 0 }?.toString() ?: "") }
+    var warranty by remember { mutableStateOf(initial?.warranty ?: "") }
+    var tags by remember { mutableStateOf(initial?.tags ?: "") }
+    var purchaseMillis by remember { mutableLongStateOf(initial?.purchaseDate ?: 0L) }
+    var showPurchasePicker by remember { mutableStateOf(false) }
 
     val defaultDue = remember {
         Calendar.getInstance().apply {
@@ -140,9 +152,60 @@ fun CreateFinancialScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                MoneyField(totalPrice, { totalPrice = it }, if (isArabic) "السعر الكلي (ج.م)" else "Total price (EGP)")
-                MoneyField(downPayment, { downPayment = it }, if (isArabic) "المقدم (ج.م)" else "Down payment (EGP)")
-                MoneyField(monthlyAmount, { monthlyAmount = it }, if (isArabic) "القسط الشهري (ج.م)" else "Monthly amount (EGP)")
+                MoneyField(totalPrice, { totalPrice = it }, if (isArabic) "السعر الكلي" else "Total price")
+                MoneyField(downPayment, { downPayment = it }, if (isArabic) "المقدّم" else "Down payment")
+                MoneyField(monthlyAmount, { monthlyAmount = it }, if (isArabic) "القسط الشهري" else "Monthly amount")
+                MoneyField(interest, { interest = it }, if (isArabic) "قيمة الفائدة (اختياري)" else "Interest amount (optional)")
+                CurrencyDropdown(currency, { currency = it }, isArabic)
+                OutlinedTextField(
+                    value = brand, onValueChange = { brand = it },
+                    label = { Text(if (isArabic) "الماركة (اختياري)" else "Brand (optional)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = store, onValueChange = { store = it },
+                    label = { Text(if (isArabic) "المتجر (اختياري)" else "Store (optional)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = storePhone, onValueChange = { storePhone = it },
+                        label = { Text(if (isArabic) "هاتف المتجر" else "Store phone") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = storeWhatsapp, onValueChange = { storeWhatsapp = it },
+                        label = { Text("WhatsApp") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                OutlinedTextField(
+                    value = category, onValueChange = { category = it },
+                    label = { Text(if (isArabic) "التصنيف (اختياري)" else "Category (optional)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                PickerField(
+                    value = if (purchaseMillis > 0) dateFormat.format(Date(purchaseMillis))
+                    else (if (isArabic) "غير محدد" else "Not set"),
+                    label = if (isArabic) "تاريخ الشراء" else "Purchase date",
+                    icon = Icons.Default.CalendarMonth,
+                    onClick = { showPurchasePicker = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = warranty, onValueChange = { warranty = it },
+                    label = { Text(if (isArabic) "الضمان (اختياري)" else "Warranty (optional)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = tags, onValueChange = { tags = it },
+                    label = { Text(if (isArabic) "وسوم (بفاصلة)" else "Tags (comma-separated)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth()
+                )
             } else {
                 MoneyField(
                     amount, { amount = it },
@@ -222,7 +285,17 @@ fun CreateFinancialScreen(
                             billNumber = billNumber.trim(),
                             seller = seller.trim(),
                             note = note.trim(),
-                            recurring = recurring
+                            recurring = recurring,
+                            brand = brand.trim(),
+                            store = store.trim(),
+                            storePhone = storePhone.trim(),
+                            storeWhatsapp = storeWhatsapp.trim(),
+                            category = category.trim(),
+                            currency = currency,
+                            interestAmount = interest.toDoubleOrNull() ?: 0.0,
+                            purchaseDate = purchaseMillis,
+                            warranty = warranty.trim(),
+                            tags = tags.trim()
                         )
                     )
                 },
@@ -261,6 +334,35 @@ fun CreateFinancialScreen(
                 }
             }
         ) { DatePicker(state = state) }
+    }
+
+    if (showPurchasePicker) {
+        val pState = rememberDatePickerState(
+            initialSelectedDateMillis = if (purchaseMillis > 0) purchaseMillis else System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showPurchasePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pState.selectedDateMillis?.let { utc ->
+                        val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = utc }
+                        purchaseMillis = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                            set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                            set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                            set(Calendar.HOUR_OF_DAY, 12); set(Calendar.MINUTE, 0)
+                            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                    }
+                    showPurchasePicker = false
+                }) { Text(if (isArabic) "تم" else "OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPurchasePicker = false }) {
+                    Text(if (isArabic) "إلغاء" else "Cancel")
+                }
+            }
+        ) { DatePicker(state = pState) }
     }
 }
 
