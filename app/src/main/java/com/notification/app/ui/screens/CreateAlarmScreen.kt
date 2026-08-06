@@ -36,6 +36,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import com.notification.app.ui.permissions.canScheduleExactAlarms
 import com.notification.app.ui.permissions.openExactAlarmSettings
 import androidx.compose.ui.Alignment
