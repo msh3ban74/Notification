@@ -51,7 +51,22 @@ class AlarmService : Service() {
         val title = intent?.getStringExtra("EXTRA_TITLE") ?: "Alarm Ringing"
         val ringtoneUriStr = intent?.getStringExtra("EXTRA_RINGTONE_URI") ?: ""
 
-        startForeground(NOTIFICATION_ID, createNotification(title))
+        // API 34+ requires the typed startForeground for a specialUse
+        // service; the 2-arg form is correct on older versions. Wrapped so
+        // a start failure can never crash the alarm delivery.
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    createNotification(title),
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, createNotification(title))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         raiseAlarmVolume()
         playRingtone(ringtoneUriStr)
