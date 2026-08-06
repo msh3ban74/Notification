@@ -25,6 +25,8 @@ object AlarmManagerScheduler {
             putExtra("EXTRA_VOLUME", alarm.volumePercent)
             putExtra("EXTRA_SNOOZE_MIN", alarm.snoozeMinutes)
             putExtra("EXTRA_AUTO_STOP_MIN", alarm.autoStopMinutes)
+            putExtra("EXTRA_SNOOZE_MIN", alarm.snoozeMinutes)
+            putExtra("EXTRA_REPEAT_DAYS", alarm.repeatDays)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -35,6 +37,43 @@ object AlarmManagerScheduler {
         )
 
         scheduleExactOrFallback(alarmManager, alarm.timeInMillis, pendingIntent)
+    }
+
+    /**
+     * Weekly repeat — when a repeating alarm fires, schedule its NEXT
+     * occurrence. Called from the receiver with the intent it just got, so
+     * every option (sound, volume, vibration…) is preserved verbatim. No
+     * DB access needed. A one-shot alarm (empty repeatDays) does nothing.
+     */
+    fun scheduleNextRepeat(context: Context, firedIntent: Intent) {
+        val repeatDays = firedIntent.getStringExtra("EXTRA_REPEAT_DAYS").orEmpty()
+        val next = nextOccurrence(repeatDays, System.currentTimeMillis()) ?: return
+        val alarmId = firedIntent.getLongExtra("EXTRA_ALARM_ID", -1L)
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        // Clone the fired intent so all extras carry over unchanged.
+        val intent = Intent(firedIntent).apply { setClass(context, AlarmReceiver::class.java) }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, alarmId.toInt(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        scheduleExactOrFallback(alarmManager, next, pendingIntent)
+    }
+
+    /** Next matching weekday (Calendar.DAY_OF_WEEK 1..7) after [fromMillis],
+     *  keeping the same clock time; null if repeatDays is empty/invalid. */
+    private fun nextOccurrence(repeatDays: String, fromMillis: Long): Long? {
+        val days = repeatDays.split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
+        if (days.isEmpty()) return null
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = fromMillis
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        for (i in 1..7) {
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            if (cal.get(java.util.Calendar.DAY_OF_WEEK) in days) return cal.timeInMillis
+        }
+        return null
     }
 
     /**

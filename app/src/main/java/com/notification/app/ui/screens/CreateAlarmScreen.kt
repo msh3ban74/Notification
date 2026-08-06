@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,7 +59,7 @@ import java.util.Calendar
  * new alarm logic is introduced. Lets the user pick a time, a label, and
  * a ringtone from the system picker.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun CreateAlarmScreen(
     isArabic: Boolean,
@@ -74,6 +75,8 @@ fun CreateAlarmScreen(
     var volumePercent by remember { mutableFloatStateOf(80f) }
     var snoozeMinutes by remember { mutableIntStateOf(10) }
     var autoStopMinutes by remember { mutableIntStateOf(5) }
+    // Weekly repeat — Calendar.DAY_OF_WEEK values (1=Sun … 7=Sat). Empty = once.
+    val repeatDays = remember { mutableStateListOf<Int>() }
 
     val now = remember { Calendar.getInstance() }
     val timeState = rememberTimePickerState(
@@ -302,6 +305,40 @@ fun CreateAlarmScreen(
                         onIncrement = { if (autoStopMinutes < 30) autoStopMinutes++ },
                         zeroLabel = if (isArabic) "بدون" else "Off"
                     )
+
+                    // Weekly repeat — tap days; none selected = one-time alarm.
+                    Text(
+                        text = if (isArabic) "التكرار الأسبوعي" else "Repeat weekly",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    val dayLabels = if (isArabic)
+                        listOf("أحد" to 1, "إثنين" to 2, "ثلاثاء" to 3, "أربعاء" to 4, "خميس" to 5, "جمعة" to 6, "سبت" to 7)
+                    else
+                        listOf("Su" to 1, "Mo" to 2, "Tu" to 3, "We" to 4, "Th" to 5, "Fr" to 6, "Sa" to 7)
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        dayLabels.forEach { (lbl, dow) ->
+                            androidx.compose.material3.FilterChip(
+                                selected = dow in repeatDays,
+                                onClick = {
+                                    if (dow in repeatDays) repeatDays.remove(dow) else repeatDays.add(dow)
+                                },
+                                label = { Text(lbl, maxLines = 1) }
+                            )
+                        }
+                    }
+                    Text(
+                        text = if (repeatDays.isEmpty()) {
+                            if (isArabic) "مرة واحدة" else "One-time"
+                        } else {
+                            if (isArabic) "يتكرر أسبوعيًا في الأيام المحددة" else "Repeats weekly on the selected days"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -321,7 +358,8 @@ fun CreateAlarmScreen(
                             flashlight = flashlight,
                             volumePercent = volumePercent.toInt(),
                             snoozeMinutes = snoozeMinutes,
-                            autoStopMinutes = autoStopMinutes
+                            autoStopMinutes = autoStopMinutes,
+                            repeatDays = repeatDays.sorted().joinToString(",")
                         )
                     )
                 },

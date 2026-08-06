@@ -27,6 +27,10 @@ class AlarmReceiver : BroadcastReceiver() {
         val autoStopMin = intent.getIntExtra("EXTRA_AUTO_STOP_MIN", 5)
         val snoozeMin = intent.getIntExtra("EXTRA_SNOOZE_MIN", 10)
 
+        // Weekly repeat — arm the next occurrence before anything else, so a
+        // crash mid-ring can't stop the series. No-op for one-shot alarms.
+        com.notification.app.domain.scheduler.AlarmManagerScheduler.scheduleNextRepeat(context, intent)
+
         // Start Foreground Alarm Service for looping audio/vibration
         val serviceIntent = Intent(context, AlarmService::class.java).apply {
             putExtra("EXTRA_TITLE", title)
