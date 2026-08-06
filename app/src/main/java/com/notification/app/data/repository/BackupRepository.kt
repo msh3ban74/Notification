@@ -49,6 +49,9 @@ class BackupRepository(
             db.personLedgerDao().getAllTransactions().first().forEach {
                 ops += Op("ledger_transactions", it.id.toString(), transactionToMap(it))
             }
+            db.personLedgerDao().getAllLedgerAttachments().first().forEach {
+                ops += Op("ledger_attachments", it.id.toString(), ledgerAttachmentToMap(it))
+            }
             db.gam3iyaDao().getAllGam3iyas().first().forEach {
                 ops += Op("gam3iyas", it.id.toString(), gam3iyaToMap(it))
             }
@@ -118,6 +121,9 @@ class BackupRepository(
             userDocRef.collection("ledger_transactions").get().await().documents
                 .mapNotNull { it.toTransaction() }
                 .forEach { db.personLedgerDao().insertTransaction(it); count++ }
+            userDocRef.collection("ledger_attachments").get().await().documents
+                .mapNotNull { it.toLedgerAttachment() }
+                .forEach { db.personLedgerDao().insertLedgerAttachment(it); count++ }
             userDocRef.collection("gam3iyas").get().await().documents
                 .mapNotNull { it.toGam3iya() }
                 .forEach { db.gam3iyaDao().insertGam3iya(it); count++ }
@@ -178,15 +184,25 @@ class BackupRepository(
         "isPinned" to r.isPinned, "isArchived" to r.isArchived
     )
 
+    private fun ledgerAttachmentToMap(a: LedgerAttachmentEntity) = mapOf(
+        "id" to a.id, "personId" to a.personId, "transactionId" to a.transactionId,
+        "uri" to a.uri, "kind" to a.kind, "label" to a.label, "createdAt" to a.createdAt
+    )
+
     private fun personToMap(p: PersonEntity) = mapOf(
         "id" to p.id, "name" to p.name, "phoneNumber" to p.phoneNumber,
         "whatsapp" to p.whatsapp, "email" to p.email, "address" to p.address,
-        "category" to p.category, "createdAt" to p.createdAt
+        "category" to p.category, "createdAt" to p.createdAt,
+        "photoUri" to p.photoUri, "company" to p.company, "nationalId" to p.nationalId,
+        "notes" to p.notes, "tags" to p.tags, "isFavorite" to p.isFavorite, "isArchived" to p.isArchived
     )
 
     private fun transactionToMap(t: LedgerTransactionEntity) = mapOf(
         "id" to t.id, "personId" to t.personId, "type" to t.type, "amount" to t.amount,
-        "date" to t.date, "note" to t.note, "linkedReminderId" to t.linkedReminderId
+        "date" to t.date, "note" to t.note, "linkedReminderId" to t.linkedReminderId,
+        "currency" to t.currency, "reason" to t.reason, "dueDate" to t.dueDate,
+        "paymentType" to t.paymentType, "recurring" to t.recurring,
+        "createdAt" to t.createdAt, "updatedAt" to t.updatedAt
     )
 
     private fun gam3iyaToMap(g: Gam3iyaEntity) = mapOf(
@@ -289,7 +305,10 @@ class BackupRepository(
         return PersonEntity(
             id = lng("id"), name = name, phoneNumber = str("phoneNumber"),
             whatsapp = str("whatsapp"), email = str("email"), address = str("address"),
-            category = str("category"), createdAt = lng("createdAt")
+            category = str("category"), createdAt = lng("createdAt"),
+            photoUri = str("photoUri"), company = str("company"), nationalId = str("nationalId"),
+            notes = str("notes"), tags = str("tags"),
+            isFavorite = bool("isFavorite"), isArchived = bool("isArchived")
         )
     }
 
@@ -297,7 +316,18 @@ class BackupRepository(
         val type = getString("type") ?: return null
         return LedgerTransactionEntity(
             id = lng("id"), personId = lng("personId"), type = type, amount = dbl("amount"),
-            date = lng("date"), note = str("note"), linkedReminderId = getLong("linkedReminderId")
+            date = lng("date"), note = str("note"), linkedReminderId = getLong("linkedReminderId"),
+            currency = str("currency", "EGP"), reason = str("reason"), dueDate = lng("dueDate"),
+            paymentType = str("paymentType"), recurring = bool("recurring"),
+            createdAt = lng("createdAt"), updatedAt = lng("updatedAt")
+        )
+    }
+
+    private fun DocumentSnapshot.toLedgerAttachment(): LedgerAttachmentEntity? {
+        val uri = getString("uri") ?: return null
+        return LedgerAttachmentEntity(
+            id = lng("id"), personId = lng("personId"), transactionId = lng("transactionId"),
+            uri = uri, kind = str("kind", "IMAGE"), label = str("label"), createdAt = lng("createdAt")
         )
     }
 

@@ -163,8 +163,8 @@ class LocalBackupManager(
         val inner = decodeInner(uri) ?: return null
         val counts = linkedMapOf<String, Int>()
         listOf(
-            "reminders", "persons", "ledger_transactions", "gam3iyas",
-            "gam3iya_members", "gam3iya_payments", "gam3iya_attachments",
+            "reminders", "persons", "ledger_transactions", "ledger_attachments",
+            "gam3iyas", "gam3iya_members", "gam3iya_payments", "gam3iya_attachments",
             "alarms", "work_notes", "financial_items",
             "habits", "habit_logs"
         ).forEach { key -> inner.optJSONArray(key)?.let { if (it.length() > 0) counts[key] = it.length() } }
@@ -184,6 +184,7 @@ class LocalBackupManager(
             inner.optJSONArray("reminders")?.forEachObj { db.reminderDao().insertReminder(it.toReminder()); count++ }
             inner.optJSONArray("persons")?.forEachObj { db.personLedgerDao().insertPerson(it.toPerson()); count++ }
             inner.optJSONArray("ledger_transactions")?.forEachObj { db.personLedgerDao().insertTransaction(it.toTransaction()); count++ }
+            inner.optJSONArray("ledger_attachments")?.forEachObj { db.personLedgerDao().insertLedgerAttachment(it.toLedgerAttachment()); count++ }
             inner.optJSONArray("gam3iyas")?.forEachObj { db.gam3iyaDao().insertGam3iya(it.toGam3iya()); count++ }
             inner.optJSONArray("gam3iya_members")?.forEachObj { db.gam3iyaDao().insertMember(it.toGam3iyaMember()); count++ }
             inner.optJSONArray("gam3iya_payments")?.forEachObj { db.gam3iyaDao().insertPayment(it.toGam3iyaPayment()); count++ }
@@ -241,6 +242,9 @@ class LocalBackupManager(
         o.put("ledger_transactions", JSONArray().also { arr ->
             db.personLedgerDao().getAllTransactions().first().forEach { arr.put(txMap(it)); total++ }
         })
+        o.put("ledger_attachments", JSONArray().also { arr ->
+            db.personLedgerDao().getAllLedgerAttachments().first().forEach { arr.put(ledgerAttachmentMap(it)); total++ }
+        })
         o.put("gam3iyas", JSONArray().also { arr ->
             db.gam3iyaDao().getAllGam3iyas().first().forEach { arr.put(gam3iyaMap(it)); total++ }
         })
@@ -294,10 +298,19 @@ class LocalBackupManager(
         .put("id", p.id).put("name", p.name).put("phoneNumber", p.phoneNumber)
         .put("whatsapp", p.whatsapp).put("email", p.email).put("address", p.address)
         .put("category", p.category).put("createdAt", p.createdAt)
+        .put("photoUri", p.photoUri).put("company", p.company).put("nationalId", p.nationalId)
+        .put("notes", p.notes).put("tags", p.tags).put("isFavorite", p.isFavorite).put("isArchived", p.isArchived)
 
     private fun txMap(t: LedgerTransactionEntity) = JSONObject()
         .put("id", t.id).put("personId", t.personId).put("type", t.type).put("amount", t.amount)
         .put("date", t.date).put("note", t.note).put("linkedReminderId", t.linkedReminderId ?: JSONObject.NULL)
+        .put("currency", t.currency).put("reason", t.reason).put("dueDate", t.dueDate)
+        .put("paymentType", t.paymentType).put("recurring", t.recurring)
+        .put("createdAt", t.createdAt).put("updatedAt", t.updatedAt)
+
+    private fun ledgerAttachmentMap(a: LedgerAttachmentEntity) = JSONObject()
+        .put("id", a.id).put("personId", a.personId).put("transactionId", a.transactionId)
+        .put("uri", a.uri).put("kind", a.kind).put("label", a.label).put("createdAt", a.createdAt)
 
     private fun gam3iyaMap(g: Gam3iyaEntity) = JSONObject()
         .put("id", g.id).put("title", g.title).put("totalAmount", g.totalAmount)
@@ -370,13 +383,25 @@ class LocalBackupManager(
     private fun JSONObject.toPerson() = PersonEntity(
         id = optLong("id"), name = optString("name"), phoneNumber = optString("phoneNumber"),
         whatsapp = optString("whatsapp"), email = optString("email"), address = optString("address"),
-        category = optString("category"), createdAt = optLong("createdAt")
+        category = optString("category"), createdAt = optLong("createdAt"),
+        photoUri = optString("photoUri"), company = optString("company"), nationalId = optString("nationalId"),
+        notes = optString("notes"), tags = optString("tags"),
+        isFavorite = optBoolean("isFavorite"), isArchived = optBoolean("isArchived")
     )
 
     private fun JSONObject.toTransaction() = LedgerTransactionEntity(
         id = optLong("id"), personId = optLong("personId"), type = optString("type"),
         amount = optDouble("amount", 0.0), date = optLong("date"), note = optString("note"),
-        linkedReminderId = if (isNull("linkedReminderId")) null else optLong("linkedReminderId")
+        linkedReminderId = if (isNull("linkedReminderId")) null else optLong("linkedReminderId"),
+        currency = optString("currency", "EGP"), reason = optString("reason"), dueDate = optLong("dueDate"),
+        paymentType = optString("paymentType"), recurring = optBoolean("recurring"),
+        createdAt = optLong("createdAt"), updatedAt = optLong("updatedAt")
+    )
+
+    private fun JSONObject.toLedgerAttachment() = LedgerAttachmentEntity(
+        id = optLong("id"), personId = optLong("personId"), transactionId = optLong("transactionId"),
+        uri = optString("uri"), kind = optString("kind", "IMAGE"), label = optString("label"),
+        createdAt = optLong("createdAt")
     )
 
     private fun JSONObject.toGam3iya() = Gam3iyaEntity(

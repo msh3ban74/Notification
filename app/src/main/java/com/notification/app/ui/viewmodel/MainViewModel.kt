@@ -416,12 +416,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updatePerson(person: PersonEntity) {
-        viewModelScope.launch { repository.insertPerson(person) }
+        viewModelScope.launch { repository.updatePerson(person) }
+    }
+
+    // ── Sprint 5 — person profile CRUD extras ─────────────────────────
+    fun deletePerson(person: PersonEntity) {
+        viewModelScope.launch { repository.deletePersonCascade(person) }
+    }
+    fun togglePersonFavorite(person: PersonEntity) {
+        viewModelScope.launch { repository.updatePerson(person.copy(isFavorite = !person.isFavorite)) }
+    }
+    fun togglePersonArchived(person: PersonEntity) {
+        viewModelScope.launch { repository.updatePerson(person.copy(isArchived = !person.isArchived)) }
+    }
+
+    // ── Sprint 5 — ledger attachments (receipts / docs / audio) ───────
+    fun getLedgerAttachmentsForPerson(personId: Long): Flow<List<LedgerAttachmentEntity>> =
+        repository.getAttachmentsForPerson(personId)
+    fun addLedgerAttachment(personId: Long, transactionId: Long, uri: String, kind: String, label: String) {
+        viewModelScope.launch {
+            repository.insertLedgerAttachment(
+                LedgerAttachmentEntity(
+                    personId = personId, transactionId = transactionId, uri = uri,
+                    kind = kind, label = label, createdAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+    fun deleteLedgerAttachment(a: LedgerAttachmentEntity) {
+        viewModelScope.launch { repository.deleteLedgerAttachment(a) }
     }
 
     fun addLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
-            repository.insertLedgerTransaction(tx)
+            val now = System.currentTimeMillis()
+            val stamped = tx.copy(
+                createdAt = if (tx.createdAt == 0L) now else tx.createdAt,
+                updatedAt = now
+            )
+            val id = repository.insertLedgerTransaction(stamped)
+            // Schedule a due-date reminder when one is set and in the future.
+            if (stamped.dueDate > now) {
+                val person = repository.getPersonById(stamped.personId)
+                val title = if (ar()) "استحقاق دين: ${person?.name ?: ""}" else "Debt due: ${person?.name ?: ""}"
+                val reminderId = insertAndScheduleReminder(
+                    ReminderEntity(
+                        title = title, note = stamped.note, dueDate = stamped.dueDate,
+                        category = ReminderCategory.MONEY.name
+                    )
+                )
+                repository.updateLedgerTransaction(stamped.copy(id = id, linkedReminderId = reminderId))
+            }
         }
     }
 

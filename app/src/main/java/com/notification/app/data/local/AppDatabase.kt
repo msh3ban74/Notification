@@ -14,6 +14,7 @@ import com.notification.app.data.local.entities.*
         ReminderEntity::class,
         PersonEntity::class,
         LedgerTransactionEntity::class,
+        LedgerAttachmentEntity::class,
         Gam3iyaEntity::class,
         Gam3iyaMemberEntity::class,
         Gam3iyaPaymentEntity::class,
@@ -24,7 +25,7 @@ import com.notification.app.data.local.entities.*
         HabitEntity::class,
         HabitLogEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -236,6 +237,44 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration 8→9 — Sprint 5: professional Debts & Ledger. Additive
+         * ALTER TABLEs on persons + ledger_transactions (defaults reproduce
+         * the previous behaviour) plus a new ledger_attachments table. No
+         * existing data touched.
+         */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE persons ADD COLUMN photoUri TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN company TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN nationalId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE persons ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN currency TEXT NOT NULL DEFAULT 'EGP'")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN reason TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN dueDate INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN paymentType TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN recurring INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS ledger_attachments (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        personId INTEGER NOT NULL,
+                        transactionId INTEGER NOT NULL DEFAULT 0,
+                        uri TEXT NOT NULL,
+                        kind TEXT NOT NULL DEFAULT 'IMAGE',
+                        label TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -246,7 +285,7 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
-                    MIGRATION_7_8
+                    MIGRATION_7_8, MIGRATION_8_9
                 )
                 // Safety net only — real migrations above preserve data.
                 .fallbackToDestructiveMigration()

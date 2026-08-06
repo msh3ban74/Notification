@@ -41,6 +41,21 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun deleteLedgerTransaction(tx: LedgerTransactionEntity) =
         db.personLedgerDao().deleteTransaction(tx)
 
+    // ── Sprint 5 — person edit + cascade delete + attachments ─────────
+    suspend fun updatePerson(person: PersonEntity) = db.personLedgerDao().updatePerson(person)
+    suspend fun deletePersonCascade(person: PersonEntity) {
+        db.personLedgerDao().deleteTransactionsForPerson(person.id)
+        db.personLedgerDao().deleteLedgerAttachmentsForPerson(person.id)
+        db.personLedgerDao().deletePerson(person)
+    }
+    val allLedgerAttachments: Flow<List<LedgerAttachmentEntity>> = db.personLedgerDao().getAllLedgerAttachments()
+    fun getAttachmentsForPerson(personId: Long): Flow<List<LedgerAttachmentEntity>> =
+        db.personLedgerDao().getAttachmentsForPerson(personId)
+    suspend fun insertLedgerAttachment(a: LedgerAttachmentEntity): Long =
+        db.personLedgerDao().insertLedgerAttachment(a)
+    suspend fun deleteLedgerAttachment(a: LedgerAttachmentEntity) =
+        db.personLedgerDao().deleteLedgerAttachment(a)
+
     // Gam3iya
     val allGam3iyas: Flow<List<Gam3iyaEntity>> = db.gam3iyaDao().getAllGam3iyas()
 
