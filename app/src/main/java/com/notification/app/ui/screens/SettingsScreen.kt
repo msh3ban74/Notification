@@ -24,6 +24,7 @@ import com.notification.app.ui.theme.MaroonPrimary
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     currentLanguage: String,
