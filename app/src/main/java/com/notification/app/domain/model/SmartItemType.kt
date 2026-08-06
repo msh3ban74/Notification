@@ -19,11 +19,10 @@ import androidx.compose.material.icons.filled.Work
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
- * Sprint 2 — Smart Item Engine Foundation.
- *
- * Pure UI/navigation data — NOT wired to Room, Firestore, or any
- * ViewModel yet. Selecting a type only routes to a placeholder screen.
- * Real forms and persistence land in Sprint 3.
+ * Smart Item Engine — the picker metadata (id / bilingual title / icon)
+ * for the Dashboard "+" sheet. Each id routes to a real create screen in
+ * MainActivity (task/debt/alarm/bill/installment/subscription/gam3iya/
+ * habit and the shared Smart Reminder form for the rest).
  */
 data class SmartItemType(
     val id: String,

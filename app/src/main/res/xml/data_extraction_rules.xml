@@ -5,10 +5,9 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <!-- Full cloud backup (default). App data is additionally backed up
+             through the in-app encrypted backup/restore, so no include/exclude
+             overrides are needed here. -->
     </cloud-backup>
     <!--
     <device-transfer>

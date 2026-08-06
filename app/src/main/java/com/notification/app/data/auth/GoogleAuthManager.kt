@@ -28,9 +28,10 @@ import kotlinx.coroutines.tasks.await
  */
 class GoogleAuthManager(private val context: Context) {
 
-    // TODO: Replace with your Firebase project's real Web Client ID
-    // (Firebase Console > Project Settings > General > Your Apps > Web client ID,
-    // or the "client_type: 3" entry inside your google-services.json)
+    // The Web Client ID is injected at build time from local.properties /
+    // CI secret via BuildConfig.GOOGLE_WEB_CLIENT_ID (see app/build.gradle.kts);
+    // if it is missing, signIn() below fails with a clear error instead of
+    // falling back to a fake account.
     private val webClientId: String = com.notification.app.BuildConfig.GOOGLE_WEB_CLIENT_ID
 
     private val firebaseAuth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }

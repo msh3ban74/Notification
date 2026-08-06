@@ -833,12 +833,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Sprint 2 — Smart Item Engine Foundation.
-                    // Opened by the Dashboard "+" FAB above.
-                    // Sprint 3/4: "task" and "debt" open their real forms.
-                    // Sprint 5: "bill", "appointment", "medicine" (shared
-                    // reminder form) and "gam3iya" too; every remaining type
-                    // still lands on the placeholder.
+                    // Smart Item Engine — opened by the Dashboard "+" FAB.
+                    // Every type routes to a REAL screen: task/debt/alarm/
+                    // gam3iya/habit to their dedicated forms, bill/installment/
+                    // subscription to the financial form, and every other type
+                    // to the shared Smart Reminder form with its category
+                    // preset (see the `when` below). No placeholder screens.
                     if (showSmartItemSheet) {
                         SmartItemBottomSheet(
                             isArabic = isArabic,

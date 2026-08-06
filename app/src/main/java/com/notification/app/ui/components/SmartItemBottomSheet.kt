@@ -47,9 +47,9 @@ import com.notification.app.ui.theme.Spacing
  * typography and a staggered entrance animation for the grid were
  * refined. The Smart Item list and selection behavior are unchanged.
  *
- * Bottom sheet opened from the Dashboard's "+" FAB. UI/navigation only —
- * selecting a type just routes to a placeholder screen (Sprint 3 builds
- * the real forms). Uses ONLY the existing Sprint 1 Design System
+ * Bottom sheet opened from the Dashboard's "+" FAB. Selecting a type
+ * routes to its real create screen (handled in MainActivity). Uses ONLY
+ * the existing Sprint 1 Design System
  * (PremiumCard, AppRadius, AppPadding, AppDimens) and the existing
  * MaterialTheme — no new colors or typography are introduced here.
  */
