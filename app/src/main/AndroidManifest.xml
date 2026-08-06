@@ -20,6 +20,8 @@
     <!-- Required for ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS to show the
          direct exemption dialog; without it the request is silently ignored. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Lets the alarm channel bypass Do-Not-Disturb (setBypassDnd). -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 

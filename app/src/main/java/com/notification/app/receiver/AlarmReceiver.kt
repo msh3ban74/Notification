@@ -23,7 +23,7 @@ class AlarmReceiver : BroadcastReceiver() {
         // Per-alarm options (reminders fall back to sensible defaults).
         val vibrate = intent.getBooleanExtra("EXTRA_VIBRATE", true)
         val flashlight = intent.getBooleanExtra("EXTRA_FLASHLIGHT", false)
-        val volume = intent.getIntExtra("EXTRA_VOLUME", 80)
+        val volume = intent.getIntExtra("EXTRA_VOLUME", 100)
         val autoStopMin = intent.getIntExtra("EXTRA_AUTO_STOP_MIN", 5)
         val snoozeMin = intent.getIntExtra("EXTRA_SNOOZE_MIN", 10)
 
@@ -80,6 +80,8 @@ class AlarmReceiver : BroadcastReceiver() {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Full screen intent alerts for alarms and categorized reminders"
+                // Pierce Do-Not-Disturb so the full-screen alert still shows.
+                setBypassDnd(true)
             }
             notificationManager.createNotificationChannel(channel)
         }

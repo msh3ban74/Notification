@@ -17,7 +17,7 @@ data class AlarmEntity(
     // 6→7 (additive, safe defaults matching the pre-existing behaviour).
     val vibrate: Boolean = true,
     val flashlight: Boolean = false,
-    val volumePercent: Int = 80,          // 0-100, applied to the alarm stream
+    val volumePercent: Int = 100,         // 0-100, applied to the alarm stream (loudest by default)
     val snoozeMinutes: Int = 10,
     val autoStopMinutes: Int = 5,         // stop ringing if untouched; 0 = never
     /** Comma-separated weekday numbers (Calendar.DAY_OF_WEEK 1=Sun…7=Sat)
