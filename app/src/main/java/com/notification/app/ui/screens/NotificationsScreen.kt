@@ -14,13 +14,18 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -39,43 +44,61 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Sprint 1 — Application Foundation (placeholder shell).
- * Sprint 5 — REAL notifications feed: the user's scheduled timeline.
- *
- * Shows actual scheduled notifications from the EXISTING data layer only:
- *  - pending reminders (every reminder is scheduled with AlarmManager via
- *    the existing AlarmManagerScheduler when it is created/updated), and
- *  - enabled alarms (the existing AlarmEntity flow, incl. AI-created ones).
- *
- * Grouped into "Upcoming" (due from now on) and "Overdue" (past-due,
- * still not completed). No fake data — an honest EmptyState otherwise.
+ * The scheduled-alerts feed: pending reminders (upcoming / overdue) and
+ * enabled future alarms, all from the real data layer. Product Completion
+ * adds full CRUD from here — single delete per row, plus a multi-select
+ * mode to clear several at once. Selection keys are composite ("a-<id>"
+ * for alarms, "r-<id>" for reminders) so both types share one selection.
  */
 @Composable
 fun NotificationsScreen(
     reminders: List<ReminderEntity>,
     alarms: List<AlarmEntity>,
     isArabic: Boolean = false,
-    /** v1.0 — empty-state CTA: jump to Tasks to schedule the first reminder. */
     onCreateFirst: (() -> Unit)? = null,
-    // Product Completion — full delete from the feed (alarms + reminders).
     onDeleteAlarm: ((AlarmEntity) -> Unit)? = null,
     onDeleteReminder: ((ReminderEntity) -> Unit)? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("EEE dd MMM, hh:mm a", Locale.getDefault()) }
     val now = System.currentTimeMillis()
 
-    // Scheduled reminder notifications — pending only (completed ones no
-    // longer fire), split around "now".
     val pendingReminders = remember(reminders) {
         reminders.filter { !it.isCompleted }.sortedBy { it.dueDate }
     }
     val upcomingReminders = pendingReminders.filter { it.dueDate >= now }
     val overdueReminders = pendingReminders.filter { it.dueDate < now }
-
-    // Enabled, still-in-the-future alarms scheduled via the existing
-    // AlarmManagerScheduler pipeline.
     val upcomingAlarms = remember(alarms) {
         alarms.filter { it.isEnabled && it.timeInMillis >= now }.sortedBy { it.timeInMillis }
+    }
+
+    val canDelete = onDeleteAlarm != null || onDeleteReminder != null
+    var selectionMode by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf(setOf<String>()) }
+
+    fun keyForAlarm(a: AlarmEntity) = "a-${a.id}"
+    fun keyForReminder(r: ReminderEntity) = "r-${r.id}"
+    val allKeys = remember(upcomingAlarms, upcomingReminders, overdueReminders) {
+        (upcomingAlarms.map { "a-${it.id}" } +
+            upcomingReminders.map { "r-${it.id}" } +
+            overdueReminders.map { "r-${it.id}" }).toSet()
+    }
+    fun toggle(key: String) {
+        selected = if (key in selected) selected - key else selected + key
+    }
+    fun exitSelection() {
+        selectionMode = false
+        selected = emptySet()
+    }
+    fun deleteSelected() {
+        selected.forEach { key ->
+            val id = key.substringAfter('-').toLongOrNull() ?: return@forEach
+            if (key.startsWith("a-")) {
+                alarms.firstOrNull { it.id == id }?.let { onDeleteAlarm?.invoke(it) }
+            } else {
+                reminders.firstOrNull { it.id == id }?.let { onDeleteReminder?.invoke(it) }
+            }
+        }
+        exitSelection()
     }
 
     val isEmpty = upcomingReminders.isEmpty() && overdueReminders.isEmpty() && upcomingAlarms.isEmpty()
@@ -84,11 +107,8 @@ fun NotificationsScreen(
         EmptyState(
             icon = Icons.Default.NotificationsNone,
             title = if (isArabic) "لا توجد إشعارات مجدولة" else "No scheduled notifications",
-            subtitle = if (isArabic) {
-                "الهدوء التام — كل تنبيه قادم سيظهر هنا في موعده"
-            } else {
-                "Schedule your first reminder and its alerts will appear here"
-            },
+            subtitle = if (isArabic) "الهدوء التام — كل تنبيه قادم سيظهر هنا في موعده"
+            else "Schedule your first reminder and its alerts will appear here",
             actionLabel = if (onCreateFirst != null) {
                 if (isArabic) "أنشئ تذكيرًا" else "Schedule Reminder"
             } else null,
@@ -97,96 +117,125 @@ fun NotificationsScreen(
         return
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = AppPadding.screen),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            top = Spacing.sm,
-            bottom = AppDimens.bottomNavHeight
-        )
-    ) {
-        if (overdueReminders.isNotEmpty()) {
-            item {
-                FeedSectionHeader(
-                    text = if (isArabic) "متأخرة" else "Overdue",
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-            items(overdueReminders, key = { "overdue-${it.id}" }) { reminder ->
-                ReminderFeedCard(
-                    reminder = reminder,
-                    isArabic = isArabic,
-                    dateFormat = dateFormat,
-                    overdue = true,
-                    onDelete = onDeleteReminder?.let { d -> { d(reminder) } }
-                )
-            }
-        }
-
-        if (upcomingReminders.isNotEmpty()) {
-            item {
-                FeedSectionHeader(
-                    text = if (isArabic) "القادمة" else "Upcoming",
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            items(upcomingReminders, key = { "upcoming-${it.id}" }) { reminder ->
-                ReminderFeedCard(
-                    reminder = reminder,
-                    isArabic = isArabic,
-                    dateFormat = dateFormat,
-                    overdue = false,
-                    onDelete = onDeleteReminder?.let { d -> { d(reminder) } }
-                )
-            }
-        }
-
-        if (upcomingAlarms.isNotEmpty()) {
-            item {
-                FeedSectionHeader(
-                    text = if (isArabic) "المنبهات" else "Alarms",
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            items(upcomingAlarms, key = { "alarm-${it.id}" }) { alarm ->
-                PremiumCard(contentPadding = AppPadding.listItem, modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                        modifier = Modifier.fillMaxWidth()
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Selection toolbar — appears in place of nothing when the list has
+        // deletable rows. Enter/exit multi-select, select-all, delete-N.
+        if (canDelete) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AppPadding.screen, vertical = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (selectionMode) {
+                    Text(
+                        text = if (isArabic) "محدد: ${selected.size}" else "${selected.size} selected",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = {
+                        selected = if (selected.size == allKeys.size) emptySet() else allKeys
+                    }) {
+                        Text(
+                            if (selected.size == allKeys.size) {
+                                if (isArabic) "إلغاء الكل" else "None"
+                            } else {
+                                if (isArabic) "تحديد الكل" else "All"
+                            }
+                        )
+                    }
+                    IconButton(
+                        onClick = { if (selected.isNotEmpty()) deleteSelected() },
+                        enabled = selected.isNotEmpty()
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Alarm,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(AppDimens.iconSizeMedium)
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = if (isArabic) "حذف المحدد" else "Delete selected",
+                            tint = if (selected.isNotEmpty()) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = alarm.title,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = dateFormat.format(Date(alarm.timeInMillis)),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (onDeleteAlarm != null) {
-                            IconButton(onClick = { onDeleteAlarm(alarm) }) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = if (isArabic) "حذف" else "Delete",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
                     }
+                    TextButton(onClick = { exitSelection() }) {
+                        Text(if (isArabic) "تم" else "Done")
+                    }
+                } else {
+                    Text(
+                        text = if (isArabic) "الإشعارات المجدولة" else "Scheduled alerts",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { selectionMode = true }) {
+                        Text(if (isArabic) "تحديد" else "Select")
+                    }
+                }
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = AppPadding.screen),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = Spacing.sm,
+                bottom = AppDimens.bottomNavHeight
+            )
+        ) {
+            if (overdueReminders.isNotEmpty()) {
+                item {
+                    FeedSectionHeader(
+                        text = if (isArabic) "متأخرة" else "Overdue",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                items(overdueReminders, key = { "overdue-${it.id}" }) { reminder ->
+                    ReminderFeedCard(
+                        reminder = reminder, isArabic = isArabic, dateFormat = dateFormat,
+                        overdue = true,
+                        selectionMode = selectionMode,
+                        selected = keyForReminder(reminder) in selected,
+                        onSelectToggle = { toggle(keyForReminder(reminder)) },
+                        onDelete = onDeleteReminder?.let { d -> { d(reminder) } }
+                    )
+                }
+            }
+
+            if (upcomingReminders.isNotEmpty()) {
+                item {
+                    FeedSectionHeader(
+                        text = if (isArabic) "القادمة" else "Upcoming",
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                items(upcomingReminders, key = { "upcoming-${it.id}" }) { reminder ->
+                    ReminderFeedCard(
+                        reminder = reminder, isArabic = isArabic, dateFormat = dateFormat,
+                        overdue = false,
+                        selectionMode = selectionMode,
+                        selected = keyForReminder(reminder) in selected,
+                        onSelectToggle = { toggle(keyForReminder(reminder)) },
+                        onDelete = onDeleteReminder?.let { d -> { d(reminder) } }
+                    )
+                }
+            }
+
+            if (upcomingAlarms.isNotEmpty()) {
+                item {
+                    FeedSectionHeader(
+                        text = if (isArabic) "المنبهات" else "Alarms",
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                items(upcomingAlarms, key = { "alarm-${it.id}" }) { alarm ->
+                    AlarmFeedCard(
+                        alarm = alarm, isArabic = isArabic, dateFormat = dateFormat,
+                        selectionMode = selectionMode,
+                        selected = keyForAlarm(alarm) in selected,
+                        onSelectToggle = { toggle(keyForAlarm(alarm)) },
+                        onDelete = onDeleteAlarm?.let { d -> { d(alarm) } }
+                    )
                 }
             }
         }
@@ -205,29 +254,91 @@ private fun FeedSectionHeader(text: String, color: androidx.compose.ui.graphics.
 }
 
 @Composable
-private fun ReminderFeedCard(
-    reminder: ReminderEntity,
+private fun AlarmFeedCard(
+    alarm: AlarmEntity,
     isArabic: Boolean,
     dateFormat: SimpleDateFormat,
-    overdue: Boolean,
-    onDelete: (() -> Unit)? = null
+    selectionMode: Boolean,
+    selected: Boolean,
+    onSelectToggle: () -> Unit,
+    onDelete: (() -> Unit)?
 ) {
-    val category = ReminderCategory.fromString(reminder.category)
-
-    PremiumCard(contentPadding = AppPadding.listItem, modifier = Modifier.fillMaxWidth()) {
+    PremiumCard(
+        contentPadding = AppPadding.listItem,
+        modifier = Modifier.fillMaxWidth(),
+        onClick = if (selectionMode) onSelectToggle else null
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             modifier = Modifier.fillMaxWidth()
         ) {
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onSelectToggle() })
+            }
+            Icon(
+                imageVector = Icons.Default.Alarm,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(AppDimens.iconSizeMedium)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = alarm.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = dateFormat.format(Date(alarm.timeInMillis)),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (!selectionMode && onDelete != null) {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = if (isArabic) "حذف" else "Delete",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReminderFeedCard(
+    reminder: ReminderEntity,
+    isArabic: Boolean,
+    dateFormat: SimpleDateFormat,
+    overdue: Boolean,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onSelectToggle: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) {
+    val category = ReminderCategory.fromString(reminder.category)
+
+    PremiumCard(
+        contentPadding = AppPadding.listItem,
+        modifier = Modifier.fillMaxWidth(),
+        onClick = if (selectionMode) onSelectToggle else null
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onSelectToggle() })
+            }
             Icon(
                 imageVector = Icons.Default.NotificationsActive,
                 contentDescription = null,
-                tint = if (overdue) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
+                tint = if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(AppDimens.iconSizeMedium)
             )
             Column(modifier = Modifier.weight(1f)) {
@@ -241,33 +352,32 @@ private fun ReminderFeedCard(
                 Text(
                     text = dateFormat.format(Date(reminder.dueDate)),
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (overdue) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
+                    color = if (overdue) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = AppRadius.small
-            ) {
-                Text(
-                    text = if (isArabic) category.displayNameAr else category.displayNameEn,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs)
-                )
-            }
-            if (onDelete != null) {
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = if (isArabic) "حذف" else "Delete",
-                        tint = MaterialTheme.colorScheme.error
+            if (!selectionMode) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = AppRadius.small
+                ) {
+                    Text(
+                        text = if (isArabic) category.displayNameAr else category.displayNameEn,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs)
                     )
+                }
+                if (onDelete != null) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = if (isArabic) "حذف" else "Delete",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
