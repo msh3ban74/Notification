@@ -527,6 +527,9 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.Settings.route) {
                                 val backupState by viewModel.backupState.collectAsState()
                                 val restoreState by viewModel.restoreState.collectAsState()
+                                val fileBackupState by viewModel.fileBackupState.collectAsState()
+                                val fileRestoreState by viewModel.fileRestoreState.collectAsState()
+                                val restorePreview by viewModel.restorePreview.collectAsState()
                                 SettingsScreen(
                                     currentLanguage = language,
                                     isLoggedIn = isLoggedIn,
@@ -539,6 +542,14 @@ class MainActivity : ComponentActivity() {
                                     backupState = backupState,
                                     onTriggerRestore = { viewModel.triggerRestore() },
                                     restoreState = restoreState,
+                                    suggestedBackupFileName = viewModel.suggestedBackupFileName(),
+                                    onExportBackupFile = { viewModel.exportBackupToFile(it) },
+                                    onPickRestoreFile = { viewModel.prepareRestoreFromFile(it) },
+                                    fileBackupState = fileBackupState,
+                                    fileRestoreState = fileRestoreState,
+                                    restorePreview = restorePreview,
+                                    onConfirmRestore = { viewModel.confirmRestoreFromFile() },
+                                    onCancelRestore = { viewModel.cancelRestorePreview() },
                                     onSignOut = {
                                         // Stability sprint — REAL logout:
                                         // Firebase sign-out + persisted session

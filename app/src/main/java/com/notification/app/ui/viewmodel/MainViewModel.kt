@@ -21,6 +21,7 @@ import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.domain.scheduler.AlarmManagerScheduler
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Date
 
@@ -750,5 +751,113 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             backupRepository.restoreLatest()
         }
+    }
+
+    // ── Sprint 3 — Local backup file (SAF, encrypted, checksummed) ─────────
+    private val localBackup = com.notification.app.data.repository.LocalBackupManager(
+        getApplication(), db, preferencesRepository
+    )
+
+    private val _fileBackupState = MutableStateFlow<String?>(null)
+    val fileBackupState: StateFlow<String?> = _fileBackupState.asStateFlow()
+
+    private val _fileRestoreState = MutableStateFlow<String?>(null)
+    val fileRestoreState: StateFlow<String?> = _fileRestoreState.asStateFlow()
+
+    private val _restorePreview =
+        MutableStateFlow<com.notification.app.data.repository.LocalBackupManager.RestorePreview?>(null)
+    val restorePreview: StateFlow<com.notification.app.data.repository.LocalBackupManager.RestorePreview?> =
+        _restorePreview.asStateFlow()
+
+    private fun ar() = language.value == "ar"
+
+    /** Suggested backup file name for the SAF create-document picker. */
+    fun suggestedBackupFileName(): String {
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+        return "Rafeeq_Backup_$stamp.rafeeq"
+    }
+
+    fun exportBackupToFile(uri: android.net.Uri) {
+        if (_fileBackupState.value == "syncing") return
+        _fileBackupState.value = "syncing"
+        viewModelScope.launch {
+            val result = withTimeoutOrNull(60_000L) {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { localBackup.exportToUri(uri) }
+            }
+            _fileBackupState.value = when (result) {
+                is com.notification.app.data.repository.LocalBackupManager.Result.Success ->
+                    if (ar()) "success:تم حفظ ${result.count} عنصر في الملف"
+                    else "success:${result.count} items saved to file"
+                is com.notification.app.data.repository.LocalBackupManager.Result.Failure ->
+                    "error: ${result.reason}"
+                null -> "error: " + (if (ar()) "استغرق الحفظ وقتًا طويلًا" else "Backup timed out")
+            }
+        }
+    }
+
+    /** Step 1 of restore — validate + build a preview for the confirm dialog. */
+    fun prepareRestoreFromFile(uri: android.net.Uri) {
+        if (_fileRestoreState.value == "syncing") return
+        _fileRestoreState.value = "syncing"
+        viewModelScope.launch {
+            val validation = withTimeoutOrNull(60_000L) {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { localBackup.readAndValidate(uri) }
+            }
+            when (validation) {
+                is com.notification.app.data.repository.LocalBackupManager.Result.Failure -> {
+                    _fileRestoreState.value = "error: ${validation.reason}"
+                }
+                null -> _fileRestoreState.value =
+                    "error: " + (if (ar()) "استغرقت القراءة وقتًا طويلًا" else "Reading timed out")
+                else -> {
+                    val preview = withContext(kotlinx.coroutines.Dispatchers.IO) { localBackup.preview(uri) }
+                    if (preview == null) {
+                        _fileRestoreState.value =
+                            "error: " + (if (ar()) "تعذّر تحضير المعاينة" else "Couldn't prepare preview")
+                    } else {
+                        _fileRestoreState.value = null
+                        _restorePreview.value = preview
+                    }
+                }
+            }
+        }
+    }
+
+    /** Step 2 — the user confirmed; apply the previewed restore, then re-arm. */
+    fun confirmRestoreFromFile() {
+        val preview = _restorePreview.value ?: return
+        _restorePreview.value = null
+        _fileRestoreState.value = "syncing"
+        viewModelScope.launch {
+            val result = withTimeoutOrNull(60_000L) {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { localBackup.applyRestore(preview.inner) }
+            }
+            _fileRestoreState.value = when (result) {
+                is com.notification.app.data.repository.LocalBackupManager.Result.Success -> {
+                    rescheduleEverythingAfterRestore()
+                    if (ar()) "success:تمت استعادة ${result.count} عنصر" else "success:${result.count} items restored"
+                }
+                is com.notification.app.data.repository.LocalBackupManager.Result.Failure ->
+                    "error: ${result.reason}"
+                null -> "error: " + (if (ar()) "استغرقت الاستعادة وقتًا طويلًا" else "Restore timed out")
+            }
+        }
+    }
+
+    fun cancelRestorePreview() {
+        _restorePreview.value = null
+        _fileRestoreState.value = null
+    }
+
+    /** After a restore, re-schedule alarms + pending reminders so restored
+     *  items actually fire (their AlarmManager registrations are gone). */
+    private suspend fun rescheduleEverythingAfterRestore() {
+        val now = System.currentTimeMillis()
+        repository.getActiveAlarms().forEach { alarm ->
+            if (alarm.timeInMillis > now) AlarmManagerScheduler.scheduleExactAlarm(getApplication(), alarm)
+        }
+        repository.pendingReminders.first()
+            .filter { !it.isArchived && it.dueDate > now }
+            .forEach { AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), it) }
     }
 }
