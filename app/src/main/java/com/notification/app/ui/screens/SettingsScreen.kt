@@ -35,9 +35,11 @@ fun SettingsScreen(
     onSetLanguage: (String) -> Unit,
     onTriggerBackup: () -> Unit,
     onSignOut: () -> Unit,
-    // "syncing" | "success" | "error: <reason>" | null — silent failures
-    // made the sync button look dead; now every outcome is visible.
-    backupState: String? = null
+    // "syncing" | "success:<msg>" | "error: <reason>" | null — silent
+    // failures made the sync button look dead; every outcome is visible.
+    backupState: String? = null,
+    onTriggerRestore: (() -> Unit)? = null,
+    restoreState: String? = null
 ) {
     val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
@@ -138,39 +140,34 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.width(12.dp))
 
-                        // Compact icon-only sync (the old full-width button
-                        // dominated the card). Tonal, fixed size.
+                        // Backup + Restore actions. Backup uploads; restore
+                        // pulls the cloud copy back. Each shows its own spinner.
                         if (backupState == "syncing") {
-                            CircularProgressIndicator(
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(24.dp)
-                            )
+                            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
                         } else {
                             FilledTonalIconButton(onClick = onTriggerBackup) {
                                 Icon(
                                     imageVector = Icons.Default.Sync,
-                                    contentDescription = if (isArabic) "مزامنة الآن" else "Sync now"
+                                    contentDescription = if (isArabic) "نسخ احتياطي الآن" else "Back up now"
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        if (restoreState == "syncing") {
+                            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                        } else if (onTriggerRestore != null) {
+                            FilledTonalIconButton(onClick = onTriggerRestore) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDownload,
+                                    contentDescription = if (isArabic) "استعادة" else "Restore"
                                 )
                             }
                         }
                     }
 
-                    // Visible outcome — success or the actual failure reason.
-                    when {
-                        backupState == "success" -> Text(
-                            text = if (isArabic) "✓ تم النسخ الاحتياطي بنجاح" else "✓ Backup completed",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                        backupState?.startsWith("error:") == true -> Text(
-                            text = (if (isArabic) "تعذّرت المزامنة — " else "Sync failed — ") +
-                                backupState.removePrefix("error:").trim(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
+                    // Visible outcome for backup — success message or failure reason.
+                    StatusLine(state = backupState, isArabic = isArabic)
+                    StatusLine(state = restoreState, isArabic = isArabic)
                 }
             }
         }
@@ -392,6 +389,29 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+/** Renders a backup/restore outcome line: green on success, red on error. */
+@Composable
+private fun StatusLine(state: String?, isArabic: Boolean) {
+    when {
+        state == null || state == "syncing" -> {}
+        state.startsWith("success") -> Text(
+            text = "✓ " + state.substringAfter("success:", "").ifBlank {
+                if (isArabic) "تم بنجاح" else "Done"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        state.startsWith("error:") -> Text(
+            text = (if (isArabic) "تعذّرت العملية — " else "Failed — ") +
+                state.removePrefix("error:").trim(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }
 

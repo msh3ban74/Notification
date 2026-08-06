@@ -26,7 +26,8 @@ class BackupRepository(
 ) {
 
     sealed class BackupResult {
-        object Success : BackupResult()
+        /** [count] = number of records uploaded (backup) or restored. */
+        data class Success(val count: Int = 0) : BackupResult()
         data class Failure(val message: String) : BackupResult()
     }
 
@@ -79,51 +80,63 @@ class BackupRepository(
                 batch.commit().await()
             }
             firestore.batch().apply {
-                set(userDocRef, mapOf("lastBackupAt" to System.currentTimeMillis()))
+                set(userDocRef, mapOf(
+                    "lastBackupAt" to System.currentTimeMillis(),
+                    "recordCount" to ops.size
+                ))
             }.commit().await()
 
-            BackupResult.Success
+            BackupResult.Success(ops.size)
         } catch (e: Exception) {
             BackupResult.Failure(readableError(e))
         }
     }
 
-    /** Downloads the user's Firestore backup and repopulates the local Room database. */
+    /**
+     * Downloads the user's Firestore backup and repopulates the local Room
+     * database. Uses upsert (REPLACE) so restoring MERGES with local data
+     * by id instead of duplicating. Returns how many records were restored;
+     * an empty cloud backup is a Failure so the UI can say "nothing to
+     * restore" rather than a misleading success.
+     */
     suspend fun restoreLatest(): BackupResult {
         val userDocRef = userDoc() ?: return BackupResult.Failure("Not signed in.")
         return try {
+            var count = 0
             userDocRef.collection("reminders").get().await().documents
                 .mapNotNull { it.toReminder() }
-                .forEach { db.reminderDao().insertReminder(it) }
+                .forEach { db.reminderDao().insertReminder(it); count++ }
             userDocRef.collection("persons").get().await().documents
                 .mapNotNull { it.toPerson() }
-                .forEach { db.personLedgerDao().insertPerson(it) }
+                .forEach { db.personLedgerDao().insertPerson(it); count++ }
             userDocRef.collection("ledger_transactions").get().await().documents
                 .mapNotNull { it.toTransaction() }
-                .forEach { db.personLedgerDao().insertTransaction(it) }
+                .forEach { db.personLedgerDao().insertTransaction(it); count++ }
             userDocRef.collection("gam3iyas").get().await().documents
                 .mapNotNull { it.toGam3iya() }
-                .forEach { db.gam3iyaDao().insertGam3iya(it) }
+                .forEach { db.gam3iyaDao().insertGam3iya(it); count++ }
             val members = userDocRef.collection("gam3iya_members").get().await().documents
                 .mapNotNull { it.toGam3iyaMember() }
-            if (members.isNotEmpty()) db.gam3iyaDao().insertMembers(members)
+            if (members.isNotEmpty()) { db.gam3iyaDao().insertMembers(members); count += members.size }
             userDocRef.collection("alarms").get().await().documents
                 .mapNotNull { it.toAlarm() }
-                .forEach { db.alarmDao().insertAlarm(it) }
+                .forEach { db.alarmDao().insertAlarm(it); count++ }
             userDocRef.collection("work_notes").get().await().documents
                 .mapNotNull { it.toWorkNote() }
-                .forEach { db.workNoteDao().insertNote(it) }
+                .forEach { db.workNoteDao().insertNote(it); count++ }
             userDocRef.collection("financial_items").get().await().documents
                 .mapNotNull { it.toFinancialItem() }
-                .forEach { db.financialDao().insert(it) }
+                .forEach { db.financialDao().insert(it); count++ }
             userDocRef.collection("habits").get().await().documents
                 .mapNotNull { it.toHabit() }
-                .forEach { db.habitDao().insertHabit(it) }
+                .forEach { db.habitDao().insertHabit(it); count++ }
             userDocRef.collection("habit_logs").get().await().documents
                 .mapNotNull { it.toHabitLog() }
-                .forEach { db.habitDao().insertLog(it) }
+                .forEach { db.habitDao().insertLog(it); count++ }
 
-            BackupResult.Success
+            if (count == 0) BackupResult.Failure(
+                "EMPTY — no cloud backup found for this account yet."
+            ) else BackupResult.Success(count)
         } catch (e: Exception) {
             BackupResult.Failure(readableError(e))
         }

@@ -523,6 +523,7 @@ class MainActivity : ComponentActivity() {
 
                             composable(Screen.Settings.route) {
                                 val backupState by viewModel.backupState.collectAsState()
+                                val restoreState by viewModel.restoreState.collectAsState()
                                 SettingsScreen(
                                     currentLanguage = language,
                                     isLoggedIn = isLoggedIn,
@@ -533,6 +534,8 @@ class MainActivity : ComponentActivity() {
                                     onSetLanguage = { viewModel.setLanguage(it) },
                                     onTriggerBackup = { viewModel.triggerBackupSync() },
                                     backupState = backupState,
+                                    onTriggerRestore = { viewModel.triggerRestore() },
+                                    restoreState = restoreState,
                                     onSignOut = {
                                         // Stability sprint — REAL logout:
                                         // Firebase sign-out + persisted session

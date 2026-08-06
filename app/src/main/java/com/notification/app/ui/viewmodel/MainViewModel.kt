@@ -611,7 +611,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _backupState.value = when (result) {
                 is com.notification.app.data.repository.BackupRepository.BackupResult.Success -> {
                     preferencesRepository.updateLastSyncTime(System.currentTimeMillis())
-                    "success"
+                    if (language.value == "ar") "success:تم رفع ${result.count} عنصر"
+                    else "success:${result.count} items backed up"
                 }
                 is com.notification.app.data.repository.BackupRepository.BackupResult.Failure ->
                     "error: ${result.message}"
@@ -619,6 +620,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "error: " + (if (language.value == "ar")
                         "استغرقت المزامنة وقتًا طويلًا — تأكد من الاتصال وحاول مجددًا"
                     else "Sync timed out — check your connection and try again")
+            }
+        }
+    }
+
+    // Restore — mirrors backup's 3-state contract (loading/success/failure)
+    // with the same hard timeout so it can never spin forever.
+    private val _restoreState = MutableStateFlow<String?>(null)
+    val restoreState: StateFlow<String?> = _restoreState.asStateFlow()
+
+    fun triggerRestore() {
+        if (_restoreState.value == "syncing") return
+        _restoreState.value = "syncing"
+        viewModelScope.launch {
+            val result = withTimeoutOrNull(30_000L) { backupRepository.restoreLatest() }
+            _restoreState.value = when (result) {
+                is com.notification.app.data.repository.BackupRepository.BackupResult.Success ->
+                    if (language.value == "ar") "success:تمت استعادة ${result.count} عنصر"
+                    else "success:${result.count} items restored"
+                is com.notification.app.data.repository.BackupRepository.BackupResult.Failure ->
+                    "error: ${result.message}"
+                null ->
+                    "error: " + (if (language.value == "ar")
+                        "استغرقت الاستعادة وقتًا طويلًا — تأكد من الاتصال وحاول مجددًا"
+                    else "Restore timed out — check your connection and try again")
             }
         }
     }
