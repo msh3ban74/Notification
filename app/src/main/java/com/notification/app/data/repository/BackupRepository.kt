@@ -73,6 +73,12 @@ class BackupRepository(
             db.financialDao().getAll().first().forEach {
                 ops += Op("financial_items", it.id.toString(), financialToMap(it))
             }
+            db.financialDao().getAllFinancialPayments().first().forEach {
+                ops += Op("financial_payments", it.id.toString(), financialPaymentToMap(it))
+            }
+            db.financialDao().getAllFinancialAttachments().first().forEach {
+                ops += Op("financial_attachments", it.id.toString(), financialAttachmentToMap(it))
+            }
             db.habitDao().getAllHabitsRaw().first().forEach {
                 ops += Op("habits", it.id.toString(), habitToMap(it))
             }
@@ -145,6 +151,12 @@ class BackupRepository(
             userDocRef.collection("financial_items").get().await().documents
                 .mapNotNull { it.toFinancialItem() }
                 .forEach { db.financialDao().insert(it); count++ }
+            userDocRef.collection("financial_payments").get().await().documents
+                .mapNotNull { it.toFinancialPayment() }
+                .forEach { db.financialDao().insertPayment(it); count++ }
+            userDocRef.collection("financial_attachments").get().await().documents
+                .mapNotNull { it.toFinancialAttachment() }
+                .forEach { db.financialDao().insertAttachment(it); count++ }
             userDocRef.collection("habits").get().await().documents
                 .mapNotNull { it.toHabit() }
                 .forEach { db.habitDao().insertHabit(it); count++ }
@@ -261,7 +273,22 @@ class BackupRepository(
         "monthlyAmount" to f.monthlyAmount, "remaining" to f.remaining, "dueDate" to f.dueDate,
         "accountNumber" to f.accountNumber, "billNumber" to f.billNumber, "seller" to f.seller,
         "paymentMethod" to f.paymentMethod, "recurring" to f.recurring, "isPaid" to f.isPaid,
-        "note" to f.note, "linkedReminderId" to f.linkedReminderId, "createdAt" to f.createdAt
+        "note" to f.note, "linkedReminderId" to f.linkedReminderId, "createdAt" to f.createdAt,
+        "brand" to f.brand, "store" to f.store, "storePhone" to f.storePhone,
+        "storeWhatsapp" to f.storeWhatsapp, "category" to f.category, "currency" to f.currency,
+        "interestAmount" to f.interestAmount, "purchaseDate" to f.purchaseDate,
+        "warranty" to f.warranty, "tags" to f.tags, "isFavorite" to f.isFavorite,
+        "isArchived" to f.isArchived, "paidInstallments" to f.paidInstallments
+    )
+
+    private fun financialPaymentToMap(p: FinancialPaymentEntity) = mapOf(
+        "id" to p.id, "financialItemId" to p.financialItemId, "amount" to p.amount,
+        "date" to p.date, "type" to p.type, "note" to p.note
+    )
+
+    private fun financialAttachmentToMap(a: FinancialAttachmentEntity) = mapOf(
+        "id" to a.id, "financialItemId" to a.financialItemId, "uri" to a.uri,
+        "kind" to a.kind, "label" to a.label, "createdAt" to a.createdAt
     )
 
     private fun habitToMap(h: HabitEntity) = mapOf(
@@ -414,7 +441,29 @@ class BackupRepository(
             billNumber = str("billNumber"), seller = str("seller"),
             paymentMethod = str("paymentMethod"), recurring = bool("recurring"),
             isPaid = bool("isPaid"), note = str("note"),
-            linkedReminderId = getLong("linkedReminderId"), createdAt = lng("createdAt")
+            linkedReminderId = getLong("linkedReminderId"), createdAt = lng("createdAt"),
+            brand = str("brand"), store = str("store"), storePhone = str("storePhone"),
+            storeWhatsapp = str("storeWhatsapp"), category = str("category"), currency = str("currency", "EGP"),
+            interestAmount = dbl("interestAmount"), purchaseDate = lng("purchaseDate"),
+            warranty = str("warranty"), tags = str("tags"),
+            isFavorite = bool("isFavorite"), isArchived = bool("isArchived"),
+            paidInstallments = lng("paidInstallments").toInt()
+        )
+    }
+
+    private fun DocumentSnapshot.toFinancialPayment(): FinancialPaymentEntity? {
+        if (!contains("financialItemId")) return null
+        return FinancialPaymentEntity(
+            id = lng("id"), financialItemId = lng("financialItemId"), amount = dbl("amount"),
+            date = lng("date"), type = str("type", "PARTIAL"), note = str("note")
+        )
+    }
+
+    private fun DocumentSnapshot.toFinancialAttachment(): FinancialAttachmentEntity? {
+        val uri = getString("uri") ?: return null
+        return FinancialAttachmentEntity(
+            id = lng("id"), financialItemId = lng("financialItemId"), uri = uri,
+            kind = str("kind", "RECEIPT"), label = str("label"), createdAt = lng("createdAt")
         )
     }
 

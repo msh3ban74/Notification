@@ -175,6 +175,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ── Sprint 6 — installment payments + attachments ─────────────────
+    fun getFinancialPaymentsForItem(itemId: Long): Flow<List<FinancialPaymentEntity>> =
+        repository.getPaymentsForFinancialItem(itemId)
+    fun getFinancialAttachmentsForItem(itemId: Long): Flow<List<FinancialAttachmentEntity>> =
+        repository.getAttachmentsForFinancialItem(itemId)
+
+    /**
+     * Record a payment against an installment. Logs the payment, advances
+     * paidInstallments, recomputes remaining and the next due date (or
+     * marks the item paid when the balance reaches zero) and refreshes the
+     * linked reminder via the existing [updateFinancialItem] pipeline.
+     */
+    fun recordFinancialPayment(item: FinancialItemEntity, amount: Double, type: String, note: String) {
+        if (amount <= 0) return
+        viewModelScope.launch {
+            repository.insertFinancialPayment(
+                FinancialPaymentEntity(
+                    financialItemId = item.id, amount = amount, date = System.currentTimeMillis(),
+                    type = type, note = note
+                )
+            )
+            val payments = repository.getPaymentsForFinancialItem(item.id).first()
+            val plan = com.notification.app.domain.calculator.FinancialCalculator.computePlan(item, payments)
+            val nextDue = if (plan.isFinished) item.dueDate else {
+                java.util.Calendar.getInstance().apply {
+                    timeInMillis = if (item.dueDate > 0) item.dueDate else System.currentTimeMillis()
+                    add(java.util.Calendar.MONTH, 1)
+                }.timeInMillis
+            }
+            val updated = item.copy(
+                remaining = plan.remainingAmount,
+                paidInstallments = plan.paidInstallments,
+                isPaid = plan.isFinished,
+                dueDate = if (plan.isFinished) item.dueDate else nextDue
+            )
+            // Reuses the reminder-aware update pipeline (cancels the alarm
+            // when finished, else reschedules for the new due date).
+            updateFinancialItem(updated)
+        }
+    }
+
+    fun deleteFinancialPayment(item: FinancialItemEntity, p: FinancialPaymentEntity) {
+        viewModelScope.launch {
+            repository.deleteFinancialPayment(p)
+            val payments = repository.getPaymentsForFinancialItem(item.id).first()
+            val plan = com.notification.app.domain.calculator.FinancialCalculator.computePlan(item, payments)
+            updateFinancialItem(item.copy(
+                remaining = plan.remainingAmount, paidInstallments = plan.paidInstallments,
+                isPaid = plan.isFinished
+            ))
+        }
+    }
+
+    fun addFinancialAttachment(itemId: Long, uri: String, kind: String, label: String) {
+        viewModelScope.launch {
+            repository.insertFinancialAttachment(
+                FinancialAttachmentEntity(
+                    financialItemId = itemId, uri = uri, kind = kind, label = label,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+    fun deleteFinancialAttachment(a: FinancialAttachmentEntity) {
+        viewModelScope.launch { repository.deleteFinancialAttachment(a) }
+    }
+
     // Phase C — habit engine. The log flow feeds HabitCalculator
     // (streaks / calendar / percentages) in the UI layer.
     val allHabits: StateFlow<List<HabitEntity>> = repository.allHabits

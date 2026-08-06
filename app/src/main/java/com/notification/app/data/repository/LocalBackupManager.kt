@@ -166,6 +166,7 @@ class LocalBackupManager(
             "reminders", "persons", "ledger_transactions", "ledger_attachments",
             "gam3iyas", "gam3iya_members", "gam3iya_payments", "gam3iya_attachments",
             "alarms", "work_notes", "financial_items",
+            "financial_payments", "financial_attachments",
             "habits", "habit_logs"
         ).forEach { key -> inner.optJSONArray(key)?.let { if (it.length() > 0) counts[key] = it.length() } }
         return RestorePreview(
@@ -192,6 +193,8 @@ class LocalBackupManager(
             inner.optJSONArray("alarms")?.forEachObj { db.alarmDao().insertAlarm(it.toAlarm()); count++ }
             inner.optJSONArray("work_notes")?.forEachObj { db.workNoteDao().insertNote(it.toWorkNote()); count++ }
             inner.optJSONArray("financial_items")?.forEachObj { db.financialDao().insert(it.toFinancialItem()); count++ }
+            inner.optJSONArray("financial_payments")?.forEachObj { db.financialDao().insertPayment(it.toFinancialPayment()); count++ }
+            inner.optJSONArray("financial_attachments")?.forEachObj { db.financialDao().insertAttachment(it.toFinancialAttachment()); count++ }
             inner.optJSONArray("habits")?.forEachObj { db.habitDao().insertHabit(it.toHabit()); count++ }
             inner.optJSONArray("habit_logs")?.forEachObj { db.habitDao().insertLog(it.toHabitLog()); count++ }
             // Preferences (best-effort; failures here never abort a data restore).
@@ -265,6 +268,12 @@ class LocalBackupManager(
         })
         o.put("financial_items", JSONArray().also { arr ->
             db.financialDao().getAll().first().forEach { arr.put(financialMap(it)); total++ }
+        })
+        o.put("financial_payments", JSONArray().also { arr ->
+            db.financialDao().getAllFinancialPayments().first().forEach { arr.put(financialPaymentMap(it)); total++ }
+        })
+        o.put("financial_attachments", JSONArray().also { arr ->
+            db.financialDao().getAllFinancialAttachments().first().forEach { arr.put(financialAttachmentMap(it)); total++ }
         })
         o.put("habits", JSONArray().also { arr ->
             db.habitDao().getAllHabitsRaw().first().forEach { arr.put(habitMap(it)); total++ }
@@ -361,6 +370,19 @@ class LocalBackupManager(
         .put("billNumber", f.billNumber).put("seller", f.seller).put("paymentMethod", f.paymentMethod)
         .put("recurring", f.recurring).put("isPaid", f.isPaid).put("note", f.note)
         .put("linkedReminderId", f.linkedReminderId ?: JSONObject.NULL).put("createdAt", f.createdAt)
+        .put("brand", f.brand).put("store", f.store).put("storePhone", f.storePhone)
+        .put("storeWhatsapp", f.storeWhatsapp).put("category", f.category).put("currency", f.currency)
+        .put("interestAmount", f.interestAmount).put("purchaseDate", f.purchaseDate)
+        .put("warranty", f.warranty).put("tags", f.tags).put("isFavorite", f.isFavorite)
+        .put("isArchived", f.isArchived).put("paidInstallments", f.paidInstallments)
+
+    private fun financialPaymentMap(p: FinancialPaymentEntity) = JSONObject()
+        .put("id", p.id).put("financialItemId", p.financialItemId).put("amount", p.amount)
+        .put("date", p.date).put("type", p.type).put("note", p.note)
+
+    private fun financialAttachmentMap(a: FinancialAttachmentEntity) = JSONObject()
+        .put("id", a.id).put("financialItemId", a.financialItemId).put("uri", a.uri)
+        .put("kind", a.kind).put("label", a.label).put("createdAt", a.createdAt)
 
     private fun habitMap(h: HabitEntity) = JSONObject()
         .put("id", h.id).put("title", h.title).put("emoji", h.emoji).put("note", h.note)
@@ -467,7 +489,23 @@ class LocalBackupManager(
         seller = optString("seller"), paymentMethod = optString("paymentMethod"),
         recurring = optBoolean("recurring"), isPaid = optBoolean("isPaid"), note = optString("note"),
         linkedReminderId = if (isNull("linkedReminderId")) null else optLong("linkedReminderId"),
-        createdAt = optLong("createdAt")
+        createdAt = optLong("createdAt"),
+        brand = optString("brand"), store = optString("store"), storePhone = optString("storePhone"),
+        storeWhatsapp = optString("storeWhatsapp"), category = optString("category"),
+        currency = optString("currency", "EGP"), interestAmount = optDouble("interestAmount", 0.0),
+        purchaseDate = optLong("purchaseDate"), warranty = optString("warranty"), tags = optString("tags"),
+        isFavorite = optBoolean("isFavorite"), isArchived = optBoolean("isArchived"),
+        paidInstallments = optInt("paidInstallments")
+    )
+
+    private fun JSONObject.toFinancialPayment() = FinancialPaymentEntity(
+        id = optLong("id"), financialItemId = optLong("financialItemId"), amount = optDouble("amount", 0.0),
+        date = optLong("date"), type = optString("type", "PARTIAL"), note = optString("note")
+    )
+
+    private fun JSONObject.toFinancialAttachment() = FinancialAttachmentEntity(
+        id = optLong("id"), financialItemId = optLong("financialItemId"), uri = optString("uri"),
+        kind = optString("kind", "RECEIPT"), label = optString("label"), createdAt = optLong("createdAt")
     )
 
     private fun JSONObject.toHabit() = HabitEntity(

@@ -33,5 +33,49 @@ data class FinancialItemEntity(
     val isPaid: Boolean = false,
     val note: String = "",
     val linkedReminderId: Long? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    // Sprint 6 (Installments) — full installment profile. Added via
+    // Migration 9→10 (additive; defaults reproduce the prior blank data).
+    val brand: String = "",
+    val store: String = "",
+    val storePhone: String = "",
+    val storeWhatsapp: String = "",
+    val category: String = "",
+    val currency: String = "EGP",
+    val interestAmount: Double = 0.0,   // total interest included in totalPrice
+    val purchaseDate: Long = 0L,
+    val warranty: String = "",          // warranty note / expiry text
+    val tags: String = "",
+    val isFavorite: Boolean = false,
+    val isArchived: Boolean = false,
+    val paidInstallments: Int = 0       // count of installments paid so far
+)
+
+/**
+ * Sprint 6 — one recorded payment against a financial item (installment),
+ * the audit trail behind "Total Paid", "Paid installments", "Interest Paid"
+ * and the payment-history list.
+ */
+@Entity(tableName = "financial_payments")
+data class FinancialPaymentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val financialItemId: Long,
+    val amount: Double = 0.0,
+    val date: Long = 0,
+    val type: String = "PARTIAL",       // PARTIAL | FULL | ADVANCE | EXTRA | RECURRING
+    val note: String = ""
+)
+
+/**
+ * Sprint 6 — an attachment on a financial item: invoice, warranty card,
+ * receipt image or any document.
+ */
+@Entity(tableName = "financial_attachments")
+data class FinancialAttachmentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val financialItemId: Long,
+    val uri: String,
+    val kind: String = "RECEIPT",       // INVOICE | WARRANTY | RECEIPT | DOC | IMAGE
+    val label: String = "",
+    val createdAt: Long = 0
 )

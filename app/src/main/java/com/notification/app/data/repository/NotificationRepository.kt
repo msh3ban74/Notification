@@ -131,7 +131,25 @@ class NotificationRepository(private val db: AppDatabase) {
     val allFinancialItems: Flow<List<FinancialItemEntity>> = db.financialDao().getAll()
     suspend fun insertFinancialItem(item: FinancialItemEntity): Long = db.financialDao().insert(item)
     suspend fun updateFinancialItem(item: FinancialItemEntity) = db.financialDao().update(item)
-    suspend fun deleteFinancialItem(item: FinancialItemEntity) = db.financialDao().delete(item)
+    suspend fun deleteFinancialItem(item: FinancialItemEntity) {
+        db.financialDao().deletePaymentsForItem(item.id)
+        db.financialDao().deleteAttachmentsForItem(item.id)
+        db.financialDao().delete(item)
+    }
+    suspend fun getFinancialItemById(id: Long): FinancialItemEntity? = db.financialDao().getById(id)
+
+    // ── Sprint 6 — installment payment history + attachments ──────────
+    val allFinancialPayments: Flow<List<FinancialPaymentEntity>> = db.financialDao().getAllFinancialPayments()
+    fun getPaymentsForFinancialItem(itemId: Long): Flow<List<FinancialPaymentEntity>> =
+        db.financialDao().getPaymentsForItem(itemId)
+    suspend fun insertFinancialPayment(p: FinancialPaymentEntity): Long = db.financialDao().insertPayment(p)
+    suspend fun deleteFinancialPayment(p: FinancialPaymentEntity) = db.financialDao().deletePayment(p)
+
+    val allFinancialAttachments: Flow<List<FinancialAttachmentEntity>> = db.financialDao().getAllFinancialAttachments()
+    fun getAttachmentsForFinancialItem(itemId: Long): Flow<List<FinancialAttachmentEntity>> =
+        db.financialDao().getAttachmentsForItem(itemId)
+    suspend fun insertFinancialAttachment(a: FinancialAttachmentEntity): Long = db.financialDao().insertAttachment(a)
+    suspend fun deleteFinancialAttachment(a: FinancialAttachmentEntity) = db.financialDao().deleteAttachment(a)
 
     // Phase C — habit engine. A habit is "done today" when a log row
     // exists for today's local-midnight dayStart; toggling deletes or
