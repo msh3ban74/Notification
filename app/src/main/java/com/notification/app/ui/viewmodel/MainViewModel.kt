@@ -321,6 +321,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteReminder(reminder: ReminderEntity) {
         viewModelScope.launch {
+            // Cancel its scheduled alert too, so a deleted reminder can
+            // never fire a ghost notification later.
+            AlarmManagerScheduler.cancelReminderAlarm(getApplication(), reminder.id)
             repository.deleteReminder(reminder)
         }
     }

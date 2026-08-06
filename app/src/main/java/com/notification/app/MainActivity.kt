@@ -414,7 +414,9 @@ class MainActivity : ComponentActivity() {
                                             launchSingleTop = true
                                             restoreState = true
                                         }
-                                    }
+                                    },
+                                    onDeleteAlarm = { viewModel.deleteAlarm(it) },
+                                    onDeleteReminder = { viewModel.deleteReminder(it) }
                                 )
                             }
 
