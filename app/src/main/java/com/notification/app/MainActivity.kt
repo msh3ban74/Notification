@@ -469,12 +469,8 @@ class MainActivity : ComponentActivity() {
 
                             composable(Screen.Gam3iya.route) {
                                 Gam3iyaScreen(
-                                    gam3iyas = gam3iyas,
-                                    isArabic = isArabic,
-                                    getMembersForGam3iya = { id -> viewModel.getMembersForGam3iya(id) },
-                                    onCreateGam3iya = { title, total, installment, members, startDate ->
-                                        viewModel.createGam3iya(title, total, installment, members, startDate)
-                                    }
+                                    viewModel = viewModel,
+                                    isArabic = isArabic
                                 )
                             }
 

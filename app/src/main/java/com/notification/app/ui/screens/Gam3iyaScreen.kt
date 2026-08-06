@@ -1,90 +1,146 @@
 package com.notification.app.ui.screens
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.notification.app.data.local.entities.Gam3iyaAttachmentEntity
 import com.notification.app.data.local.entities.Gam3iyaEntity
 import com.notification.app.data.local.entities.Gam3iyaMemberEntity
+import com.notification.app.data.local.entities.Gam3iyaPaymentEntity
 import com.notification.app.domain.calculator.Gam3iyaCalculator
+import com.notification.app.domain.calculator.Gam3iyaStatus
 import com.notification.app.domain.calculator.StatementExporter
 import com.notification.app.ui.theme.MaroonPrimary
 import com.notification.app.ui.theme.OnPrimary
-import kotlinx.coroutines.flow.Flow
+import com.notification.app.ui.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ─────────────────────────────────────────────────────────────────────────
+// Sprint 4 — Professional Gam3iya management. Two modes (I manage / I take
+// part), full member CRUD, payment marking with history, attachments, live
+// automation (next collector, late members, totals, progress), search + a
+// status filter. This screen owns its own create / edit / detail navigation
+// via local state so MainActivity only needs the ViewModel.
+// ─────────────────────────────────────────────────────────────────────────
+
+private enum class G3View { LIST, CREATE_MANAGER, CREATE_PARTICIPANT, EDIT, DETAIL }
+
+internal val CURRENCIES = listOf("EGP", "SAR", "AED", "USD", "EUR", "KWD", "QAR")
+
+internal fun fmtMoney(amount: Double, currency: String): String {
+    val n = if (amount == amount.toLong().toDouble()) amount.toLong().toString()
+    else String.format(Locale.US, "%.2f", amount)
+    return "$n $currency"
+}
+
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun Gam3iyaScreen(
-    gam3iyas: List<Gam3iyaEntity>,
-    isArabic: Boolean,
-    getMembersForGam3iya: (Long) -> Flow<List<Gam3iyaMemberEntity>>,
-    onCreateGam3iya: (
-        title: String,
-        totalAmount: Double,
-        monthlyInstallment: Double,
-        memberTurns: List<Pair<String, Int>>,
-        startDate: Long
-    ) -> Unit
+    viewModel: MainViewModel,
+    isArabic: Boolean
 ) {
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var selectedGam3iyaForDetail by remember { mutableStateOf<Gam3iyaEntity?>(null) }
-    var gam3iyaSearch by remember { mutableStateOf("") }
+    val gam3iyas by viewModel.allGam3iyas.collectAsState()
     val context = LocalContext.current
 
-    val visibleGam3iyas = remember(gam3iyas, gam3iyaSearch) {
-        val query = gam3iyaSearch.trim()
-        if (query.isEmpty()) gam3iyas
-        else gam3iyas.filter {
-            it.title.contains(query, ignoreCase = true) || it.note.contains(query, ignoreCase = true)
-        }
-    }
+    var view by remember { mutableStateOf(G3View.LIST) }
+    var current by remember { mutableStateOf<Gam3iyaEntity?>(null) } // for EDIT / DETAIL
+    var search by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf("ALL") } // ALL/ACTIVE/LATE/FINISHED/ARCHIVED
+    var showModePicker by remember { mutableStateOf(false) }
 
-    if (selectedGam3iyaForDetail != null) {
-        val membersFlow = getMembersForGam3iya(selectedGam3iyaForDetail!!.id)
-        val members by membersFlow.collectAsState(initial = emptyList())
-
+    // Detail view ---------------------------------------------------------
+    if (view == G3View.DETAIL && current != null) {
+        val live = gam3iyas.firstOrNull { it.id == current!!.id } ?: current!!
         Gam3iyaDetailScreen(
-            gam3iya = selectedGam3iyaForDetail!!,
-            members = members,
+            viewModel = viewModel,
+            gam3iya = live,
             isArabic = isArabic,
-            onBack = { selectedGam3iyaForDetail = null },
-            onExportStatement = {
-                val statement = StatementExporter.generateGam3iyaStatement(selectedGam3iyaForDetail!!, members)
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, statement)
-                }
-                context.startActivity(Intent.createChooser(intent, "Share Gam3iya Schedule"))
+            onBack = { view = G3View.LIST },
+            onEdit = { current = live; view = G3View.EDIT },
+            onDelete = {
+                viewModel.deleteGam3iya(live)
+                view = G3View.LIST
             }
         )
         return
     }
 
+    // Create / edit forms -------------------------------------------------
+    if (view == G3View.CREATE_MANAGER || (view == G3View.EDIT && current?.mode != "PARTICIPANT")) {
+        ManagerGam3iyaForm(
+            viewModel = viewModel,
+            isArabic = isArabic,
+            existing = if (view == G3View.EDIT) current else null,
+            onDone = { view = G3View.LIST },
+            onCancel = { view = G3View.LIST }
+        )
+        return
+    }
+    if (view == G3View.CREATE_PARTICIPANT || (view == G3View.EDIT && current?.mode == "PARTICIPANT")) {
+        ParticipantGam3iyaForm(
+            viewModel = viewModel,
+            isArabic = isArabic,
+            existing = if (view == G3View.EDIT) current else null,
+            onDone = { view = G3View.LIST },
+            onCancel = { view = G3View.LIST }
+        )
+        return
+    }
+
+    // We need members to evaluate the LATE filter; observe all members once.
+    val allMembers by viewModel.allGam3iyaMembers.collectAsState()
+
+    val visible = remember(gam3iyas, search, filter, allMembers) {
+        val q = search.trim()
+        gam3iyas.filter { g ->
+            val matchesSearch = q.isEmpty() ||
+                g.title.contains(q, true) || g.note.contains(q, true) ||
+                g.organizerName.contains(q, true) || g.description.contains(q, true)
+            val members = allMembers.filter { it.gam3iyaId == g.id }
+            val status = Gam3iyaCalculator.computeStatus(g, members)
+            val matchesFilter = when (filter) {
+                "ACTIVE" -> g.status == "ACTIVE" && !status.isFinished
+                "LATE" -> status.lateMembers.isNotEmpty()
+                "FINISHED" -> status.isFinished || g.status == "COMPLETED"
+                "ARCHIVED" -> g.status == "ARCHIVED"
+                else -> true
+            }
+            matchesSearch && matchesFilter
+        }
+    }
+
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showCreateDialog = true },
+                onClick = { showModePicker = true },
                 containerColor = MaroonPrimary,
                 contentColor = OnPrimary,
                 shape = CircleShape
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Create Gam3iya")
-            }
+            ) { Icon(Icons.Default.Add, contentDescription = if (isArabic) "جمعية جديدة" else "New Gam3iya") }
         }
     ) { padding ->
         Column(
@@ -93,35 +149,58 @@ fun Gam3iyaScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-
             Text(
-                text = if (isArabic) "إدارة الجمعيات (Gam3iya)" else "Gam3iya Savings Tracker",
+                text = if (isArabic) "الجمعيات" else "Gam3iya",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+                modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
             )
 
             if (gam3iyas.isEmpty()) {
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.Group,
-                    title = if (isArabic) "لا توجد جمعيات قائمة" else "No Active Savings Groups",
-                    subtitle = if (isArabic) "نظّم ادخارك الجماعي — أدوار الأعضاء ومواعيد القبض تُحسب وتُتابع تلقائيًا" else "Organized group savings — member turns and payout dates calculated and tracked for you"
+                    title = if (isArabic) "لا توجد جمعيات بعد" else "No gam3iyas yet",
+                    subtitle = if (isArabic)
+                        "أنشئ جمعية تديرها بنفسك أو سجّل جمعية تشارك فيها — كل الحسابات والمواعيد تلقائية"
+                    else "Create one you manage, or track one you take part in — all math and dates are automatic"
                 )
             } else {
                 OutlinedTextField(
-                    value = gam3iyaSearch,
-                    onValueChange = { gam3iyaSearch = it },
-                    placeholder = { Text(if (isArabic) "ابحث في جمعياتك…" else "Search your groups…") },
+                    value = search,
+                    onValueChange = { search = it },
+                    placeholder = { Text(if (isArabic) "ابحث بالاسم أو المنظّم…" else "Search name or organizer…") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                )
-                if (visibleGam3iyas.isEmpty()) {
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val filters = listOf(
+                        "ALL" to (if (isArabic) "الكل" else "All"),
+                        "ACTIVE" to (if (isArabic) "نشطة" else "Active"),
+                        "LATE" to (if (isArabic) "متأخرة" else "Late"),
+                        "FINISHED" to (if (isArabic) "منتهية" else "Finished"),
+                        "ARCHIVED" to (if (isArabic) "مؤرشفة" else "Archived")
+                    )
+                    filters.forEach { (key, label) ->
+                        FilterChip(
+                            selected = filter == key,
+                            onClick = { filter = key },
+                            label = { Text(label, maxLines = 1, softWrap = false) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+
+                if (visible.isEmpty()) {
                     Text(
-                        text = if (isArabic) "لا توجد جمعية بهذا الاسم" else "No group matches your search",
+                        text = if (isArabic) "لا نتائج مطابقة" else "No matches",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -130,18 +209,14 @@ fun Gam3iyaScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 100.dp)
                 ) {
-                    items(visibleGam3iyas, key = { it.id }) { gam3iya ->
-                        val membersFlow = getMembersForGam3iya(gam3iya.id)
-                        val members by membersFlow.collectAsState(initial = emptyList())
-                        val summary = remember(gam3iya, members) {
-                            Gam3iyaCalculator.calculateSummary(gam3iya, members)
-                        }
-
-                        Gam3iyaSummaryCard(
-                            gam3iya = gam3iya,
-                            summary = summary,
+                    items(visible, key = { it.id }) { g ->
+                        val members = allMembers.filter { it.gam3iyaId == g.id }
+                        val status = remember(g, members) { Gam3iyaCalculator.computeStatus(g, members) }
+                        Gam3iyaCard(
+                            gam3iya = g,
+                            status = status,
                             isArabic = isArabic,
-                            onClick = { selectedGam3iyaForDetail = gam3iya }
+                            onClick = { current = g; view = G3View.DETAIL }
                         )
                     }
                 }
@@ -149,338 +224,151 @@ fun Gam3iyaScreen(
         }
     }
 
-    if (showCreateDialog) {
-        CreateGam3iyaDialog(
+    if (showModePicker) {
+        ModePickerDialog(
             isArabic = isArabic,
-            onDismiss = { showCreateDialog = false },
-            onConfirm = { title, total, installment, members ->
-                onCreateGam3iya(title, total, installment, members, System.currentTimeMillis())
-                showCreateDialog = false
-            }
+            onDismiss = { showModePicker = false },
+            onManager = { showModePicker = false; current = null; view = G3View.CREATE_MANAGER },
+            onParticipant = { showModePicker = false; current = null; view = G3View.CREATE_PARTICIPANT }
         )
     }
 }
 
 @Composable
-fun Gam3iyaSummaryCard(
+private fun ModePickerDialog(
+    isArabic: Boolean,
+    onDismiss: () -> Unit,
+    onManager: () -> Unit,
+    onParticipant: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (isArabic) "نوع الجمعية" else "Gam3iya type") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ModeOption(
+                    icon = Icons.Default.ManageAccounts,
+                    title = if (isArabic) "أنا أدير الجمعية" else "I manage the gam3iya",
+                    subtitle = if (isArabic) "أضف الأعضاء وتابع الدفعات والأدوار" else "Add members, track payments & turns",
+                    onClick = onManager
+                )
+                ModeOption(
+                    icon = Icons.Default.Groups,
+                    title = if (isArabic) "أنا مشارك في جمعية" else "I take part in a gam3iya",
+                    subtitle = if (isArabic) "تابع دورك وأقساطك مع المنظّم" else "Track your turn & installments",
+                    onClick = onParticipant
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(if (isArabic) "إلغاء" else "Cancel") } }
+    )
+}
+
+@Composable
+private fun ModeOption(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Gam3iyaCard(
     gam3iya: Gam3iyaEntity,
-    summary: com.notification.app.domain.calculator.Gam3iyaSummary,
+    status: Gam3iyaStatus,
     isArabic: Boolean,
     onClick: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("MMM yyyy", Locale.getDefault()) }
-
+    val df = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = gam3iya.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = "${gam3iya.totalAmount} EGP",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = if (isArabic) "القسط الشهري" else "Monthly Installment",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "${gam3iya.monthlyInstallment} EGP",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Column {
-                    Text(
-                        text = if (isArabic) "المدة والأعضاء" else "Duration & Members",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "${summary.durationMonths} ${if (isArabic) "أشهر" else "months"} (${gam3iya.membersCount})",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Column {
-                    Text(
-                        text = if (isArabic) "نهاية الجمعية" else "End Date",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = dateFormat.format(Date(summary.projectedEndDate)),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun Gam3iyaDetailScreen(
-    gam3iya: Gam3iyaEntity,
-    members: List<Gam3iyaMemberEntity>,
-    isArabic: Boolean,
-    onBack: () -> Unit,
-    onExportStatement: () -> Unit
-) {
-    val summary = remember(gam3iya, members) { Gam3iyaCalculator.calculateSummary(gam3iya, members) }
-    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(gam3iya.title, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+        Column(Modifier.padding(18.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    if (gam3iya.photoUri.isNotBlank()) {
+                        AsyncImage(
+                            model = gam3iya.photoUri, contentDescription = null,
+                            modifier = Modifier.size(40.dp).clip(CircleShape)
+                        )
+                        Spacer(Modifier.width(10.dp))
                     }
-                },
-                actions = {
-                    IconButton(onClick = onExportStatement) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = "Share Schedule")
+                    Column(Modifier.weight(1f)) {
+                        Text(gam3iya.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val modeLabel = if (gam3iya.mode == "PARTICIPANT") (if (isArabic) "مشارك" else "Participant") else (if (isArabic) "مدير" else "Manager")
+                        Text(modeLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
                 }
+                StatusBadge(gam3iya = gam3iya, status = status, isArabic = isArabic)
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Progress bar
+            LinearProgressIndicator(
+                progress = { status.progressFraction },
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
             )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 100.dp)
-        ) {
+            Spacer(Modifier.height(10.dp))
 
-            // Overview Card
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text(
-                            text = if (isArabic) "ملخص إحصائيات الجمعية" else "Gam3iya Overview",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = if (isArabic) "المبلغ الإجمالي:" else "Total Pool:",
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                            Text(
-                                text = "${gam3iya.totalAmount} EGP",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = if (isArabic) "الأقساط المسددة:" else "Paid Months:",
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                            Text(
-                                text = "${summary.installmentsPaidCount} / ${summary.durationMonths}",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                    }
-                }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                MiniStat(if (isArabic) "القسط" else "Installment", fmtMoney(gam3iya.monthlyInstallment, gam3iya.currency))
+                MiniStat(if (isArabic) "الشهر" else "Month", "${status.currentMonthIndex}/${status.durationMonths}")
+                MiniStat(if (isArabic) "متبقٍ" else "Remaining", "${status.remainingMonths} ${if (isArabic) "شهر" else "mo"}")
             }
-
-            // Member Rotation Timeline
-            item {
+            if (status.nextCollectionDate > 0 && gam3iya.mode != "PARTICIPANT" && status.nextCollector != null) {
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    text = if (isArabic) "جدول الأدوار وصرف المبالغ" else "Member Payout Rotation Schedule",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    text = (if (isArabic) "التالي في القبض: " else "Next to collect: ") +
+                        "${status.nextCollector.memberName} • ${df.format(Date(status.nextCollectionDate))}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
-
-            items(members) { m ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.primaryContainer,
-                                        CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "${m.turnMonth}",
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column {
-                                Text(
-                                    text = m.memberName,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = dateFormat.format(Date(m.payoutDate)),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = "${gam3iya.totalAmount} EGP",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+            if (status.lateMembers.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = (if (isArabic) "متأخرون: " else "Late: ") + "${status.lateMembers.size}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     }
 }
 
 @Composable
-fun CreateGam3iyaDialog(
-    isArabic: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: (
-        title: String,
-        total: Double,
-        installment: Double,
-        members: List<Pair<String, Int>>
-    ) -> Unit
-) {
-    var title by remember { mutableStateOf("") }
-    var totalText by remember { mutableStateOf("") }
-    var installmentText by remember { mutableStateOf("") }
-    var memberNamesInput by remember { mutableStateOf("") } // Comma separated
+private fun StatusBadge(gam3iya: Gam3iyaEntity, status: Gam3iyaStatus, isArabic: Boolean) {
+    val (label, color) = when {
+        gam3iya.status == "ARCHIVED" -> (if (isArabic) "مؤرشفة" else "Archived") to MaterialTheme.colorScheme.outline
+        status.isFinished || gam3iya.status == "COMPLETED" -> (if (isArabic) "منتهية" else "Done") to MaterialTheme.colorScheme.tertiary
+        status.lateMembers.isNotEmpty() -> (if (isArabic) "متأخرة" else "Late") to MaterialTheme.colorScheme.error
+        else -> (if (isArabic) "نشطة" else "Active") to MaterialTheme.colorScheme.primary
+    }
+    Surface(color = color.copy(alpha = 0.15f), shape = RoundedCornerShape(10.dp)) {
+        Text(label, color = color, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+    }
+}
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (isArabic) "إنشاء جمعية جديدة" else "Create New Gam3iya") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(if (isArabic) "اسم الجمعية" else "Gam3iya Title") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = totalText,
-                    onValueChange = { totalText = it },
-                    label = { Text(if (isArabic) "المبلغ الكلي للقبض (ج.م)" else "Total Payout Pool (EGP)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = installmentText,
-                    onValueChange = { installmentText = it },
-                    label = { Text(if (isArabic) "القسط الشهري للشخص" else "Monthly Installment (EGP)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = memberNamesInput,
-                    onValueChange = { memberNamesInput = it },
-                    label = { Text(if (isArabic) "أسماء المشاركين (مفصولة بفاصلة)" else "Member Names (Comma separated)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val total = totalText.toDoubleOrNull() ?: 0.0
-                    val installment = installmentText.toDoubleOrNull() ?: 0.0
-                    val names = memberNamesInput.split(",").map { it.trim() }.filter { it.isNotBlank() }
-
-                    if (title.isNotBlank() && total > 0 && names.isNotEmpty()) {
-                        val memberTurns = names.mapIndexed { idx, name -> Pair(name, idx + 1) }
-                        onConfirm(title, total, installment, memberTurns)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
-            ) {
-                Text(if (isArabic) "إنشاء" else "Create")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isArabic) "إلغاء" else "Cancel")
-            }
-        }
-    )
+@Composable
+private fun MiniStat(label: String, value: String) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+    }
 }
