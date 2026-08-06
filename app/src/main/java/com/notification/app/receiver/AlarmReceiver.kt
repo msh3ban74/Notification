@@ -32,13 +32,20 @@ class AlarmReceiver : BroadcastReceiver() {
             context.startService(serviceIntent)
         }
 
-        // Full Screen Intent activity launch
+        val alarmId = intent.getLongExtra("EXTRA_ALARM_ID", -1L)
+        val reminderId = intent.getLongExtra("EXTRA_REMINDER_ID", -1L)
+
+        // Full Screen Intent activity launch — carries everything needed to
+        // re-schedule on snooze (id, ringtone, whether it's a clock alarm).
         val fullScreenIntent = Intent(context, AlarmRingingActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("EXTRA_TITLE", title)
             putExtra("EXTRA_NOTE", note)
             putExtra("EXTRA_CATEGORY", category)
             putExtra("EXTRA_IS_ALARM", isAlarm)
+            putExtra("EXTRA_ALARM_ID", alarmId)
+            putExtra("EXTRA_REMINDER_ID", reminderId)
+            putExtra("EXTRA_RINGTONE_URI", ringtoneUri)
         }
 
         val fullScreenPendingIntent = PendingIntent.getActivity(
