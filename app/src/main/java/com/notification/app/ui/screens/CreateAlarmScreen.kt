@@ -73,7 +73,7 @@ fun CreateAlarmScreen(
     // Alarm engine sprint — per-alarm options.
     var vibrate by remember { mutableStateOf(true) }
     var flashlight by remember { mutableStateOf(false) }
-    var volumePercent by remember { mutableFloatStateOf(80f) }
+    var volumePercent by remember { mutableFloatStateOf(100f) }
     var snoozeMinutes by remember { mutableIntStateOf(10) }
     var autoStopMinutes by remember { mutableIntStateOf(5) }
     // Weekly repeat — Calendar.DAY_OF_WEEK values (1=Sun … 7=Sat). Empty = once.

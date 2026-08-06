@@ -52,7 +52,7 @@ class AlarmService : Service() {
         val ringtoneUriStr = intent?.getStringExtra("EXTRA_RINGTONE_URI") ?: ""
         val vibrateEnabled = intent?.getBooleanExtra("EXTRA_VIBRATE", true) ?: true
         val flashlightEnabled = intent?.getBooleanExtra("EXTRA_FLASHLIGHT", false) ?: false
-        val volumePercent = intent?.getIntExtra("EXTRA_VOLUME", 80) ?: 80
+        val volumePercent = intent?.getIntExtra("EXTRA_VOLUME", 100) ?: 100
         val autoStopMin = intent?.getIntExtra("EXTRA_AUTO_STOP_MIN", 5) ?: 5
 
         // API 34+ requires the typed startForeground for a specialUse
@@ -150,6 +150,7 @@ class AlarmService : Service() {
                         .build()
                 )
                 isLooping = true
+                setVolume(1f, 1f)   // player at full; the alarm STREAM level is set separately
                 prepare()
                 start()
             }
@@ -159,6 +160,7 @@ class AlarmService : Service() {
                 val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 mediaPlayer = MediaPlayer.create(applicationContext, fallbackUri)?.apply {
                     isLooping = true
+                    setVolume(1f, 1f)
                     start()
                 }
             } catch (ex: Exception) {
@@ -204,7 +206,13 @@ class AlarmService : Service() {
                 channelId,
                 "Rafeeq — Alarm Ringing Service",
                 NotificationManager.IMPORTANCE_HIGH
-            )
+            ).apply {
+                // A real alarm pierces Do-Not-Disturb. The audio itself plays
+                // on the alarm stream (USAGE_ALARM), which already survives
+                // silent mode; bypassDnd makes the alert win under DND too.
+                setBypassDnd(true)
+                enableVibration(false) // vibration handled by the service pattern
+            }
             notificationManager.createNotificationChannel(channel)
         }
 
