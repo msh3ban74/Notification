@@ -133,10 +133,10 @@ fun AlarmRingingScreen(
 ) {
     // Live clock — updates every second so the ringing screen shows the
     // real current time, like a professional alarm.
-    var nowMillis by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0L) }
+    val nowMillis = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0L) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         while (true) {
-            nowMillis = System.currentTimeMillis()
+            nowMillis.value = System.currentTimeMillis()
             kotlinx.coroutines.delay(1000)
         }
     }
@@ -175,10 +175,10 @@ fun AlarmRingingScreen(
         ) {
 
             // Large live clock.
-            if (nowMillis > 0) {
+            if (nowMillis.value > 0) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = timeFormat.format(java.util.Date(nowMillis)),
+                        text = timeFormat.format(java.util.Date(nowMillis.value)),
                         style = MaterialTheme.typography.displayLarge.copy(
                             fontSize = 72.sp, fontWeight = FontWeight.Bold
                         ),
@@ -186,7 +186,7 @@ fun AlarmRingingScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = ampmFormat.format(java.util.Date(nowMillis)),
+                        text = ampmFormat.format(java.util.Date(nowMillis.value)),
                         style = MaterialTheme.typography.titleLarge,
                         color = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.padding(bottom = 14.dp)
