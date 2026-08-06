@@ -116,6 +116,11 @@ fun Gam3iyaDetailScreen(
             contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp)
         ) {
             item { StatusOverviewCard(gam3iya, status, isArabic, df) }
+            item {
+                Text(if (isArabic) "التقويم" else "Calendar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
+            item { Gam3iyaCalendarCard(gam3iya, members, payments, isArabic) }
+            item { Gam3iyaReportsCard(gam3iya, members, payments, status, isArabic) }
 
             if (isParticipant) {
                 item { OrganizerCard(gam3iya, isArabic, context) }
