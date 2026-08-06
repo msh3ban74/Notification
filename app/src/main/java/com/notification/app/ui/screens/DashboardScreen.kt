@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WaterDrop
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.notification.app.data.local.entities.AlarmEntity
+import com.notification.app.data.local.entities.FinancialItemEntity
 import com.notification.app.data.local.entities.Gam3iyaEntity
 import com.notification.app.data.local.entities.Gam3iyaMemberEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
@@ -99,6 +101,7 @@ fun DashboardScreen(
     prayerTimes: List<PrayerTime> = emptyList(),
     workNotes: List<WorkNoteEntity> = emptyList(),
     waterCount: Int = 0,
+    financialItems: List<FinancialItemEntity> = emptyList(),
     aiSuggestions: List<AiSuggestion> = emptyList(),
     aiSuggestionsLoading: Boolean = false,
     onRefreshSuggestions: () -> Unit = {},
@@ -110,7 +113,8 @@ fun DashboardScreen(
     onNavigateToLedger: () -> Unit = {},
     onNavigateToGam3iya: () -> Unit = {},
     onNavigateToIslamic: () -> Unit = {},
-    onNavigateToHealthNotes: () -> Unit = {}
+    onNavigateToHealthNotes: () -> Unit = {},
+    onNavigateToFinancial: () -> Unit = {}
 ) {
     // Ask the existing Gemini pipeline for fresh suggestions once per
     // dashboard entry (the ViewModel guards with a TTL cache, so this is
@@ -208,11 +212,13 @@ fun DashboardScreen(
             prayerTimes = prayerTimes,
             workNotes = workNotes,
             waterCount = waterCount,
+            financialItems = financialItems,
             onWaterClick = onWaterClick,
             onNavigateToTasks = onNavigateToTasks,
             onNavigateToGam3iya = onNavigateToGam3iya,
             onNavigateToIslamic = onNavigateToIslamic,
-            onNavigateToHealthNotes = onNavigateToHealthNotes
+            onNavigateToHealthNotes = onNavigateToHealthNotes,
+            onNavigateToFinancial = onNavigateToFinancial
         )
 
         RafeeqSuggestionsSection(
@@ -220,6 +226,7 @@ fun DashboardScreen(
             reminders = reminders,
             persons = persons,
             transactions = transactions,
+            financialItems = financialItems,
             aiSuggestions = aiSuggestions,
             aiLoading = aiSuggestionsLoading,
             onRefresh = onRefreshSuggestions,
@@ -676,16 +683,25 @@ private fun SmartWidgetsSection(
     prayerTimes: List<PrayerTime>,
     workNotes: List<WorkNoteEntity>,
     waterCount: Int,
+    financialItems: List<FinancialItemEntity>,
     onWaterClick: () -> Unit,
     onNavigateToTasks: () -> Unit,
     onNavigateToGam3iya: () -> Unit,
     onNavigateToIslamic: () -> Unit,
-    onNavigateToHealthNotes: () -> Unit
+    onNavigateToHealthNotes: () -> Unit,
+    onNavigateToFinancial: () -> Unit
 ) {
     val now = System.currentTimeMillis()
     val dayAhead = now + 24L * 60 * 60 * 1000
     val twoDaysAhead = now + 48L * 60 * 60 * 1000
     val monthAhead = now + 35L * 24 * 60 * 60 * 1000
+    val weekAhead = now + 7L * 24 * 60 * 60 * 1000
+    val dateOnlyFormat = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+
+    val nextFinancial = remember(financialItems) {
+        financialItems.filter { !it.isPaid && it.dueDate in now..weekAhead }
+            .minByOrNull { it.dueDate }
+    }
     val timeFormat = remember { SimpleDateFormat("EEE dd MMM, hh:mm a", Locale.getDefault()) }
 
     val medicineDue = remember(reminders) {
@@ -754,6 +770,15 @@ private fun SmartWidgetsSection(
             primaryLine = "$waterCount / $waterGoal",
             secondaryLine = if (isArabic) "اضغط لتسجيل كوب" else "Tap to log a glass",
             onClick = onWaterClick
+        )
+
+        SmartWidget(
+            visible = nextFinancial != null,
+            icon = Icons.Default.ReceiptLong,
+            title = if (isArabic) "استحقاق مالي قريب" else "Payment due soon",
+            primaryLine = nextFinancial?.title ?: "",
+            secondaryLine = nextFinancial?.let { dateOnlyFormat.format(Date(it.dueDate)) },
+            onClick = onNavigateToFinancial
         )
 
         SmartWidget(
@@ -909,6 +934,7 @@ private fun RafeeqSuggestionsSection(
     reminders: List<ReminderEntity>,
     persons: List<PersonEntity>,
     transactions: List<LedgerTransactionEntity>,
+    financialItems: List<FinancialItemEntity>,
     aiSuggestions: List<AiSuggestion>,
     aiLoading: Boolean,
     onRefresh: () -> Unit,
@@ -980,7 +1006,8 @@ private fun RafeeqSuggestionsSection(
         isArabic = isArabic,
         reminders = reminders,
         persons = persons,
-        transactions = transactions
+        transactions = transactions,
+        financialItems = financialItems
     )
 }
 
@@ -1034,12 +1061,13 @@ private fun LocalRuleSuggestions(
     isArabic: Boolean,
     reminders: List<ReminderEntity>,
     persons: List<PersonEntity>,
-    transactions: List<LedgerTransactionEntity>
+    transactions: List<LedgerTransactionEntity>,
+    financialItems: List<FinancialItemEntity> = emptyList()
 ) {
     val now = System.currentTimeMillis()
     val weekAhead = now + 7L * 24 * 60 * 60 * 1000
 
-    val suggestions = remember(reminders, persons, transactions, isArabic) {
+    val suggestions = remember(reminders, persons, transactions, financialItems, isArabic) {
         buildList {
             val overdue = reminders.count { !it.isCompleted && it.dueDate < now }
             if (overdue > 0) add(
@@ -1073,6 +1101,13 @@ private fun LocalRuleSuggestions(
             if (medicineToday > 0) add(
                 if (isArabic) "لا تنسَ دواءك — $medicineToday ${if (medicineToday == 1) "جرعة" else "جرعات"} خلال ٢٤ ساعة"
                 else "Don't forget your medicine — $medicineToday dose${if (medicineToday == 1) "" else "s"} in the next 24h"
+            )
+
+            // Phase E — unpaid money items due within a week.
+            val paymentsDueSoon = financialItems.count { !it.isPaid && it.dueDate in now..weekAhead }
+            if (paymentsDueSoon > 0) add(
+                if (isArabic) "لديك $paymentsDueSoon ${if (paymentsDueSoon == 1) "التزام مالي" else "التزامات مالية"} خلال أسبوع — جهّز المبلغ"
+                else "You have $paymentsDueSoon payment${if (paymentsDueSoon == 1) "" else "s"} due within a week — plan ahead"
             )
         }.take(3)
     }

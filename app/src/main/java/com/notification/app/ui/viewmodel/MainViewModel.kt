@@ -83,6 +83,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val allWorkNotes: StateFlow<List<WorkNoteEntity>> = repository.allWorkNotes
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    // Phase B — financial items (bills / installments / subscriptions).
+    val allFinancialItems: StateFlow<List<FinancialItemEntity>> = repository.allFinancialItems
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    fun addFinancialItem(item: FinancialItemEntity) {
+        viewModelScope.launch { repository.insertFinancialItem(item) }
+    }
+
+    fun updateFinancialItem(item: FinancialItemEntity) {
+        viewModelScope.launch { repository.updateFinancialItem(item) }
+    }
+
+    fun deleteFinancialItem(item: FinancialItemEntity) {
+        viewModelScope.launch { repository.deleteFinancialItem(item) }
+    }
+
+    // Phase C — habit engine. The log flow feeds HabitCalculator
+    // (streaks / calendar / percentages) in the UI layer.
+    val allHabits: StateFlow<List<HabitEntity>> = repository.allHabits
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val allHabitLogs: StateFlow<List<HabitLogEntity>> = repository.allHabitLogs
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    fun addHabit(habit: HabitEntity) {
+        viewModelScope.launch { repository.insertHabit(habit) }
+    }
+
+    fun updateHabit(habit: HabitEntity) {
+        viewModelScope.launch { repository.updateHabit(habit) }
+    }
+
+    fun deleteHabit(habit: HabitEntity) {
+        viewModelScope.launch { repository.deleteHabit(habit) }
+    }
+
+    fun setHabitDone(habitId: Long, dayStart: Long, done: Boolean) {
+        viewModelScope.launch { repository.setHabitDone(habitId, dayStart, done) }
+    }
+
     // Islamic Prayers State
     private val _prayerTimes = MutableStateFlow<List<PrayerTime>>(emptyList())
     val prayerTimes: StateFlow<List<PrayerTime>> = _prayerTimes.asStateFlow()
@@ -210,6 +250,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteReminder(reminder: ReminderEntity) {
         viewModelScope.launch {
             repository.deleteReminder(reminder)
+        }
+    }
+
+    // Phase D — CRUD extras (pin / archive / duplicate).
+    fun toggleReminderPinned(reminder: ReminderEntity) {
+        viewModelScope.launch {
+            repository.updateReminder(reminder.copy(isPinned = !reminder.isPinned))
+        }
+    }
+
+    fun setReminderArchived(reminder: ReminderEntity, archived: Boolean) {
+        viewModelScope.launch {
+            repository.updateReminder(reminder.copy(isArchived = archived))
+        }
+    }
+
+    /**
+     * Duplicate rides the SAME insert-and-schedule pipeline as a new
+     * reminder, so the copy gets its own alarms. The copy starts fresh:
+     * not completed, not pinned, id 0 (auto-generated).
+     */
+    fun duplicateReminder(reminder: ReminderEntity) {
+        viewModelScope.launch {
+            insertAndScheduleReminder(
+                reminder.copy(
+                    id = 0,
+                    isCompleted = false,
+                    isPinned = false,
+                    isArchived = false,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
         }
     }
 

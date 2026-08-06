@@ -92,6 +92,32 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     // Sprint 5 — Smart Gam3iya: reuses the existing Gam3iya implementation
     // (viewModel.createGam3iya → createGam3iyaWithMembers).
     object CreateGam3iya : Screen("create_gam3iya", "New Gam3iya", "جمعية جديدة", Icons.Default.Add)
+
+    // Stability sprint — Smart Alarm: reuses the existing AlarmEntity +
+    // addAlarm + AlarmManagerScheduler pipeline.
+    object CreateAlarm : Screen("create_alarm", "New Alarm", "منبه جديد", Icons.Default.Add)
+
+    // Final Product sprint (Phase B) — money items: bill / installment /
+    // subscription, all backed by FinancialItemEntity. The financeType arg
+    // is a FinancialType name.
+    object CreateFinancial : Screen(
+        "create_financial/{financeType}", "New Item", "عنصر مالي", Icons.Default.Add
+    ) {
+        fun createRoute(financeType: String) = "create_financial/$financeType"
+    }
+
+    // Edit an existing financial item by id.
+    object EditFinancial : Screen(
+        "edit_financial/{itemId}", "Edit", "تعديل", Icons.Default.Add
+    ) {
+        fun createRoute(itemId: Long) = "edit_financial/$itemId"
+    }
+
+    // The money list (bills / installments / subscriptions).
+    object Financial : Screen("financial", "Money", "المالية", Icons.Default.AccountBalanceWallet)
+
+    // Final Product sprint (Phase C) — the habit engine screen.
+    object Habits : Screen("habits", "Habits", "العادات", Icons.Default.Add)
 }
 
 class MainActivity : ComponentActivity() {
@@ -109,11 +135,15 @@ class MainActivity : ComponentActivity() {
             val lastSyncTime by viewModel.lastSyncTime.collectAsState()
 
             val reminders by viewModel.allReminders.collectAsState()
+            // Phase D — archived tasks stay out of Dashboard/Notifications;
+            // only the Tasks list (archive view) shows them.
+            val visibleReminders = remember(reminders) { reminders.filter { !it.isArchived } }
             val persons by viewModel.allPersons.collectAsState()
             val transactions by viewModel.allTransactions.collectAsState()
             val gam3iyas by viewModel.allGam3iyas.collectAsState()
             val gam3iyaMembers by viewModel.allGam3iyaMembers.collectAsState()
             val alarms by viewModel.allAlarms.collectAsState()
+            val financialItems by viewModel.allFinancialItems.collectAsState()
             val prayerTimes by viewModel.prayerTimes.collectAsState()
             val workNotes by viewModel.allWorkNotes.collectAsState()
             val chatMessages by viewModel.chatMessages.collectAsState()
@@ -127,6 +157,9 @@ class MainActivity : ComponentActivity() {
 
             // Stability sprint — Rafeeq is officially dark-theme only.
             NotificationTheme(darkTheme = true, isArabic = isArabic) {
+                // Ask for the notification permission on first launch so
+                // alerts and alarms can actually appear (Android 13+).
+                com.notification.app.ui.permissions.RequestCorePermissions()
                 CompositionLocalProvider(LocalLayoutDirection provides layoutDirection) {
                     val navController = rememberNavController()
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -299,7 +332,7 @@ class MainActivity : ComponentActivity() {
                                     isArabic = isArabic,
                                     userName = userName,
                                     gam3iyas = gam3iyas,
-                                    reminders = reminders,
+                                    reminders = visibleReminders,
                                     persons = persons,
                                     transactions = transactions,
                                     alarms = alarms,
@@ -307,6 +340,7 @@ class MainActivity : ComponentActivity() {
                                     prayerTimes = prayerTimes,
                                     workNotes = workNotes,
                                     waterCount = waterCount,
+                                    financialItems = financialItems,
                                     aiSuggestions = aiSuggestions,
                                     aiSuggestionsLoading = aiSuggestionsLoading,
                                     onRefreshSuggestions = {
@@ -344,7 +378,8 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
                                     onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
                                     onNavigateToIslamic = { navController.navigate(Screen.Islamic.route) },
-                                    onNavigateToHealthNotes = { navController.navigate(Screen.HealthNotes.route) }
+                                    onNavigateToHealthNotes = { navController.navigate(Screen.HealthNotes.route) },
+                                    onNavigateToFinancial = { navController.navigate(Screen.Financial.route) }
                                 )
                             }
 
@@ -362,7 +397,12 @@ class MainActivity : ComponentActivity() {
                                     onDeleteReminder = { viewModel.deleteReminder(it) },
                                     onEditReminder = { reminder ->
                                         navController.navigate(Screen.CreateTask.createRoute(reminder.id))
-                                    }
+                                    },
+                                    onTogglePin = { viewModel.toggleReminderPinned(it) },
+                                    onSetArchived = { reminder, archived ->
+                                        viewModel.setReminderArchived(reminder, archived)
+                                    },
+                                    onDuplicate = { viewModel.duplicateReminder(it) }
                                 )
                             }
 
@@ -370,7 +410,7 @@ class MainActivity : ComponentActivity() {
                                 // Sprint 5: real scheduled notifications from
                                 // the existing reminder + alarm flows.
                                 NotificationsScreen(
-                                    reminders = reminders,
+                                    reminders = visibleReminders,
                                     alarms = alarms,
                                     isArabic = isArabic,
                                     onCreateFirst = {
@@ -386,7 +426,7 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.Home.route) {
                                 HomeScreen(
                                     userName = userName,
-                                    reminders = reminders,
+                                    reminders = visibleReminders,
                                     prayerTimes = prayerTimes,
                                     isArabic = isArabic,
                                     onNavigateToReminders = { navController.navigate(Screen.Reminders.route) },
@@ -406,7 +446,12 @@ class MainActivity : ComponentActivity() {
                                     onDeleteReminder = { viewModel.deleteReminder(it) },
                                     onEditReminder = { reminder ->
                                         navController.navigate(Screen.CreateTask.createRoute(reminder.id))
-                                    }
+                                    },
+                                    onTogglePin = { viewModel.toggleReminderPinned(it) },
+                                    onSetArchived = { reminder, archived ->
+                                        viewModel.setReminderArchived(reminder, archived)
+                                    },
+                                    onDuplicate = { viewModel.duplicateReminder(it) }
                                 )
                             }
 
@@ -619,6 +664,118 @@ class MainActivity : ComponentActivity() {
                             // EXISTING creation pipeline (viewModel.createGam3iya
                             // → createGam3iyaWithMembers + Gam3iyaCalculator),
                             // then returns to the Dashboard.
+                            // Stability sprint — Smart Alarm. Saving goes
+                            // through the EXISTING alarm pipeline
+                            // (viewModel.addAlarm → AlarmManagerScheduler),
+                            // then returns to the Dashboard with a confirmation.
+                            composable(Screen.CreateAlarm.route) {
+                                CreateAlarmScreen(
+                                    isArabic = isArabic,
+                                    onSave = { alarm ->
+                                        viewModel.addAlarm(alarm)
+                                        navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (isArabic) "تم ضبط المنبه" else "Alarm set."
+                                            )
+                                        }
+                                    },
+                                    onCancel = { navController.popBackStack() }
+                                )
+                            }
+
+                            // Phase B — Bill / Installment / Subscription.
+                            composable(
+                                route = Screen.CreateFinancial.route,
+                                arguments = listOf(navArgument("financeType") { type = NavType.StringType })
+                            ) { backStackEntry ->
+                                val ft = com.notification.app.domain.model.FinancialType
+                                    .fromString(backStackEntry.arguments?.getString("financeType"))
+                                CreateFinancialScreen(
+                                    isArabic = isArabic,
+                                    type = ft,
+                                    onSave = { item ->
+                                        viewModel.addFinancialItem(item)
+                                        navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (isArabic) "تم الحفظ" else "Saved."
+                                            )
+                                        }
+                                    },
+                                    onCancel = { navController.popBackStack() }
+                                )
+                            }
+
+                            // Phase B — edit an existing financial item.
+                            composable(
+                                route = Screen.EditFinancial.route,
+                                arguments = listOf(navArgument("itemId") { type = NavType.LongType })
+                            ) { backStackEntry ->
+                                val itemId = backStackEntry.arguments?.getLong("itemId") ?: -1L
+                                val editing = financialItems.firstOrNull { it.id == itemId }
+                                if (editing != null) {
+                                    CreateFinancialScreen(
+                                        isArabic = isArabic,
+                                        type = com.notification.app.domain.model.FinancialType.fromString(editing.type),
+                                        initial = editing,
+                                        onSave = { item ->
+                                            viewModel.updateFinancialItem(item)
+                                            navController.popBackStack()
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    if (isArabic) "تم التحديث" else "Updated."
+                                                )
+                                            }
+                                        },
+                                        onCancel = { navController.popBackStack() }
+                                    )
+                                } else {
+                                    androidx.compose.runtime.LaunchedEffect(Unit) { navController.popBackStack() }
+                                }
+                            }
+
+                            // Phase B — the money list.
+                            composable(Screen.Financial.route) {
+                                FinancialListScreen(
+                                    isArabic = isArabic,
+                                    items = financialItems,
+                                    onBack = { navController.popBackStack() },
+                                    onEdit = { navController.navigate(Screen.EditFinancial.createRoute(it.id)) },
+                                    onDelete = { viewModel.deleteFinancialItem(it) },
+                                    onTogglePaid = { viewModel.updateFinancialItem(it.copy(isPaid = !it.isPaid)) },
+                                    onAdd = { navController.navigate(Screen.CreateFinancial.createRoute("BILL")) },
+                                    // Phase D — duplicate as a fresh unpaid copy.
+                                    onDuplicate = {
+                                        viewModel.addFinancialItem(
+                                            it.copy(
+                                                id = 0,
+                                                isPaid = false,
+                                                createdAt = System.currentTimeMillis()
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+
+                            // Phase C — the habit engine.
+                            composable(Screen.Habits.route) {
+                                val habits by viewModel.allHabits.collectAsState()
+                                val habitLogs by viewModel.allHabitLogs.collectAsState()
+                                HabitsScreen(
+                                    isArabic = isArabic,
+                                    habits = habits,
+                                    logs = habitLogs,
+                                    onBack = { navController.popBackStack() },
+                                    onAddHabit = { viewModel.addHabit(it) },
+                                    onDeleteHabit = { viewModel.deleteHabit(it) },
+                                    onArchiveHabit = { viewModel.updateHabit(it) },
+                                    onToggleToday = { habitId, dayStart, done ->
+                                        viewModel.setHabitDone(habitId, dayStart, done)
+                                    }
+                                )
+                            }
+
                             composable(Screen.CreateGam3iya.route) {
                                 CreateGam3iyaScreen(
                                     isArabic = isArabic,
@@ -681,10 +838,21 @@ class MainActivity : ComponentActivity() {
                                 when (item.id) {
                                     "task" -> navController.navigate(Screen.CreateTask.createRoute())
                                     "debt" -> navController.navigate(Screen.CreateDebt.route)
-                                    "bill", "appointment", "medicine" -> navController.navigate(
+                                    "alarm" -> navController.navigate(Screen.CreateAlarm.route)
+                                    "bill" -> navController.navigate(
+                                        Screen.CreateFinancial.createRoute("BILL")
+                                    )
+                                    "installment" -> navController.navigate(
+                                        Screen.CreateFinancial.createRoute("INSTALLMENT")
+                                    )
+                                    "subscription" -> navController.navigate(
+                                        Screen.CreateFinancial.createRoute("SUBSCRIPTION")
+                                    )
+                                    "appointment", "medicine" -> navController.navigate(
                                         Screen.CreateSmartReminder.createRoute(item.id)
                                     )
                                     "gam3iya" -> navController.navigate(Screen.CreateGam3iya.route)
+                                    "habit" -> navController.navigate(Screen.Habits.route)
                                     else -> navController.navigate(
                                         Screen.SmartItemPlaceholder.createRoute(item.id)
                                     )

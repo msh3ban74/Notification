@@ -28,19 +28,7 @@ object AlarmManagerScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                alarm.timeInMillis,
-                pendingIntent
-            )
-        } else {
-            alarmManager.setExact(
-                AlarmManager.RTC_WAKEUP,
-                alarm.timeInMillis,
-                pendingIntent
-            )
-        }
+        scheduleExactOrFallback(alarmManager, alarm.timeInMillis, pendingIntent)
     }
 
     fun scheduleReminderAlarm(context: Context, reminder: ReminderEntity) {
@@ -61,17 +49,37 @@ object AlarmManagerScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                reminder.dueDate,
-                pendingIntent
-            )
-        } else {
-            alarmManager.setExact(
-                AlarmManager.RTC_WAKEUP,
-                reminder.dueDate,
-                pendingIntent
+        scheduleExactOrFallback(alarmManager, reminder.dueDate, pendingIntent)
+    }
+
+    /**
+     * Stability sprint — schedules an exact alarm, but NEVER crashes when
+     * the OS withholds the exact-alarm permission (Android 12+). If exact
+     * scheduling isn't allowed we fall back to an inexact wakeup so the
+     * alert still fires (approximately) instead of throwing SecurityException.
+     */
+    private fun scheduleExactOrFallback(
+        alarmManager: AlarmManager,
+        triggerAtMillis: Long,
+        pendingIntent: PendingIntent
+    ) {
+        val canExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            alarmManager.canScheduleExactAlarms()
+        } else true
+
+        try {
+            if (canExact) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent
+                )
+            } else {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent
+                )
+            }
+        } catch (e: SecurityException) {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent
             )
         }
     }

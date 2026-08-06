@@ -2,6 +2,9 @@ package com.notification.app.domain.model
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.CheckCircle
@@ -57,10 +60,28 @@ data class SmartItemType(
                 icon = Icons.Default.Group
             ),
             SmartItemType(
+                id = "installment",
+                titleEn = "Installment", titleAr = "قسط",
+                subtitleEn = "Buy-now-pay-later", subtitleAr = "تقسيط ومتابعة",
+                icon = Icons.Default.CreditCard
+            ),
+            SmartItemType(
+                id = "subscription",
+                titleEn = "Subscription", titleAr = "اشتراك",
+                subtitleEn = "Netflix, Spotify…", subtitleAr = "نتفليكس، سبوتيفاي…",
+                icon = Icons.Default.Subscriptions
+            ),
+            SmartItemType(
                 id = "bill",
                 titleEn = "Bill", titleAr = "فاتورة",
                 subtitleEn = "Payments due", subtitleAr = "مدفوعات مستحقة",
                 icon = Icons.Default.Receipt
+            ),
+            SmartItemType(
+                id = "alarm",
+                titleEn = "Alarm", titleAr = "منبه",
+                subtitleEn = "Wake-up & ring", subtitleAr = "صحيني ورن",
+                icon = Icons.Default.Alarm
             ),
             SmartItemType(
                 id = "medicine",

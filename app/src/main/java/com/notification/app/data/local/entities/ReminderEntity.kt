@@ -13,5 +13,17 @@ data class ReminderEntity(
     val recurrence: String = "NONE",
     val preAlerts: String = "ONE_DAY,ONE_HOUR", // Comma-separated PreAlertOption names
     val isCompleted: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    // Final Product sprint (Phase A) — rich Smart Task fields. All added
+    // via Room Migration 1→2 (see AppDatabase) so no data is lost.
+    // checklist: items joined by "||", each "1:text" (done) or "0:text".
+    val checklist: String = "",
+    val tags: String = "",          // comma-separated
+    val progress: Int = 0,          // 0..100
+    val location: String = "",
+    // Final Product sprint (Phase D) — CRUD extras, added via Migration
+    // 4→5. Pinned items always sort first; archived items are hidden
+    // from the main list (soft delete).
+    val isPinned: Boolean = false,
+    val isArchived: Boolean = false
 )

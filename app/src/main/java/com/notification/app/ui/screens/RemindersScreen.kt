@@ -11,8 +11,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,14 +41,42 @@ fun RemindersScreen(
     // Sprint 5 — edit flow. Optional so existing call sites keep working;
     // when provided, every card shows an Edit action that hands the
     // reminder back to the caller (which opens the pre-filled form).
-    onEditReminder: ((ReminderEntity) -> Unit)? = null
+    onEditReminder: ((ReminderEntity) -> Unit)? = null,
+    // Phase D — CRUD extras. Optional for the same reason.
+    onTogglePin: ((ReminderEntity) -> Unit)? = null,
+    onSetArchived: ((ReminderEntity, Boolean) -> Unit)? = null,
+    onDuplicate: ((ReminderEntity) -> Unit)? = null
 ) {
     var selectedCategoryFilter by remember { mutableStateOf<ReminderCategory?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
 
-    val filteredReminders = remember(reminders, selectedCategoryFilter) {
-        if (selectedCategoryFilter == null) reminders
-        else reminders.filter { it.category == selectedCategoryFilter!!.name }
+    // Phase D — search / sort / archive view state.
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var sortMode by rememberSaveable { mutableStateOf(ReminderSortMode.DUE_DATE.name) }
+    var showArchived by rememberSaveable { mutableStateOf(false) }
+
+    val filteredReminders = remember(reminders, selectedCategoryFilter, searchQuery, sortMode, showArchived) {
+        val sort = ReminderSortMode.valueOf(sortMode)
+        val query = searchQuery.trim()
+        reminders.asSequence()
+            .filter { it.isArchived == showArchived }
+            .filter { selectedCategoryFilter == null || it.category == selectedCategoryFilter!!.name }
+            .filter {
+                query.isEmpty() ||
+                    it.title.contains(query, ignoreCase = true) ||
+                    it.note.contains(query, ignoreCase = true) ||
+                    it.tags.contains(query, ignoreCase = true)
+            }
+            .sortedWith(
+                compareByDescending<ReminderEntity> { it.isPinned }.let { pinnedFirst ->
+                    when (sort) {
+                        ReminderSortMode.DUE_DATE -> pinnedFirst.thenBy { it.dueDate }
+                        ReminderSortMode.TITLE -> pinnedFirst.thenBy { it.title.lowercase() }
+                        ReminderSortMode.NEWEST -> pinnedFirst.thenByDescending { it.createdAt }
+                    }
+                }
+            )
+            .toList()
     }
 
     val context = LocalContext.current
@@ -79,6 +109,65 @@ fun RemindersScreen(
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
             )
+
+            // Phase D — search + sort + archive controls.
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text(if (isArabic) "ابحث في مهامك…" else "Search your tasks…") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = if (isArabic) "مسح" else "Clear")
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 4.dp)
+            ) {
+                ReminderSortMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = sortMode == mode.name,
+                        onClick = { sortMode = mode.name },
+                        label = {
+                            Text(
+                                if (isArabic) mode.labelAr else mode.labelEn,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                // Archive view toggle — archived items are hidden by default.
+                IconButton(onClick = { showArchived = !showArchived }) {
+                    Icon(
+                        imageVector = if (showArchived) Icons.Default.Unarchive else Icons.Default.Archive,
+                        contentDescription = if (isArabic) "الأرشيف" else "Archive",
+                        tint = if (showArchived) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (showArchived) {
+                Text(
+                    text = if (isArabic) "تعرض الآن: المؤرشفة" else "Now showing: archived",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+            }
 
             // Category Filter Chips
             LazyRow(
@@ -133,7 +222,12 @@ fun RemindersScreen(
                             onShare = {
                                 shareReminderText(context, reminder, isArabic, dateFormat)
                             },
-                            onEdit = onEditReminder?.let { edit -> { edit(reminder) } }
+                            onEdit = onEditReminder?.let { edit -> { edit(reminder) } },
+                            onTogglePin = onTogglePin?.let { pin -> { pin(reminder) } },
+                            onArchiveToggle = onSetArchived?.let { arch ->
+                                { arch(reminder, !reminder.isArchived) }
+                            },
+                            onDuplicate = onDuplicate?.let { dup -> { dup(reminder) } }
                         )
                     }
                 }
@@ -161,7 +255,11 @@ fun DetailedReminderCard(
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     onShare: () -> Unit,
-    onEdit: (() -> Unit)? = null
+    onEdit: (() -> Unit)? = null,
+    // Phase D — CRUD extras.
+    onTogglePin: (() -> Unit)? = null,
+    onArchiveToggle: (() -> Unit)? = null,
+    onDuplicate: (() -> Unit)? = null
 ) {
     val category = ReminderCategory.fromString(reminder.category)
 
@@ -190,17 +288,33 @@ fun DetailedReminderCard(
                     )
                 }
 
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = if (isArabic) category.displayNameAr else category.displayNameEn,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontWeight = FontWeight.SemiBold
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Phase D — pin toggle; pinned items always sort first.
+                    if (onTogglePin != null) {
+                        IconButton(onClick = onTogglePin, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = if (reminder.isPinned) Icons.Filled.PushPin
+                                else Icons.Outlined.PushPin,
+                                contentDescription = if (isArabic) "تثبيت" else "Pin",
+                                tint = if (reminder.isPinned) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = if (isArabic) category.displayNameAr else category.displayNameEn,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
 
@@ -238,26 +352,52 @@ fun DetailedReminderCard(
 
                 Row {
                     if (onEdit != null) {
-                        IconButton(onClick = onEdit) {
+                        IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
                                 contentDescription = "Edit",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
-                    IconButton(onClick = onShare) {
+                    // Phase D — duplicate: same schedule pipeline, fresh copy.
+                    if (onDuplicate != null) {
+                        IconButton(onClick = onDuplicate, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Duplicate",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onShare, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Share",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    IconButton(onClick = onDelete) {
+                    // Phase D — archive/unarchive (soft delete).
+                    if (onArchiveToggle != null) {
+                        IconButton(onClick = onArchiveToggle, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                imageVector = if (reminder.isArchived) Icons.Default.Unarchive
+                                else Icons.Default.Archive,
+                                contentDescription = if (reminder.isArchived) "Unarchive" else "Archive",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Delete",
-                            tint = MaterialTheme.colorScheme.error
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -341,6 +481,13 @@ fun AddReminderDialog(
             }
         }
     )
+}
+
+/** Phase D — sort options for the tasks list (pinned always first). */
+enum class ReminderSortMode(val labelEn: String, val labelAr: String) {
+    DUE_DATE("Due date", "الموعد"),
+    TITLE("Title", "الاسم"),
+    NEWEST("Newest", "الأحدث")
 }
 
 private fun shareReminderText(

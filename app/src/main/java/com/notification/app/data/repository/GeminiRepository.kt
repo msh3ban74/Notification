@@ -7,6 +7,7 @@ import com.notification.app.data.local.entities.PersonEntity
 import com.notification.app.data.local.entities.ReminderEntity
 import com.notification.app.data.remote.*
 import com.notification.app.domain.calculator.Gam3iyaCalculator
+import com.notification.app.domain.calculator.HabitCalculator
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.model.AiSuggestion
 import com.notification.app.domain.model.AiSuggestionAction
@@ -65,6 +66,17 @@ class GeminiRepository(
                     description = "Get status of savings circles (gam3iya) and member payout dates.",
                     parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
                 ),
+                // Phase E — the assistant reads ALL modules.
+                GeminiFunctionDeclaration(
+                    name = "getFinancialItems",
+                    description = "Get all tracked bills, installments and subscriptions with amounts, due dates and paid status.",
+                    parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
+                ),
+                GeminiFunctionDeclaration(
+                    name = "getHabits",
+                    description = "Get the user's habits with current streaks and whether each is done today.",
+                    parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
+                ),
                 GeminiFunctionDeclaration(
                     name = "setSmartAlarm",
                     description = "Set an alarm for a specific date and time.",
@@ -98,7 +110,7 @@ class GeminiRepository(
         val systemInstruction = GeminiContent(
             parts = listOf(
                 GeminiPart(
-                    text = "You are Rafeeq Smart Assistant (مساعد رفيق الذكي), a smart, executive, bilingual (Arabic/English) assistant for managing reminders, per-person debts/ledgers, gam3iyas, prayer times, work notes, and setting alarms. Never mention underlying AI model providers or internal names like Gemini in responses. Use function calls whenever the user asks about or wants to manage reminders, ledger entries, gam3iya details, or alarms. Current time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}."
+                    text = "You are Rafeeq Smart Assistant (مساعد رفيق الذكي), a smart, executive, bilingual (Arabic/English) assistant for managing reminders, per-person debts/ledgers, gam3iyas, bills/installments/subscriptions, habits, prayer times, work notes, and setting alarms. Never mention underlying AI model providers or internal names like Gemini in responses. Use function calls whenever the user asks about or wants to manage reminders, ledger entries, gam3iya details, money items, habits, or alarms. Never invent data — read it with the tools. Current time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}."
                 )
             )
         )
@@ -184,10 +196,16 @@ class GeminiRepository(
         val persons = notificationRepository.allPersons.first()
         val transactions = notificationRepository.allTransactions.first()
         val alarms = notificationRepository.allAlarms.first()
+        // Phase E — the AI reads ALL modules.
+        val financialItems = notificationRepository.allFinancialItems.first()
+        val habits = notificationRepository.allHabits.first()
+        val habitLogs = notificationRepository.allHabitLogs.first()
 
-        if (reminders.isEmpty() && persons.isEmpty() && alarms.isEmpty()) return emptyList()
+        if (reminders.isEmpty() && persons.isEmpty() && alarms.isEmpty() &&
+            financialItems.isEmpty() && habits.isEmpty()
+        ) return emptyList()
 
-        val pending = reminders.filter { !it.isCompleted }
+        val pending = reminders.filter { !it.isCompleted && !it.isArchived }
         val contextText = buildString {
             appendLine("CURRENT TIME: ${dateFormat.format(Date(now))}")
             appendLine("PENDING ITEMS (title | category | due | overdue?):")
@@ -201,6 +219,23 @@ class GeminiRepository(
                 appendLine("- ${person.name} | ${summary.status} | ${summary.netAmount}")
             }
             appendLine("ENABLED FUTURE ALARMS: ${alarms.count { it.isEnabled && it.timeInMillis >= now }}")
+            val unpaid = financialItems.filter { !it.isPaid }.sortedBy { it.dueDate }
+            if (unpaid.isNotEmpty()) {
+                appendLine("UNPAID MONEY ITEMS (title | type | EGP | due):")
+                unpaid.take(10).forEach {
+                    val amount = if (it.monthlyAmount > 0) it.monthlyAmount else it.amount
+                    appendLine("- ${it.title} | ${it.type} | $amount | ${dateFormat.format(Date(it.dueDate))}")
+                }
+            }
+            if (habits.isNotEmpty()) {
+                val today = HabitCalculator.dayStartOf(now)
+                val daysByHabit = habitLogs.groupBy({ it.habitId }, { it.dayStart }).mapValues { it.value.toSet() }
+                appendLine("HABITS (name | streak days | done today?):")
+                habits.take(10).forEach { habit ->
+                    val days = daysByHabit[habit.id] ?: emptySet()
+                    appendLine("- ${habit.title} | ${HabitCalculator.currentStreak(days, today)} | ${if (today in days) "yes" else "NO"}")
+                }
+            }
         }
 
         val language = if (isArabic) "Arabic" else "English"
@@ -310,6 +345,32 @@ class GeminiRepository(
                         val summary = Gam3iyaCalculator.calculateSummary(g, members)
                         val memberTurns = members.map { "${it.memberName} (Month ${it.turnMonth}: ${dateFormat.format(Date(it.payoutDate))})" }
                         "Gam3iya '${g.title}': Total ${g.totalAmount} EGP, Duration ${summary.durationMonths} months. Turns: ${memberTurns.joinToString(", ")}"
+                    }
+                }
+            }
+            // Phase E — read-only views over the financial + habit modules.
+            "getFinancialItems" -> {
+                val items = notificationRepository.allFinancialItems.first()
+                if (items.isEmpty()) "No bills, installments or subscriptions tracked."
+                else {
+                    items.sortedBy { it.dueDate }.map {
+                        val amount = if (it.monthlyAmount > 0) it.monthlyAmount else it.amount
+                        "${it.title} [${it.type}]: $amount EGP, due ${dateFormat.format(Date(it.dueDate))}, ${if (it.isPaid) "PAID" else "UNPAID"}" +
+                            (if (it.remaining > 0) ", remaining ${it.remaining} EGP" else "")
+                    }
+                }
+            }
+            "getHabits" -> {
+                val habits = notificationRepository.allHabits.first()
+                if (habits.isEmpty()) "No habits tracked yet."
+                else {
+                    val logs = notificationRepository.allHabitLogs.first()
+                    val today = HabitCalculator.dayStartOf()
+                    val daysByHabit = logs.groupBy({ it.habitId }, { it.dayStart }).mapValues { it.value.toSet() }
+                    habits.map { habit ->
+                        val days = daysByHabit[habit.id] ?: emptySet()
+                        "${habit.emoji} ${habit.title}: streak ${HabitCalculator.currentStreak(days, today)} days, " +
+                            (if (today in days) "done today" else "NOT done today")
                     }
                 }
             }
