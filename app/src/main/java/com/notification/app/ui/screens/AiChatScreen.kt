@@ -264,33 +264,36 @@ private fun AssistantEmptyState(
 
         Spacer(modifier = Modifier.height(Spacing.xl))
 
-        // Suggestion pills
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        // Suggestion pills — compact: wrap to content, smaller text/padding.
+        Column(
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             suggestions.forEach { suggestion ->
                 Surface(
                     onClick = { onSuggestionClick(suggestion) },
                     shape = AppRadius.button,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.fillMaxWidth()
+                    color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     Row(
                         modifier = Modifier.padding(
                             horizontal = Spacing.md,
-                            vertical = Spacing.md
+                            vertical = Spacing.sm
                         ),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                     ) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
                             tint = MaroonPrimary,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                         Text(
                             text = suggestion,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1
                         )
                     }
                 }
@@ -451,7 +454,12 @@ fun ChatBubble(text: String, isUser: Boolean) {
                 } else {
                     renderMarkdownLite(text)
                 },
-                style = MaterialTheme.typography.bodyLarge,
+                // Follow the content's own direction so Arabic replies read
+                // right-to-left (from the right edge) and English left-to-right,
+                // instead of always starting from the left.
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    textDirection = androidx.compose.ui.text.style.TextDirection.Content
+                ),
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)
             )
         }

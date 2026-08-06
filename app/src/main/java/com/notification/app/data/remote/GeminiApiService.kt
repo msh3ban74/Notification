@@ -26,12 +26,17 @@ data class GeminiContent(
 data class GeminiPart(
     val text: String? = null,
     val functionCall: GeminiFunctionCall? = null,
-    val functionResponse: GeminiFunctionResponse? = null
+    val functionResponse: GeminiFunctionResponse? = null,
+    // Newer Gemini models attach an opaque "thought signature" to a
+    // function-call part and REJECT the follow-up turn if it isn't echoed
+    // back verbatim. Round-tripping it keeps tool calls working.
+    val thoughtSignature: String? = null
 )
 
 data class GeminiFunctionCall(
     val name: String,
-    val args: Map<String, Any?>
+    val args: Map<String, Any?> = emptyMap(),
+    val id: String? = null
 )
 
 data class GeminiFunctionResponse(
