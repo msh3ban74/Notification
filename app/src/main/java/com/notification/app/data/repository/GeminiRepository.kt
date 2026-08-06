@@ -166,9 +166,16 @@ class GeminiRepository(
                 }
             }
 
-            return Pair("I'm sorry, I couldn't process your request.", updatedHistory)
+            // No parsable candidate — surface it as a VISIBLE model bubble
+            // (returning text without appending it left the chat empty).
+            val fallback = "لم أستطع فهم الرد هذه المرة — جرّب صياغة أخرى 🙏\nI couldn't process that — please try rephrasing."
+            updatedHistory.add(GeminiContent(role = "model", parts = listOf(GeminiPart(text = fallback))))
+            return Pair(fallback, updatedHistory)
         } catch (e: Exception) {
-            return Pair("عذراً، حدث خطأ أثناء التواصل مع المساعد الذكي: ${e.localizedMessage ?: "خطأ غير معروف"}", updatedHistory)
+            val errorText = "عذراً، تعذّر الوصول للمساعد الآن — تأكد من الاتصال وحاول مجددًا 🙏\n" +
+                "Sorry, I couldn't reach the assistant — check your connection and try again."
+            updatedHistory.add(GeminiContent(role = "model", parts = listOf(GeminiPart(text = errorText))))
+            return Pair(errorText, updatedHistory)
         }
     }
 

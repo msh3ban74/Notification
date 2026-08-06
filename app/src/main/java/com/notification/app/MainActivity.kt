@@ -402,7 +402,10 @@ class MainActivity : ComponentActivity() {
                                     onSetArchived = { reminder, archived ->
                                         viewModel.setReminderArchived(reminder, archived)
                                     },
-                                    onDuplicate = { viewModel.duplicateReminder(it) }
+                                    onDuplicate = { viewModel.duplicateReminder(it) },
+                                    onCreateTask = {
+                                        navController.navigate(Screen.CreateTask.createRoute())
+                                    }
                                 )
                             }
 
@@ -451,7 +454,10 @@ class MainActivity : ComponentActivity() {
                                     onSetArchived = { reminder, archived ->
                                         viewModel.setReminderArchived(reminder, archived)
                                     },
-                                    onDuplicate = { viewModel.duplicateReminder(it) }
+                                    onDuplicate = { viewModel.duplicateReminder(it) },
+                                    onCreateTask = {
+                                        navController.navigate(Screen.CreateTask.createRoute())
+                                    }
                                 )
                             }
 
@@ -522,6 +528,7 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable(Screen.Settings.route) {
+                                val backupState by viewModel.backupState.collectAsState()
                                 SettingsScreen(
                                     currentLanguage = language,
                                     isLoggedIn = isLoggedIn,
@@ -531,6 +538,7 @@ class MainActivity : ComponentActivity() {
                                     isArabic = isArabic,
                                     onSetLanguage = { viewModel.setLanguage(it) },
                                     onTriggerBackup = { viewModel.triggerBackupSync() },
+                                    backupState = backupState,
                                     onSignOut = {
                                         // Stability sprint — REAL logout:
                                         // Firebase sign-out + persisted session

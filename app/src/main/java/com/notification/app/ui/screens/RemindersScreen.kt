@@ -45,7 +45,10 @@ fun RemindersScreen(
     // Phase D — CRUD extras. Optional for the same reason.
     onTogglePin: ((ReminderEntity) -> Unit)? = null,
     onSetArchived: ((ReminderEntity, Boolean) -> Unit)? = null,
-    onDuplicate: ((ReminderEntity) -> Unit)? = null
+    onDuplicate: ((ReminderEntity) -> Unit)? = null,
+    // When provided, "+" opens the RICH Smart Task form instead of the
+    // legacy quick-add dialog (checklist/tags/progress/location live there).
+    onCreateTask: (() -> Unit)? = null
 ) {
     var selectedCategoryFilter by remember { mutableStateOf<ReminderCategory?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -85,7 +88,7 @@ fun RemindersScreen(
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddDialog = true },
+                onClick = onCreateTask ?: { showAddDialog = true },
                 containerColor = MaroonPrimary,
                 contentColor = OnPrimary,
                 shape = CircleShape
@@ -205,7 +208,7 @@ fun RemindersScreen(
                     title = if (isArabic) "لا توجد تذكيرات حالياً" else "No Reminders Found",
                     subtitle = if (isArabic) "أنشئ أول مهمة وستتولى تنبيهاتها تلقائيًا" else "Create your first task and Rafeeq will handle the alerts",
                     actionLabel = if (isArabic) "أضف مهمة" else "Add Task",
-                    onAction = { showAddDialog = true }
+                    onAction = onCreateTask ?: { showAddDialog = true }
                 )
             } else {
                 LazyColumn(

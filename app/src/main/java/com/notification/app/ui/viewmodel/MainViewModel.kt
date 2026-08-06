@@ -513,6 +513,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val backupState: StateFlow<String?> = _backupState.asStateFlow()
 
     fun triggerBackupSync() {
+        if (_backupState.value == "syncing") return
+        _backupState.value = "syncing"
         viewModelScope.launch {
             when (val result = backupRepository.backupNow()) {
                 is com.notification.app.data.repository.BackupRepository.BackupResult.Success -> {
