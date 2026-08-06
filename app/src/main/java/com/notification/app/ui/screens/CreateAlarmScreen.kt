@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -28,9 +30,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.notification.app.ui.permissions.canScheduleExactAlarms
+import com.notification.app.ui.permissions.openExactAlarmSettings
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -61,6 +67,13 @@ fun CreateAlarmScreen(
 ) {
     val context = LocalContext.current
     var label by remember { mutableStateOf("") }
+
+    // Alarm engine sprint — per-alarm options.
+    var vibrate by remember { mutableStateOf(true) }
+    var flashlight by remember { mutableStateOf(false) }
+    var volumePercent by remember { mutableFloatStateOf(80f) }
+    var snoozeMinutes by remember { mutableIntStateOf(10) }
+    var autoStopMinutes by remember { mutableIntStateOf(5) }
 
     val now = remember { Calendar.getInstance() }
     val timeState = rememberTimePickerState(
@@ -221,6 +234,77 @@ fun CreateAlarmScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Exact-alarm permission guidance — shown only if the OS is
+            // withholding it. setAlarmClock works regardless, but on some
+            // OEMs granting this improves reliability, so we guide the user.
+            if (!canScheduleExactAlarms(context)) {
+                PremiumCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (isArabic) "لضمان دقة المنبه"
+                            else "For the most reliable alarms",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (isArabic)
+                                "إذن \"المنبهات والتذكيرات الدقيقة\" غير مفعّل. فعّله ليرن المنبه في موعده بالثانية حتى في وضع توفير الطاقة."
+                            else "The exact-alarms permission is off. Enable it so alarms fire precisely on time, even in battery-saver.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        PremiumOutlinedButton(
+                            text = if (isArabic) "فتح الإعدادات" else "Open settings",
+                            onClick = { openExactAlarmSettings(context) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+
+            // Options card — vibration, flashlight, volume, snooze, auto-stop.
+            PremiumCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OptionSwitch(
+                        label = if (isArabic) "اهتزاز" else "Vibration",
+                        checked = vibrate, onCheckedChange = { vibrate = it }
+                    )
+                    OptionSwitch(
+                        label = if (isArabic) "الفلاش" else "Flashlight",
+                        checked = flashlight, onCheckedChange = { flashlight = it }
+                    )
+                    Text(
+                        text = (if (isArabic) "مستوى الصوت: " else "Volume: ") + "${volumePercent.toInt()}%",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    androidx.compose.material3.Slider(
+                        value = volumePercent,
+                        onValueChange = { volumePercent = it },
+                        valueRange = 10f..100f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    StepperRow(
+                        label = if (isArabic) "مدة الغفوة (دقيقة)" else "Snooze (minutes)",
+                        value = snoozeMinutes,
+                        onDecrement = { if (snoozeMinutes > 1) snoozeMinutes-- },
+                        onIncrement = { if (snoozeMinutes < 60) snoozeMinutes++ }
+                    )
+                    StepperRow(
+                        label = if (isArabic) "إيقاف تلقائي بعد (دقيقة)" else "Auto-stop after (minutes)",
+                        value = autoStopMinutes,
+                        onDecrement = { if (autoStopMinutes > 0) autoStopMinutes-- },
+                        onIncrement = { if (autoStopMinutes < 30) autoStopMinutes++ },
+                        zeroLabel = if (isArabic) "بدون" else "Off"
+                    )
+                }
+            }
+
             PremiumButton(
                 text = if (isArabic) "احفظ المنبه" else "Save Alarm",
                 onClick = {
@@ -232,7 +316,12 @@ fun CreateAlarmScreen(
                             timeInMillis = nextTriggerFor(timeState.hour, timeState.minute),
                             ringtoneUri = ringtoneUri,
                             isEnabled = true,
-                            label = label.trim()
+                            label = label.trim(),
+                            vibrate = vibrate,
+                            flashlight = flashlight,
+                            volumePercent = volumePercent.toInt(),
+                            snoozeMinutes = snoozeMinutes,
+                            autoStopMinutes = autoStopMinutes
                         )
                     )
                 },
@@ -244,6 +333,44 @@ fun CreateAlarmScreen(
                 onClick = onCancel,
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+    }
+}
+
+@Composable
+private fun OptionSwitch(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        androidx.compose.material3.Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun StepperRow(
+    label: String,
+    value: Int,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit,
+    zeroLabel: String? = null
+) {
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        IconButton(onClick = onDecrement) {
+            Icon(Icons.Default.Remove, contentDescription = "-")
+        }
+        Text(
+            text = if (value == 0 && zeroLabel != null) zeroLabel else value.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        IconButton(onClick = onIncrement) {
+            Icon(Icons.Default.Add, contentDescription = "+")
         }
     }
 }

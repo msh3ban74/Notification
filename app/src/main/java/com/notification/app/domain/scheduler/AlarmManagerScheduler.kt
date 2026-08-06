@@ -17,8 +17,14 @@ object AlarmManagerScheduler {
             action = "com.notification.app.ACTION_ALARM_TRIGGER"
             putExtra("EXTRA_ALARM_ID", alarm.id)
             putExtra("EXTRA_TITLE", alarm.title)
+            putExtra("EXTRA_NOTE", alarm.label)
             putExtra("EXTRA_RINGTONE_URI", alarm.ringtoneUri)
             putExtra("EXTRA_IS_ALARM", true)
+            putExtra("EXTRA_VIBRATE", alarm.vibrate)
+            putExtra("EXTRA_FLASHLIGHT", alarm.flashlight)
+            putExtra("EXTRA_VOLUME", alarm.volumePercent)
+            putExtra("EXTRA_SNOOZE_MIN", alarm.snoozeMinutes)
+            putExtra("EXTRA_AUTO_STOP_MIN", alarm.autoStopMinutes)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(

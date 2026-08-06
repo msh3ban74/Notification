@@ -50,6 +50,10 @@ class AlarmService : Service() {
 
         val title = intent?.getStringExtra("EXTRA_TITLE") ?: "Alarm Ringing"
         val ringtoneUriStr = intent?.getStringExtra("EXTRA_RINGTONE_URI") ?: ""
+        val vibrateEnabled = intent?.getBooleanExtra("EXTRA_VIBRATE", true) ?: true
+        val flashlightEnabled = intent?.getBooleanExtra("EXTRA_FLASHLIGHT", false) ?: false
+        val volumePercent = intent?.getIntExtra("EXTRA_VOLUME", 80) ?: 80
+        val autoStopMin = intent?.getIntExtra("EXTRA_AUTO_STOP_MIN", 5) ?: 5
 
         // API 34+ requires the typed startForeground for a specialUse
         // service; the 2-arg form is correct on older versions. Wrapped so
@@ -68,10 +72,19 @@ class AlarmService : Service() {
             e.printStackTrace()
         }
 
-        raiseAlarmVolume()
+        raiseAlarmVolume(volumePercent)
         playRingtone(ringtoneUriStr)
-        startVibration()
-        startFlashlight()
+        if (vibrateEnabled) startVibration()
+        if (flashlightEnabled) startFlashlight()
+
+        // Auto-stop safety net: a real alarm shouldn't ring forever if the
+        // user is away. 0 = never auto-stop.
+        if (autoStopMin > 0) {
+            flashHandler.postDelayed({
+                stopAlarm()
+                stopSelf()
+            }, autoStopMin * 60_000L)
+        }
 
         return START_STICKY
     }
@@ -80,16 +93,12 @@ class AlarmService : Service() {
      * Nudge the alarm stream up so a phone left on a low alarm volume
      * still rings audibly. We never touch the ring/media streams.
      */
-    private fun raiseAlarmVolume() {
+    private fun raiseAlarmVolume(volumePercent: Int) {
         try {
             val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val max = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            val current = audio.getStreamVolume(AudioManager.STREAM_ALARM)
-            // Only raise if the user left it very low; keep at least 70%.
-            val target = maxOf(current, (max * 0.7f).toInt())
-            if (target > current) {
-                audio.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
-            }
+            val pct = volumePercent.coerceIn(10, 100) / 100f
+            audio.setStreamVolume(AudioManager.STREAM_ALARM, (max * pct).toInt().coerceAtLeast(1), 0)
         } catch (e: Exception) {
             e.printStackTrace()
         }

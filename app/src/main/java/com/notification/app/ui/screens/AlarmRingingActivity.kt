@@ -60,6 +60,7 @@ class AlarmRingingActivity : ComponentActivity() {
         val alarmId = intent.getLongExtra("EXTRA_ALARM_ID", -1L)
         val reminderId = intent.getLongExtra("EXTRA_REMINDER_ID", -1L)
         val ringtoneUri = intent.getStringExtra("EXTRA_RINGTONE_URI") ?: ""
+        val snoozeMinutes = intent.getIntExtra("EXTRA_SNOOZE_MIN", SNOOZE_MINUTES)
 
         setContent {
             NotificationTheme(darkTheme = true) {
@@ -76,7 +77,7 @@ class AlarmRingingActivity : ComponentActivity() {
                         // Snooze actually re-schedules the SAME alert +10m.
                         AlarmManagerScheduler.snooze(
                             context = this,
-                            minutes = SNOOZE_MINUTES,
+                            minutes = snoozeMinutes,
                             isAlarm = isAlarm,
                             alarmId = alarmId,
                             reminderId = reminderId,

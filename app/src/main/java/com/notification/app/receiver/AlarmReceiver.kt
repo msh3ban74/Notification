@@ -20,11 +20,21 @@ class AlarmReceiver : BroadcastReceiver() {
         val category = intent.getStringExtra("EXTRA_CATEGORY") ?: "REMINDER"
         val ringtoneUri = intent.getStringExtra("EXTRA_RINGTONE_URI") ?: ""
         val isAlarm = intent.getBooleanExtra("EXTRA_IS_ALARM", true)
+        // Per-alarm options (reminders fall back to sensible defaults).
+        val vibrate = intent.getBooleanExtra("EXTRA_VIBRATE", true)
+        val flashlight = intent.getBooleanExtra("EXTRA_FLASHLIGHT", false)
+        val volume = intent.getIntExtra("EXTRA_VOLUME", 80)
+        val autoStopMin = intent.getIntExtra("EXTRA_AUTO_STOP_MIN", 5)
+        val snoozeMin = intent.getIntExtra("EXTRA_SNOOZE_MIN", 10)
 
         // Start Foreground Alarm Service for looping audio/vibration
         val serviceIntent = Intent(context, AlarmService::class.java).apply {
             putExtra("EXTRA_TITLE", title)
             putExtra("EXTRA_RINGTONE_URI", ringtoneUri)
+            putExtra("EXTRA_VIBRATE", vibrate)
+            putExtra("EXTRA_FLASHLIGHT", flashlight)
+            putExtra("EXTRA_VOLUME", volume)
+            putExtra("EXTRA_AUTO_STOP_MIN", autoStopMin)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(serviceIntent)
@@ -46,6 +56,7 @@ class AlarmReceiver : BroadcastReceiver() {
             putExtra("EXTRA_ALARM_ID", alarmId)
             putExtra("EXTRA_REMINDER_ID", reminderId)
             putExtra("EXTRA_RINGTONE_URI", ringtoneUri)
+            putExtra("EXTRA_SNOOZE_MIN", snoozeMin)
         }
 
         val fullScreenPendingIntent = PendingIntent.getActivity(

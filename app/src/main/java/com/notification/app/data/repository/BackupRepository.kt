@@ -193,7 +193,10 @@ class BackupRepository(
     private fun alarmToMap(a: AlarmEntity) = mapOf(
         "id" to a.id, "title" to a.title, "timeInMillis" to a.timeInMillis,
         "ringtoneUri" to a.ringtoneUri, "isEnabled" to a.isEnabled, "label" to a.label,
-        "createdViaAi" to a.createdViaAi, "createdAt" to a.createdAt
+        "createdViaAi" to a.createdViaAi, "createdAt" to a.createdAt,
+        "vibrate" to a.vibrate, "flashlight" to a.flashlight,
+        "volumePercent" to a.volumePercent, "snoozeMinutes" to a.snoozeMinutes,
+        "autoStopMinutes" to a.autoStopMinutes, "repeatDays" to a.repeatDays
     )
 
     private fun workNoteToMap(w: WorkNoteEntity) = mapOf(
@@ -288,7 +291,12 @@ class BackupRepository(
         return AlarmEntity(
             id = lng("id"), title = title, timeInMillis = lng("timeInMillis"),
             ringtoneUri = str("ringtoneUri"), isEnabled = bool("isEnabled", true),
-            label = str("label"), createdViaAi = bool("createdViaAi"), createdAt = lng("createdAt")
+            label = str("label"), createdViaAi = bool("createdViaAi"), createdAt = lng("createdAt"),
+            vibrate = bool("vibrate", true), flashlight = bool("flashlight"),
+            volumePercent = lng("volumePercent", 80).toInt(),
+            snoozeMinutes = lng("snoozeMinutes", 10).toInt(),
+            autoStopMinutes = lng("autoStopMinutes", 5).toInt(),
+            repeatDays = str("repeatDays")
         )
     }
 
