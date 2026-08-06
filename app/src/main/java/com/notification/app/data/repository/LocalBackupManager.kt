@@ -164,7 +164,8 @@ class LocalBackupManager(
         val counts = linkedMapOf<String, Int>()
         listOf(
             "reminders", "persons", "ledger_transactions", "gam3iyas",
-            "gam3iya_members", "alarms", "work_notes", "financial_items",
+            "gam3iya_members", "gam3iya_payments", "gam3iya_attachments",
+            "alarms", "work_notes", "financial_items",
             "habits", "habit_logs"
         ).forEach { key -> inner.optJSONArray(key)?.let { if (it.length() > 0) counts[key] = it.length() } }
         return RestorePreview(
@@ -185,6 +186,8 @@ class LocalBackupManager(
             inner.optJSONArray("ledger_transactions")?.forEachObj { db.personLedgerDao().insertTransaction(it.toTransaction()); count++ }
             inner.optJSONArray("gam3iyas")?.forEachObj { db.gam3iyaDao().insertGam3iya(it.toGam3iya()); count++ }
             inner.optJSONArray("gam3iya_members")?.forEachObj { db.gam3iyaDao().insertMember(it.toGam3iyaMember()); count++ }
+            inner.optJSONArray("gam3iya_payments")?.forEachObj { db.gam3iyaDao().insertPayment(it.toGam3iyaPayment()); count++ }
+            inner.optJSONArray("gam3iya_attachments")?.forEachObj { db.gam3iyaDao().insertAttachment(it.toGam3iyaAttachment()); count++ }
             inner.optJSONArray("alarms")?.forEachObj { db.alarmDao().insertAlarm(it.toAlarm()); count++ }
             inner.optJSONArray("work_notes")?.forEachObj { db.workNoteDao().insertNote(it.toWorkNote()); count++ }
             inner.optJSONArray("financial_items")?.forEachObj { db.financialDao().insert(it.toFinancialItem()); count++ }
@@ -244,6 +247,12 @@ class LocalBackupManager(
         o.put("gam3iya_members", JSONArray().also { arr ->
             db.gam3iyaDao().getAllMembers().first().forEach { arr.put(memberMap(it)); total++ }
         })
+        o.put("gam3iya_payments", JSONArray().also { arr ->
+            db.gam3iyaDao().getAllPayments().first().forEach { arr.put(gam3iyaPaymentMap(it)); total++ }
+        })
+        o.put("gam3iya_attachments", JSONArray().also { arr ->
+            db.gam3iyaDao().getAllAttachments().first().forEach { arr.put(gam3iyaAttachmentMap(it)); total++ }
+        })
         o.put("alarms", JSONArray().also { arr ->
             db.alarmDao().getAllAlarms().first().forEach { arr.put(alarmMap(it)); total++ }
         })
@@ -294,11 +303,32 @@ class LocalBackupManager(
         .put("id", g.id).put("title", g.title).put("totalAmount", g.totalAmount)
         .put("monthlyInstallment", g.monthlyInstallment).put("membersCount", g.membersCount)
         .put("startDate", g.startDate).put("payoutDayOfMonth", g.payoutDayOfMonth).put("note", g.note)
+        .put("mode", g.mode).put("description", g.description).put("currency", g.currency)
+        .put("collectionTime", g.collectionTime).put("durationMonths", g.durationMonths)
+        .put("status", g.status).put("photoUri", g.photoUri).put("reminderEnabled", g.reminderEnabled)
+        .put("reminderDaysBefore", g.reminderDaysBefore).put("alarmEnabled", g.alarmEnabled)
+        .put("createdAt", g.createdAt).put("organizerName", g.organizerName)
+        .put("organizerPhone", g.organizerPhone).put("organizerWhatsapp", g.organizerWhatsapp)
+        .put("organizerEmail", g.organizerEmail).put("myInstallmentAmount", g.myInstallmentAmount)
+        .put("myTurnNumber", g.myTurnNumber).put("myCollectionDate", g.myCollectionDate)
+        .put("myPaidInstallments", g.myPaidInstallments)
 
     private fun memberMap(m: Gam3iyaMemberEntity) = JSONObject()
         .put("id", m.id).put("gam3iyaId", m.gam3iyaId).put("memberName", m.memberName)
         .put("turnMonth", m.turnMonth).put("payoutDate", m.payoutDate)
         .put("isPayoutReceived", m.isPayoutReceived).put("isInstallmentPaidThisMonth", m.isInstallmentPaidThisMonth)
+        .put("photoUri", m.photoUri).put("phone", m.phone).put("whatsapp", m.whatsapp)
+        .put("email", m.email).put("address", m.address).put("nationalId", m.nationalId)
+        .put("installmentAmount", m.installmentAmount).put("isLate", m.isLate).put("notes", m.notes)
+
+    private fun gam3iyaPaymentMap(p: Gam3iyaPaymentEntity) = JSONObject()
+        .put("id", p.id).put("gam3iyaId", p.gam3iyaId).put("memberId", p.memberId)
+        .put("monthIndex", p.monthIndex).put("amount", p.amount).put("date", p.date)
+        .put("type", p.type).put("note", p.note)
+
+    private fun gam3iyaAttachmentMap(a: Gam3iyaAttachmentEntity) = JSONObject()
+        .put("id", a.id).put("gam3iyaId", a.gam3iyaId).put("memberId", a.memberId)
+        .put("uri", a.uri).put("kind", a.kind).put("label", a.label).put("createdAt", a.createdAt)
 
     private fun alarmMap(a: AlarmEntity) = JSONObject()
         .put("id", a.id).put("title", a.title).put("timeInMillis", a.timeInMillis)
@@ -352,14 +382,40 @@ class LocalBackupManager(
     private fun JSONObject.toGam3iya() = Gam3iyaEntity(
         id = optLong("id"), title = optString("title"), totalAmount = optDouble("totalAmount", 0.0),
         monthlyInstallment = optDouble("monthlyInstallment", 0.0), membersCount = optInt("membersCount"),
-        startDate = optLong("startDate"), payoutDayOfMonth = optInt("payoutDayOfMonth", 1), note = optString("note")
+        startDate = optLong("startDate"), payoutDayOfMonth = optInt("payoutDayOfMonth", 1), note = optString("note"),
+        mode = optString("mode", "MANAGER"), description = optString("description"),
+        currency = optString("currency", "EGP"), collectionTime = optString("collectionTime"),
+        durationMonths = optInt("durationMonths"), status = optString("status", "ACTIVE"),
+        photoUri = optString("photoUri"), reminderEnabled = optBoolean("reminderEnabled", true),
+        reminderDaysBefore = optInt("reminderDaysBefore", 1), alarmEnabled = optBoolean("alarmEnabled"),
+        createdAt = optLong("createdAt"), organizerName = optString("organizerName"),
+        organizerPhone = optString("organizerPhone"), organizerWhatsapp = optString("organizerWhatsapp"),
+        organizerEmail = optString("organizerEmail"), myInstallmentAmount = optDouble("myInstallmentAmount", 0.0),
+        myTurnNumber = optInt("myTurnNumber"), myCollectionDate = optLong("myCollectionDate"),
+        myPaidInstallments = optInt("myPaidInstallments")
     )
 
     private fun JSONObject.toGam3iyaMember() = Gam3iyaMemberEntity(
         id = optLong("id"), gam3iyaId = optLong("gam3iyaId"), memberName = optString("memberName"),
         turnMonth = optInt("turnMonth"), payoutDate = optLong("payoutDate"),
         isPayoutReceived = optBoolean("isPayoutReceived"),
-        isInstallmentPaidThisMonth = optBoolean("isInstallmentPaidThisMonth")
+        isInstallmentPaidThisMonth = optBoolean("isInstallmentPaidThisMonth"),
+        photoUri = optString("photoUri"), phone = optString("phone"), whatsapp = optString("whatsapp"),
+        email = optString("email"), address = optString("address"), nationalId = optString("nationalId"),
+        installmentAmount = optDouble("installmentAmount", 0.0), isLate = optBoolean("isLate"),
+        notes = optString("notes")
+    )
+
+    private fun JSONObject.toGam3iyaPayment() = Gam3iyaPaymentEntity(
+        id = optLong("id"), gam3iyaId = optLong("gam3iyaId"), memberId = optLong("memberId"),
+        monthIndex = optInt("monthIndex"), amount = optDouble("amount", 0.0), date = optLong("date"),
+        type = optString("type", "INSTALLMENT"), note = optString("note")
+    )
+
+    private fun JSONObject.toGam3iyaAttachment() = Gam3iyaAttachmentEntity(
+        id = optLong("id"), gam3iyaId = optLong("gam3iyaId"), memberId = optLong("memberId"),
+        uri = optString("uri"), kind = optString("kind", "RECEIPT"), label = optString("label"),
+        createdAt = optLong("createdAt")
     )
 
     private fun JSONObject.toAlarm() = AlarmEntity(

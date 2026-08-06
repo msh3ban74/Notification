@@ -55,6 +55,12 @@ class BackupRepository(
             db.gam3iyaDao().getAllMembers().first().forEach {
                 ops += Op("gam3iya_members", it.id.toString(), gam3iyaMemberToMap(it))
             }
+            db.gam3iyaDao().getAllPayments().first().forEach {
+                ops += Op("gam3iya_payments", it.id.toString(), gam3iyaPaymentToMap(it))
+            }
+            db.gam3iyaDao().getAllAttachments().first().forEach {
+                ops += Op("gam3iya_attachments", it.id.toString(), gam3iyaAttachmentToMap(it))
+            }
             db.alarmDao().getAllAlarms().first().forEach {
                 ops += Op("alarms", it.id.toString(), alarmToMap(it))
             }
@@ -118,6 +124,12 @@ class BackupRepository(
             val members = userDocRef.collection("gam3iya_members").get().await().documents
                 .mapNotNull { it.toGam3iyaMember() }
             if (members.isNotEmpty()) { db.gam3iyaDao().insertMembers(members); count += members.size }
+            userDocRef.collection("gam3iya_payments").get().await().documents
+                .mapNotNull { it.toGam3iyaPayment() }
+                .forEach { db.gam3iyaDao().insertPayment(it); count++ }
+            userDocRef.collection("gam3iya_attachments").get().await().documents
+                .mapNotNull { it.toGam3iyaAttachment() }
+                .forEach { db.gam3iyaDao().insertAttachment(it); count++ }
             userDocRef.collection("alarms").get().await().documents
                 .mapNotNull { it.toAlarm() }
                 .forEach { db.alarmDao().insertAlarm(it); count++ }
@@ -180,14 +192,37 @@ class BackupRepository(
     private fun gam3iyaToMap(g: Gam3iyaEntity) = mapOf(
         "id" to g.id, "title" to g.title, "totalAmount" to g.totalAmount,
         "monthlyInstallment" to g.monthlyInstallment, "membersCount" to g.membersCount,
-        "startDate" to g.startDate, "payoutDayOfMonth" to g.payoutDayOfMonth, "note" to g.note
+        "startDate" to g.startDate, "payoutDayOfMonth" to g.payoutDayOfMonth, "note" to g.note,
+        "mode" to g.mode, "description" to g.description, "currency" to g.currency,
+        "collectionTime" to g.collectionTime, "durationMonths" to g.durationMonths,
+        "status" to g.status, "photoUri" to g.photoUri, "reminderEnabled" to g.reminderEnabled,
+        "reminderDaysBefore" to g.reminderDaysBefore, "alarmEnabled" to g.alarmEnabled,
+        "createdAt" to g.createdAt, "organizerName" to g.organizerName,
+        "organizerPhone" to g.organizerPhone, "organizerWhatsapp" to g.organizerWhatsapp,
+        "organizerEmail" to g.organizerEmail, "myInstallmentAmount" to g.myInstallmentAmount,
+        "myTurnNumber" to g.myTurnNumber, "myCollectionDate" to g.myCollectionDate,
+        "myPaidInstallments" to g.myPaidInstallments
     )
 
     private fun gam3iyaMemberToMap(m: Gam3iyaMemberEntity) = mapOf(
         "id" to m.id, "gam3iyaId" to m.gam3iyaId, "memberName" to m.memberName,
         "turnMonth" to m.turnMonth, "payoutDate" to m.payoutDate,
         "isPayoutReceived" to m.isPayoutReceived,
-        "isInstallmentPaidThisMonth" to m.isInstallmentPaidThisMonth
+        "isInstallmentPaidThisMonth" to m.isInstallmentPaidThisMonth,
+        "photoUri" to m.photoUri, "phone" to m.phone, "whatsapp" to m.whatsapp,
+        "email" to m.email, "address" to m.address, "nationalId" to m.nationalId,
+        "installmentAmount" to m.installmentAmount, "isLate" to m.isLate, "notes" to m.notes
+    )
+
+    private fun gam3iyaPaymentToMap(p: Gam3iyaPaymentEntity) = mapOf(
+        "id" to p.id, "gam3iyaId" to p.gam3iyaId, "memberId" to p.memberId,
+        "monthIndex" to p.monthIndex, "amount" to p.amount, "date" to p.date,
+        "type" to p.type, "note" to p.note
+    )
+
+    private fun gam3iyaAttachmentToMap(a: Gam3iyaAttachmentEntity) = mapOf(
+        "id" to a.id, "gam3iyaId" to a.gam3iyaId, "memberId" to a.memberId,
+        "uri" to a.uri, "kind" to a.kind, "label" to a.label, "createdAt" to a.createdAt
     )
 
     private fun alarmToMap(a: AlarmEntity) = mapOf(
@@ -272,7 +307,17 @@ class BackupRepository(
             id = lng("id"), title = title, totalAmount = dbl("totalAmount"),
             monthlyInstallment = dbl("monthlyInstallment"),
             membersCount = lng("membersCount").toInt(), startDate = lng("startDate"),
-            payoutDayOfMonth = lng("payoutDayOfMonth", 1L).toInt(), note = str("note")
+            payoutDayOfMonth = lng("payoutDayOfMonth", 1L).toInt(), note = str("note"),
+            mode = str("mode", "MANAGER"), description = str("description"),
+            currency = str("currency", "EGP"), collectionTime = str("collectionTime"),
+            durationMonths = lng("durationMonths").toInt(), status = str("status", "ACTIVE"),
+            photoUri = str("photoUri"), reminderEnabled = bool("reminderEnabled", true),
+            reminderDaysBefore = lng("reminderDaysBefore", 1L).toInt(), alarmEnabled = bool("alarmEnabled"),
+            createdAt = lng("createdAt"), organizerName = str("organizerName"),
+            organizerPhone = str("organizerPhone"), organizerWhatsapp = str("organizerWhatsapp"),
+            organizerEmail = str("organizerEmail"), myInstallmentAmount = dbl("myInstallmentAmount"),
+            myTurnNumber = lng("myTurnNumber").toInt(), myCollectionDate = lng("myCollectionDate"),
+            myPaidInstallments = lng("myPaidInstallments").toInt()
         )
     }
 
@@ -282,7 +327,27 @@ class BackupRepository(
             id = lng("id"), gam3iyaId = lng("gam3iyaId"), memberName = memberName,
             turnMonth = lng("turnMonth").toInt(), payoutDate = lng("payoutDate"),
             isPayoutReceived = bool("isPayoutReceived"),
-            isInstallmentPaidThisMonth = bool("isInstallmentPaidThisMonth")
+            isInstallmentPaidThisMonth = bool("isInstallmentPaidThisMonth"),
+            photoUri = str("photoUri"), phone = str("phone"), whatsapp = str("whatsapp"),
+            email = str("email"), address = str("address"), nationalId = str("nationalId"),
+            installmentAmount = dbl("installmentAmount"), isLate = bool("isLate"), notes = str("notes")
+        )
+    }
+
+    private fun DocumentSnapshot.toGam3iyaPayment(): Gam3iyaPaymentEntity? {
+        if (!contains("gam3iyaId")) return null
+        return Gam3iyaPaymentEntity(
+            id = lng("id"), gam3iyaId = lng("gam3iyaId"), memberId = lng("memberId"),
+            monthIndex = lng("monthIndex").toInt(), amount = dbl("amount"), date = lng("date"),
+            type = str("type", "INSTALLMENT"), note = str("note")
+        )
+    }
+
+    private fun DocumentSnapshot.toGam3iyaAttachment(): Gam3iyaAttachmentEntity? {
+        val uri = getString("uri") ?: return null
+        return Gam3iyaAttachmentEntity(
+            id = lng("id"), gam3iyaId = lng("gam3iyaId"), memberId = lng("memberId"),
+            uri = uri, kind = str("kind", "RECEIPT"), label = str("label"), createdAt = lng("createdAt")
         )
     }
 

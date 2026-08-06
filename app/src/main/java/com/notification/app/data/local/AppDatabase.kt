@@ -16,13 +16,15 @@ import com.notification.app.data.local.entities.*
         LedgerTransactionEntity::class,
         Gam3iyaEntity::class,
         Gam3iyaMemberEntity::class,
+        Gam3iyaPaymentEntity::class,
+        Gam3iyaAttachmentEntity::class,
         AlarmEntity::class,
         WorkNoteEntity::class,
         FinancialItemEntity::class,
         HabitEntity::class,
         HabitLogEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -165,6 +167,75 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration 7→8 — Sprint 4: professional Gam3iya. Additive ALTER
+         * TABLEs on the two existing gam3iya tables (defaults reproduce the
+         * old MANAGER-only, no-photo behaviour) plus two new CREATE TABLEs
+         * for payment history and attachments. No existing data touched.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // gam3iyas — new columns
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN mode TEXT NOT NULL DEFAULT 'MANAGER'")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN currency TEXT NOT NULL DEFAULT 'EGP'")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN collectionTime TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN durationMonths INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN photoUri TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN reminderEnabled INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN reminderDaysBefore INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN alarmEnabled INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN organizerName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN organizerPhone TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN organizerWhatsapp TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN organizerEmail TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN myInstallmentAmount REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN myTurnNumber INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN myCollectionDate INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN myPaidInstallments INTEGER NOT NULL DEFAULT 0")
+                // gam3iya_members — new columns
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN photoUri TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN phone TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN whatsapp TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN address TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN nationalId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN installmentAmount REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN isLate INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+                // new tables
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS gam3iya_payments (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        gam3iyaId INTEGER NOT NULL,
+                        memberId INTEGER NOT NULL DEFAULT 0,
+                        monthIndex INTEGER NOT NULL DEFAULT 0,
+                        amount REAL NOT NULL DEFAULT 0,
+                        date INTEGER NOT NULL DEFAULT 0,
+                        type TEXT NOT NULL DEFAULT 'INSTALLMENT',
+                        note TEXT NOT NULL DEFAULT ''
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS gam3iya_attachments (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        gam3iyaId INTEGER NOT NULL,
+                        memberId INTEGER NOT NULL DEFAULT 0,
+                        uri TEXT NOT NULL,
+                        kind TEXT NOT NULL DEFAULT 'RECEIPT',
+                        label TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -174,7 +245,8 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
-                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7
+                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                    MIGRATION_7_8
                 )
                 // Safety net only — real migrations above preserve data.
                 .fallbackToDestructiveMigration()

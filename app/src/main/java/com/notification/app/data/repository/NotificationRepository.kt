@@ -72,7 +72,35 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun updateGam3iyaMember(member: Gam3iyaMemberEntity) =
         db.gam3iyaDao().updateMember(member)
 
-    suspend fun deleteGam3iya(gam3iya: Gam3iyaEntity) = db.gam3iyaDao().deleteGam3iya(gam3iya)
+    suspend fun deleteGam3iya(gam3iya: Gam3iyaEntity) {
+        // Cascade — the tables have no FK, so clear children explicitly.
+        db.gam3iyaDao().deleteMembersForGam3iya(gam3iya.id)
+        db.gam3iyaDao().deletePaymentsForGam3iya(gam3iya.id)
+        db.gam3iyaDao().deleteAttachmentsForGam3iya(gam3iya.id)
+        db.gam3iyaDao().deleteGam3iya(gam3iya)
+    }
+
+    // ── Sprint 4 — professional Gam3iya management ─────────────────────
+    suspend fun insertGam3iya(gam3iya: Gam3iyaEntity): Long = db.gam3iyaDao().insertGam3iya(gam3iya)
+    suspend fun updateGam3iya(gam3iya: Gam3iyaEntity) = db.gam3iyaDao().updateGam3iya(gam3iya)
+    suspend fun insertGam3iyaMember(member: Gam3iyaMemberEntity): Long =
+        db.gam3iyaDao().insertMember(member)
+    suspend fun deleteGam3iyaMember(member: Gam3iyaMemberEntity) = db.gam3iyaDao().deleteMember(member)
+    suspend fun getGam3iyaMemberById(id: Long): Gam3iyaMemberEntity? = db.gam3iyaDao().getMemberById(id)
+
+    val allGam3iyaPayments: Flow<List<Gam3iyaPaymentEntity>> = db.gam3iyaDao().getAllPayments()
+    fun getPaymentsForGam3iya(gam3iyaId: Long): Flow<List<Gam3iyaPaymentEntity>> =
+        db.gam3iyaDao().getPaymentsForGam3iya(gam3iyaId)
+    suspend fun insertGam3iyaPayment(payment: Gam3iyaPaymentEntity): Long =
+        db.gam3iyaDao().insertPayment(payment)
+    suspend fun deleteGam3iyaPayment(payment: Gam3iyaPaymentEntity) = db.gam3iyaDao().deletePayment(payment)
+
+    val allGam3iyaAttachments: Flow<List<Gam3iyaAttachmentEntity>> = db.gam3iyaDao().getAllAttachments()
+    fun getAttachmentsForGam3iya(gam3iyaId: Long): Flow<List<Gam3iyaAttachmentEntity>> =
+        db.gam3iyaDao().getAttachmentsForGam3iya(gam3iyaId)
+    suspend fun insertGam3iyaAttachment(a: Gam3iyaAttachmentEntity): Long =
+        db.gam3iyaDao().insertAttachment(a)
+    suspend fun deleteGam3iyaAttachment(a: Gam3iyaAttachmentEntity) = db.gam3iyaDao().deleteAttachment(a)
 
     // Alarms
     val allAlarms: Flow<List<AlarmEntity>> = db.alarmDao().getAllAlarms()

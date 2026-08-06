@@ -12,6 +12,7 @@ import com.notification.app.data.remote.GeminiContent
 import com.notification.app.data.remote.GeminiPart
 import com.notification.app.data.repository.GeminiRepository
 import com.notification.app.data.repository.NotificationRepository
+import com.notification.app.domain.calculator.Gam3iyaCalculator
 import com.notification.app.domain.calculator.PrayerTime
 import com.notification.app.domain.calculator.PrayerTimesCalculator
 import com.notification.app.domain.model.AiSuggestion
@@ -507,10 +508,157 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 totalAmount = totalAmount,
                 monthlyInstallment = monthlyInstallment,
                 membersCount = memberNamesWithTurns.size,
-                startDate = startDate
+                startDate = startDate,
+                createdAt = System.currentTimeMillis()
             )
             repository.createGam3iyaWithMembers(gam3iya, memberNamesWithTurns)
         }
+    }
+
+    // ── Sprint 4 — professional Gam3iya management ─────────────────────
+    val allGam3iyaPayments: StateFlow<List<Gam3iyaPaymentEntity>> =
+        repository.allGam3iyaPayments.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val allGam3iyaAttachments: StateFlow<List<Gam3iyaAttachmentEntity>> =
+        repository.allGam3iyaAttachments.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    fun getPaymentsForGam3iya(id: Long): Flow<List<Gam3iyaPaymentEntity>> =
+        repository.getPaymentsForGam3iya(id)
+    fun getAttachmentsForGam3iya(id: Long): Flow<List<Gam3iyaAttachmentEntity>> =
+        repository.getAttachmentsForGam3iya(id)
+
+    /** Create a MANAGER-mode gam3iya with a fully-detailed member list.
+     *  Returns nothing; the list flow updates reactively. */
+    fun createManagerGam3iya(gam3iya: Gam3iyaEntity, members: List<Gam3iyaMemberEntity>) {
+        viewModelScope.launch {
+            val base = gam3iya.copy(
+                mode = "MANAGER",
+                membersCount = members.size,
+                createdAt = if (gam3iya.createdAt == 0L) System.currentTimeMillis() else gam3iya.createdAt
+            )
+            val id = repository.insertGam3iya(base)
+            members.forEach { m ->
+                val payout = if (m.payoutDate > 0) m.payoutDate
+                else Gam3iyaCalculator.calculateMemberPayoutDate(base.startDate, m.turnMonth)
+                repository.insertGam3iyaMember(m.copy(gam3iyaId = id, payoutDate = payout))
+            }
+        }
+    }
+
+    /** Create a PARTICIPANT-mode gam3iya (I only take part). */
+    fun createParticipantGam3iya(gam3iya: Gam3iyaEntity) {
+        viewModelScope.launch {
+            repository.insertGam3iya(
+                gam3iya.copy(
+                    mode = "PARTICIPANT",
+                    membersCount = 0,
+                    createdAt = if (gam3iya.createdAt == 0L) System.currentTimeMillis() else gam3iya.createdAt
+                )
+            )
+        }
+    }
+
+    fun updateGam3iya(gam3iya: Gam3iyaEntity) {
+        viewModelScope.launch { repository.updateGam3iya(gam3iya) }
+    }
+
+    fun deleteGam3iya(gam3iya: Gam3iyaEntity) {
+        viewModelScope.launch { repository.deleteGam3iya(gam3iya) }
+    }
+
+    fun setGam3iyaStatus(gam3iya: Gam3iyaEntity, status: String) {
+        viewModelScope.launch { repository.updateGam3iya(gam3iya.copy(status = status)) }
+    }
+
+    fun addGam3iyaMember(gam3iyaId: Long, member: Gam3iyaMemberEntity) {
+        viewModelScope.launch {
+            val payout = if (member.payoutDate > 0) member.payoutDate else {
+                val g = repository.getGam3iyaById(gam3iyaId)
+                if (g != null) Gam3iyaCalculator.calculateMemberPayoutDate(g.startDate, member.turnMonth) else 0L
+            }
+            repository.insertGam3iyaMember(member.copy(gam3iyaId = gam3iyaId, payoutDate = payout))
+        }
+    }
+
+    fun updateGam3iyaMember(member: Gam3iyaMemberEntity) {
+        viewModelScope.launch { repository.updateGam3iyaMember(member) }
+    }
+
+    fun deleteGam3iyaMember(member: Gam3iyaMemberEntity) {
+        viewModelScope.launch { repository.deleteGam3iyaMember(member) }
+    }
+
+    /** Mark this member's installment paid/unpaid for the current month and
+     *  log a payment record when marking paid. */
+    fun markMemberInstallmentPaid(gam3iya: Gam3iyaEntity, member: Gam3iyaMemberEntity, paid: Boolean) {
+        viewModelScope.launch {
+            repository.updateGam3iyaMember(member.copy(isInstallmentPaidThisMonth = paid, isLate = if (paid) false else member.isLate))
+            if (paid) {
+                val amount = if (member.installmentAmount > 0) member.installmentAmount else gam3iya.monthlyInstallment
+                repository.insertGam3iyaPayment(
+                    Gam3iyaPaymentEntity(
+                        gam3iyaId = gam3iya.id, memberId = member.id,
+                        monthIndex = Gam3iyaCalculator.computeStatus(gam3iya, emptyList()).currentMonthIndex,
+                        amount = amount, date = System.currentTimeMillis(), type = "INSTALLMENT"
+                    )
+                )
+            }
+        }
+    }
+
+    /** Mark this member as having collected (received) their payout. */
+    fun markMemberCollected(gam3iya: Gam3iyaEntity, member: Gam3iyaMemberEntity, collected: Boolean) {
+        viewModelScope.launch {
+            repository.updateGam3iyaMember(member.copy(isPayoutReceived = collected))
+            if (collected) {
+                val amount = if (gam3iya.totalAmount > 0) gam3iya.totalAmount else gam3iya.monthlyInstallment * member.turnMonth
+                repository.insertGam3iyaPayment(
+                    Gam3iyaPaymentEntity(
+                        gam3iyaId = gam3iya.id, memberId = member.id,
+                        monthIndex = member.turnMonth, amount = amount,
+                        date = System.currentTimeMillis(), type = "COLLECTION"
+                    )
+                )
+            }
+        }
+    }
+
+    fun toggleMemberLate(member: Gam3iyaMemberEntity, late: Boolean) {
+        viewModelScope.launch { repository.updateGam3iyaMember(member.copy(isLate = late)) }
+    }
+
+    /** PARTICIPANT mode — record that I paid one more installment. */
+    fun participantRecordPayment(gam3iya: Gam3iyaEntity) {
+        viewModelScope.launch {
+            val amount = if (gam3iya.myInstallmentAmount > 0) gam3iya.myInstallmentAmount else gam3iya.monthlyInstallment
+            val newCount = gam3iya.myPaidInstallments + 1
+            repository.updateGam3iya(gam3iya.copy(myPaidInstallments = newCount))
+            repository.insertGam3iyaPayment(
+                Gam3iyaPaymentEntity(
+                    gam3iyaId = gam3iya.id, memberId = 0,
+                    monthIndex = newCount, amount = amount,
+                    date = System.currentTimeMillis(), type = "INSTALLMENT"
+                )
+            )
+        }
+    }
+
+    fun deleteGam3iyaPayment(payment: Gam3iyaPaymentEntity) {
+        viewModelScope.launch { repository.deleteGam3iyaPayment(payment) }
+    }
+
+    fun addGam3iyaAttachment(gam3iyaId: Long, memberId: Long, uri: String, kind: String, label: String) {
+        viewModelScope.launch {
+            repository.insertGam3iyaAttachment(
+                Gam3iyaAttachmentEntity(
+                    gam3iyaId = gam3iyaId, memberId = memberId, uri = uri,
+                    kind = kind, label = label, createdAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
+    fun deleteGam3iyaAttachment(a: Gam3iyaAttachmentEntity) {
+        viewModelScope.launch { repository.deleteGam3iyaAttachment(a) }
     }
 
     // Alarm Actions
