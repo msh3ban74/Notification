@@ -105,7 +105,13 @@ fun AiChatScreen(
                         val isUser = msg.role == "user"
                         val text = msg.parts.firstOrNull { !it.text.isNullOrBlank() }?.text ?: ""
                         if (text.isNotBlank()) {
-                            ChatBubble(text = text, isUser = isUser)
+                            // The newest model reply reveals progressively
+                            // (typing effect); older ones render instantly.
+                            ChatBubble(
+                                text = text,
+                                isUser = isUser,
+                                animateReveal = !isUser && index == lastModelIndex
+                            )
                             // Copy / share row under every model reply.
                             if (!isUser) {
                                 MessageActionsRow(
@@ -548,7 +554,20 @@ private fun renderMarkdownLite(text: String): androidx.compose.ui.text.Annotated
  * lines comfortable to read; Rafeeq's replies render markdown-lite.
  */
 @Composable
-fun ChatBubble(text: String, isUser: Boolean) {
+fun ChatBubble(text: String, isUser: Boolean, animateReveal: Boolean = false) {
+    // Progressive "typing" reveal for the newest reply — the streaming
+    // experience without the fragility of real SSE + tool interplay.
+    var shown by remember(text) { mutableStateOf(if (animateReveal) 0 else text.length) }
+    LaunchedEffect(text, animateReveal) {
+        if (!animateReveal) { shown = text.length; return@LaunchedEffect }
+        // ~45 chars/frame step keeps long replies quick but visibly typed.
+        while (shown < text.length) {
+            shown = (shown + 3).coerceAtMost(text.length)
+            kotlinx.coroutines.delay(12)
+        }
+    }
+    val display = text.take(shown)
+
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
@@ -568,7 +587,7 @@ fun ChatBubble(text: String, isUser: Boolean) {
                 text = if (isUser) {
                     androidx.compose.ui.text.AnnotatedString(text)
                 } else {
-                    renderMarkdownLite(text)
+                    renderMarkdownLite(display)
                 },
                 // Follow the content's own direction so Arabic replies read
                 // right-to-left (from the right edge) and English left-to-right,
