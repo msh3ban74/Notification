@@ -13,6 +13,10 @@ interface HabitDao {
     @Query("SELECT * FROM habit_logs")
     fun getAllLogs(): Flow<List<HabitLogEntity>>
 
+    // Backup needs archived habits too (getAllHabits hides them).
+    @Query("SELECT * FROM habits")
+    fun getAllHabitsRaw(): Flow<List<HabitEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHabit(habit: HabitEntity): Long
 

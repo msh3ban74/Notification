@@ -34,7 +34,10 @@ fun SettingsScreen(
     isArabic: Boolean,
     onSetLanguage: (String) -> Unit,
     onTriggerBackup: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    // "syncing" | "success" | "error: <reason>" | null — silent failures
+    // made the sync button look dead; now every outcome is visible.
+    backupState: String? = null
 ) {
     val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
@@ -137,12 +140,36 @@ fun SettingsScreen(
 
                         // Compact icon-only sync (the old full-width button
                         // dominated the card). Tonal, fixed size.
-                        FilledTonalIconButton(onClick = onTriggerBackup) {
-                            Icon(
-                                imageVector = Icons.Default.Sync,
-                                contentDescription = if (isArabic) "مزامنة الآن" else "Sync now"
+                        if (backupState == "syncing") {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(24.dp)
                             )
+                        } else {
+                            FilledTonalIconButton(onClick = onTriggerBackup) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = if (isArabic) "مزامنة الآن" else "Sync now"
+                                )
+                            }
                         }
+                    }
+
+                    // Visible outcome — success or the actual failure reason.
+                    when {
+                        backupState == "success" -> Text(
+                            text = if (isArabic) "✓ تم النسخ الاحتياطي بنجاح" else "✓ Backup completed",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        backupState?.startsWith("error:") == true -> Text(
+                            text = (if (isArabic) "تعذّرت المزامنة — " else "Sync failed — ") +
+                                backupState.removePrefix("error:").trim(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
                     }
                 }
             }
