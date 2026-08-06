@@ -31,16 +31,20 @@ class GeminiRepository(
                 ),
                 GeminiFunctionDeclaration(
                     name = "addReminder",
-                    description = "Create a new reminder for the user.",
+                    description = "Create a new reminder. Do NOT compute epoch timestamps yourself — " +
+                        "give the time as minutesFromNow for relative requests ('in 30 minutes', 'after an hour'), " +
+                        "or as hour (0-23) and minute for a clock time ('at 7', 'at 20:30'); the app resolves the exact time.",
                     parameters = mapOf(
                         "type" to "OBJECT",
                         "properties" to mapOf(
                             "title" to mapOf("type" to "STRING", "description" to "Reminder title"),
                             "note" to mapOf("type" to "STRING", "description" to "Optional note"),
-                            "dueDateMillis" to mapOf("type" to "NUMBER", "description" to "Epoch timestamp in milliseconds for due date/time"),
-                            "category" to mapOf("type" to "STRING", "description" to "Category: MONEY, APPOINTMENT, BIRTHDAY, BILL, TUTORING, or CUSTOM")
+                            "minutesFromNow" to mapOf("type" to "NUMBER", "description" to "Minutes from now (for relative times)"),
+                            "hour" to mapOf("type" to "NUMBER", "description" to "Clock hour 0-23 (device local time)"),
+                            "minute" to mapOf("type" to "NUMBER", "description" to "Clock minute 0-59 (defaults to 0)"),
+                            "category" to mapOf("type" to "STRING", "description" to "Category: MONEY, APPOINTMENT, BIRTHDAY, BILL, TUTORING, MEDICINE, WORK, EVENT, PERSONAL, or CUSTOM")
                         ),
-                        "required" to listOf("title", "dueDateMillis")
+                        "required" to listOf("title")
                     )
                 ),
                 GeminiFunctionDeclaration(
@@ -103,14 +107,19 @@ class GeminiRepository(
                 ),
                 GeminiFunctionDeclaration(
                     name = "setSmartAlarm",
-                    description = "Set an alarm for a specific date and time.",
+                    description = "Set an alarm. Do NOT compute epoch timestamps yourself — " +
+                        "give minutesFromNow for relative requests ('in 5 minutes', 'wake me in an hour'), " +
+                        "or hour (0-23) and minute for a clock time ('6 AM' → hour 6, 'wake me 7:30' → hour 7 minute 30); " +
+                        "the app resolves the exact time in the device's own clock.",
                     parameters = mapOf(
                         "type" to "OBJECT",
                         "properties" to mapOf(
                             "title" to mapOf("type" to "STRING", "description" to "Alarm label/title"),
-                            "timestampMillis" to mapOf("type" to "NUMBER", "description" to "Target epoch timestamp in milliseconds")
+                            "minutesFromNow" to mapOf("type" to "NUMBER", "description" to "Minutes from now (for relative alarms)"),
+                            "hour" to mapOf("type" to "NUMBER", "description" to "Clock hour 0-23 (device local time)"),
+                            "minute" to mapOf("type" to "NUMBER", "description" to "Clock minute 0-59 (defaults to 0)")
                         ),
-                        "required" to listOf("title", "timestampMillis")
+                        "required" to listOf("title")
                     )
                 )
             )
@@ -340,7 +349,9 @@ class GeminiRepository(
             "addReminder" -> {
                 val title = call.args["title"]?.toString() ?: "New Reminder"
                 val note = call.args["note"]?.toString() ?: ""
-                val due = (call.args["dueDateMillis"] as? Number)?.toLong() ?: (System.currentTimeMillis() + 3600000)
+                // Time is resolved on-device from minutesFromNow / hour+minute,
+                // never from a model-computed epoch (which drifts by hours).
+                val due = resolveTriggerTime(call.args, defaultOffsetMs = 3600000)
                 val cat = call.args["category"]?.toString() ?: "CUSTOM"
 
                 val id = notificationRepository.insertReminder(
@@ -452,7 +463,7 @@ class GeminiRepository(
             }
             "setSmartAlarm" -> {
                 val title = call.args["title"]?.toString() ?: "Smart Alarm"
-                val targetMillis = (call.args["timestampMillis"] as? Number)?.toLong() ?: (System.currentTimeMillis() + 600000)
+                val targetMillis = resolveTriggerTime(call.args, defaultOffsetMs = 600000)
 
                 val alarm = AlarmEntity(
                     title = title,
@@ -468,5 +479,38 @@ class GeminiRepository(
             }
             else -> "Unknown function call: ${call.name}"
         }
+    }
+
+    /**
+     * Resolves a trigger time from the model's arguments WITHOUT trusting it
+     * to do epoch arithmetic (which drifted by hours in practice):
+     *  • minutesFromNow  → now + N minutes
+     *  • hour [+ minute] → the next occurrence of that clock time in the
+     *    device's OWN timezone (today if still ahead, else tomorrow)
+     *  • otherwise       → now + defaultOffsetMs
+     * A legacy absolute epoch (timestampMillis/dueDateMillis) is honored
+     * only if it is actually in the future.
+     */
+    private fun resolveTriggerTime(args: Map<String, Any?>, defaultOffsetMs: Long): Long {
+        val now = System.currentTimeMillis()
+        (args["minutesFromNow"] as? Number)?.let { mins ->
+            if (mins.toLong() > 0) return now + mins.toLong() * 60_000L
+        }
+        (args["hour"] as? Number)?.let { h ->
+            val hour = h.toInt().coerceIn(0, 23)
+            val minute = (args["minute"] as? Number)?.toInt()?.coerceIn(0, 59) ?: 0
+            val cal = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            if (cal.timeInMillis <= now) cal.add(Calendar.DAY_OF_YEAR, 1)
+            return cal.timeInMillis
+        }
+        val legacy = (args["timestampMillis"] as? Number)?.toLong()
+            ?: (args["dueDateMillis"] as? Number)?.toLong()
+        if (legacy != null && legacy > now) return legacy
+        return now + defaultOffsetMs
     }
 }
