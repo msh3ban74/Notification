@@ -68,6 +68,12 @@ fun Gam3iyaDetailScreen(
             viewModel.addGam3iyaAttachment(gam3iya.id, 0, uri.toString(), "RECEIPT", "")
         }
     }
+    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) {
+            val csv = com.notification.app.domain.calculator.Gam3iyaExporter.buildCsv(gam3iya, members, payments)
+            com.notification.app.domain.calculator.Gam3iyaExporter.writeCsvToUri(context, uri, csv)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -94,6 +100,14 @@ fun Gam3iyaDetailScreen(
                         }
                         DropdownMenuItem(text = { Text(if (isArabic) "وضع كمنتهية" else "Mark completed") }, onClick = { menuOpen = false; viewModel.setGam3iyaStatus(gam3iya, "COMPLETED") },
                             leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) })
+                        DropdownMenuItem(text = { Text(if (isArabic) "تصدير CSV" else "Export CSV") }, onClick = {
+                            menuOpen = false
+                            csvLauncher.launch(com.notification.app.domain.calculator.Gam3iyaExporter.suggestedCsvName(gam3iya))
+                        }, leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) })
+                        DropdownMenuItem(text = { Text(if (isArabic) "طباعة / PDF" else "Print / PDF") }, onClick = {
+                            menuOpen = false
+                            com.notification.app.domain.calculator.Gam3iyaExporter.printGam3iya(context, gam3iya, members, isArabic)
+                        }, leadingIcon = { Icon(Icons.Default.Print, contentDescription = null) })
                         DropdownMenuItem(text = { Text(if (isArabic) "حذف" else "Delete") }, onClick = { menuOpen = false; confirmDelete = true },
                             leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) })
                     }

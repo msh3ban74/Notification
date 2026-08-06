@@ -68,7 +68,7 @@ class GeminiRepository(
                 ),
                 GeminiFunctionDeclaration(
                     name = "getGam3iyaInfo",
-                    description = "Get status of savings circles (gam3iya) and member payout dates.",
+                    description = "Get full status of the user's savings circles (gam3iya): who collects next and when, who is late, who hasn't paid this month, total paid vs remaining, current month, and each member's turn. Use this for any gam3iya question (next collector, late members, remaining amount, summary).",
                     parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
                 ),
                 // Phase E — the assistant reads ALL modules.
@@ -463,11 +463,30 @@ class GeminiRepository(
                 val gam3iyas = notificationRepository.allGam3iyas.first()
                 if (gam3iyas.isEmpty()) "No active gam3iyas."
                 else {
-                    gam3iyas.map { g ->
-                        val members = notificationRepository.getMembersForGam3iya(g.id).first()
-                        val summary = Gam3iyaCalculator.calculateSummary(g, members)
-                        val memberTurns = members.map { "${it.memberName} (Month ${it.turnMonth}: ${dateFormat.format(Date(it.payoutDate))})" }
-                        "Gam3iya '${g.title}': Total ${g.totalAmount} EGP, Duration ${summary.durationMonths} months. Turns: ${memberTurns.joinToString(", ")}"
+                    gam3iyas.joinToString("\n\n") { g ->
+                        val members = if (g.mode == "PARTICIPANT") emptyList()
+                        else notificationRepository.getMembersForGam3iya(g.id).first()
+                        val payments = notificationRepository.getPaymentsForGam3iya(g.id).first()
+                        val st = Gam3iyaCalculator.computeStatus(g, members, payments)
+                        val cur = g.currency
+                        val sb = StringBuilder()
+                        sb.append("Gam3iya '${g.title}' [${g.mode}, ${g.status}]: monthly ${g.monthlyInstallment} $cur, ")
+                        sb.append("month ${st.currentMonthIndex}/${st.durationMonths}, ${st.remainingMonths} months remaining. ")
+                        sb.append("Total paid ${st.totalPaid} $cur, remaining ${st.remainingAmount} $cur. ")
+                        if (g.mode == "PARTICIPANT") {
+                            sb.append("Organizer ${g.organizerName.ifBlank { "?" }} (${g.organizerPhone.ifBlank { "no phone" }}). ")
+                            sb.append("My turn ${g.myTurnNumber}, paid ${g.myPaidInstallments} installments. ")
+                            if (st.nextCollectionDate > 0) sb.append("My collection on ${dateFormat.format(Date(st.nextCollectionDate))}. ")
+                        } else {
+                            st.nextCollector?.let { sb.append("Next to collect: ${it.memberName} on ${dateFormat.format(Date(st.nextCollectionDate))}. ") }
+                            val late = st.lateMembers.map { it.memberName }
+                            if (late.isNotEmpty()) sb.append("LATE members: ${late.joinToString(", ")}. ")
+                            val unpaid = members.filter { !it.isInstallmentPaidThisMonth && !it.isPayoutReceived }.map { it.memberName }
+                            if (unpaid.isNotEmpty()) sb.append("Not paid this month: ${unpaid.joinToString(", ")}. ")
+                            val turns = members.sortedBy { it.turnMonth }.map { "${it.memberName} (turn ${it.turnMonth}: ${dateFormat.format(Date(it.payoutDate))}${if (it.isPayoutReceived) ", collected" else ""})" }
+                            if (turns.isNotEmpty()) sb.append("Turns: ${turns.joinToString(", ")}.")
+                        }
+                        sb.toString()
                     }
                 }
             }

@@ -18,6 +18,7 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun insertReminder(reminder: ReminderEntity): Long = db.reminderDao().insertReminder(reminder)
     suspend fun updateReminder(reminder: ReminderEntity) = db.reminderDao().updateReminder(reminder)
     suspend fun deleteReminder(reminder: ReminderEntity) = db.reminderDao().deleteReminder(reminder)
+    suspend fun deleteReminderById(id: Long) = db.reminderDao().deleteReminderById(id)
     suspend fun getReminderById(id: Long): ReminderEntity? = db.reminderDao().getReminderById(id)
 
     // Ledger & Person

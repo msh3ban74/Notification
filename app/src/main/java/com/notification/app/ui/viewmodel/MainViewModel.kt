@@ -541,32 +541,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 else Gam3iyaCalculator.calculateMemberPayoutDate(base.startDate, m.turnMonth)
                 repository.insertGam3iyaMember(m.copy(gam3iyaId = id, payoutDate = payout))
             }
+            syncGam3iyaReminder(base.copy(id = id, membersCount = members.size))
         }
     }
 
     /** Create a PARTICIPANT-mode gam3iya (I only take part). */
     fun createParticipantGam3iya(gam3iya: Gam3iyaEntity) {
         viewModelScope.launch {
-            repository.insertGam3iya(
-                gam3iya.copy(
-                    mode = "PARTICIPANT",
-                    membersCount = 0,
-                    createdAt = if (gam3iya.createdAt == 0L) System.currentTimeMillis() else gam3iya.createdAt
-                )
+            val p = gam3iya.copy(
+                mode = "PARTICIPANT",
+                membersCount = 0,
+                createdAt = if (gam3iya.createdAt == 0L) System.currentTimeMillis() else gam3iya.createdAt
             )
+            val id = repository.insertGam3iya(p)
+            syncGam3iyaReminder(p.copy(id = id))
         }
     }
 
     fun updateGam3iya(gam3iya: Gam3iyaEntity) {
-        viewModelScope.launch { repository.updateGam3iya(gam3iya) }
+        viewModelScope.launch {
+            repository.updateGam3iya(gam3iya)
+            syncGam3iyaReminder(gam3iya)
+        }
     }
 
     fun deleteGam3iya(gam3iya: Gam3iyaEntity) {
-        viewModelScope.launch { repository.deleteGam3iya(gam3iya) }
+        viewModelScope.launch {
+            AlarmManagerScheduler.cancelReminderAlarm(getApplication(), gam3iyaReminderId(gam3iya.id))
+            repository.deleteReminderById(gam3iyaReminderId(gam3iya.id))
+            repository.deleteGam3iya(gam3iya)
+        }
     }
 
     fun setGam3iyaStatus(gam3iya: Gam3iyaEntity, status: String) {
-        viewModelScope.launch { repository.updateGam3iya(gam3iya.copy(status = status)) }
+        viewModelScope.launch {
+            val updated = gam3iya.copy(status = status)
+            repository.updateGam3iya(updated)
+            syncGam3iyaReminder(updated)
+        }
     }
 
     fun addGam3iyaMember(gam3iyaId: Long, member: Gam3iyaMemberEntity) {
@@ -619,6 +631,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             }
+            // Collecting advances the next collector → reschedule the reminder.
+            syncGam3iyaReminder(gam3iya)
         }
     }
 
@@ -631,7 +645,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val amount = if (gam3iya.myInstallmentAmount > 0) gam3iya.myInstallmentAmount else gam3iya.monthlyInstallment
             val newCount = gam3iya.myPaidInstallments + 1
-            repository.updateGam3iya(gam3iya.copy(myPaidInstallments = newCount))
+            val updated = gam3iya.copy(myPaidInstallments = newCount)
+            repository.updateGam3iya(updated)
             repository.insertGam3iyaPayment(
                 Gam3iyaPaymentEntity(
                     gam3iyaId = gam3iya.id, memberId = 0,
@@ -639,6 +654,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     date = System.currentTimeMillis(), type = "INSTALLMENT"
                 )
             )
+            syncGam3iyaReminder(updated)
         }
     }
 
@@ -659,6 +675,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteGam3iyaAttachment(a: Gam3iyaAttachmentEntity) {
         viewModelScope.launch { repository.deleteGam3iyaAttachment(a) }
+    }
+
+    // ── Sprint 4 (phase 5) — notifications/alarms for a gam3iya ────────
+    // A single rolling "next event" reminder per gam3iya, upserted with a
+    // stable id derived from the gam3iya id (no schema change, no
+    // duplicates). It fires before + on the next collection (manager) or
+    // the next installment/collection (participant), reusing the app's one
+    // reminder+alarm pipeline.
+    private fun gam3iyaReminderId(gam3iyaId: Long): Long = 900_000_000L + gam3iyaId
+
+    /** (Re)compute and (re)schedule the next-event reminder for a gam3iya. */
+    private suspend fun syncGam3iyaReminder(gam3iya: Gam3iyaEntity) {
+        val rid = gam3iyaReminderId(gam3iya.id)
+        val app = getApplication<android.app.Application>()
+        val now = System.currentTimeMillis()
+
+        // Cancel path: reminders off, archived, or completed.
+        if (!gam3iya.reminderEnabled || gam3iya.status != "ACTIVE") {
+            AlarmManagerScheduler.cancelReminderAlarm(app, rid)
+            repository.deleteReminderById(rid)
+            return
+        }
+
+        val members = if (gam3iya.mode == "PARTICIPANT") emptyList()
+        else repository.getMembersForGam3iya(gam3iya.id).first()
+        val status = Gam3iyaCalculator.computeStatus(gam3iya, members)
+
+        val (date, label) = if (gam3iya.mode == "PARTICIPANT") {
+            val d = if (gam3iya.myCollectionDate > now) gam3iya.myCollectionDate
+            else Gam3iyaCalculator.calculateMemberPayoutDate(gam3iya.startDate, gam3iya.myPaidInstallments + 1)
+            d to (if (ar()) "قسط جمعية: ${gam3iya.title}" else "Gam3iya installment: ${gam3iya.title}")
+        } else {
+            val nc = status.nextCollector
+            (status.nextCollectionDate) to (
+                if (nc != null) (if (ar()) "قبض جمعية: ${nc.memberName}" else "Gam3iya payout: ${nc.memberName}")
+                else (if (ar()) "جمعية: ${gam3iya.title}" else "Gam3iya: ${gam3iya.title}")
+                )
+        }
+
+        if (date <= now) {
+            AlarmManagerScheduler.cancelReminderAlarm(app, rid)
+            repository.deleteReminderById(rid)
+            return
+        }
+
+        val reminder = ReminderEntity(
+            id = rid,
+            title = label,
+            note = if (ar()) "تذكير تلقائي من الجمعية" else "Automatic gam3iya reminder",
+            dueDate = date,
+            category = ReminderCategory.MONEY.name,
+            preAlerts = if (gam3iya.reminderDaysBefore >= 1) "ONE_DAY,ONE_HOUR" else "ONE_HOUR"
+        )
+        repository.insertReminder(reminder) // REPLACE upsert on the stable id
+        AlarmManagerScheduler.scheduleReminderAlarm(app, reminder)
+    }
+
+    /** Public trigger used by create/edit/mark flows. */
+    fun refreshGam3iyaReminder(gam3iya: Gam3iyaEntity) {
+        viewModelScope.launch { syncGam3iyaReminder(gam3iya) }
     }
 
     // Alarm Actions
