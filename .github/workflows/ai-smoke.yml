@@ -12,7 +12,7 @@ jobs:
   ai-smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Call generateContent with the app's model
+      - name: Call generateContent exactly like the app
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -23,15 +23,14 @@ jobs:
           BODY='{"contents":[{"role":"user","parts":[{"text":"Say OK"}]}],"generationConfig":{"thinkingConfig":{"thinkingBudget":0}}}'
           STATUS=$(curl -s -o resp.json -w "%{http_code}" \
             -H "Content-Type: application/json" \
-            -H "x-goog-api-key: $GEMINI_API_KEY" \
             -d "$BODY" \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent")
-          echo "HTTP_STATUS: $STATUS"
-          echo "RESPONSE (truncated):"
-          head -c 1500 resp.json
-          echo ""
-          # Also list which models this key can actually use.
-          echo "AVAILABLE FLASH MODELS FOR THIS KEY:"
-          curl -s -H "x-goog-api-key: $GEMINI_API_KEY" \
-            "https://generativelanguage.googleapis.com/v1beta/models?pageSize=50" \
-            | grep -o '"name": *"models/[^"]*"' | grep -i flash || echo "(model list unavailable)"
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=$GEMINI_API_KEY")
+          echo "HTTP_STATUS_WITH_THINKING_CONFIG: $STATUS"
+          head -c 800 resp.json; echo ""
+          BODY2='{"contents":[{"role":"user","parts":[{"text":"Say OK"}]}]}'
+          STATUS2=$(curl -s -o resp2.json -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY2" \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=$GEMINI_API_KEY")
+          echo "HTTP_STATUS_PLAIN: $STATUS2"
+          head -c 800 resp2.json; echo ""
