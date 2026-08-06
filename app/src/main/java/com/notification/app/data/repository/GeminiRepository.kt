@@ -121,7 +121,9 @@ class GeminiRepository(
         history: List<GeminiContent>,
         userMessage: String,
         customApiKey: String? = null,
-        onAlarmCreated: suspend (AlarmEntity) -> Unit = {}
+        isArabic: Boolean = false,
+        onAlarmCreated: suspend (AlarmEntity) -> Unit = {},
+        onReminderCreated: suspend (Long) -> Unit = {}
     ): Pair<String, List<GeminiContent>> {
         val apiKey = if (!customApiKey.isNullOrBlank()) customApiKey else BuildConfig.GEMINI_API_KEY
         val updatedHistory = history.toMutableList()
@@ -155,7 +157,10 @@ class GeminiRepository(
 
                 if (part?.functionCall != null) {
                     val fnCall = part.functionCall
-                    val toolResult = executeTool(fnCall, onAlarmCreated)
+                    // The tool runs NOW — its effect (alarm set, reminder
+                    // added…) is already committed regardless of what the
+                    // second round does.
+                    val toolResult = executeTool(fnCall, isArabic, onAlarmCreated, onReminderCreated)
 
                     // Provide function response back to model
                     val toolResponseContent = GeminiContent(
@@ -171,15 +176,24 @@ class GeminiRepository(
                     )
                     updatedHistory.add(toolResponseContent)
 
-                    // Second turn after tool call
-                    val followUpRequest = GeminiRequest(
-                        contents = updatedHistory,
-                        tools = toolsDefinition,
-                        systemInstruction = systemInstruction
-                    )
-                    val followUpResponse = RetrofitClient.geminiService.generateContent(apiKey, followUpRequest)
-                    val finalText = followUpResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                        ?: "Action completed: $toolResult"
+                    // Second turn after tool call — ISOLATED. If the newer
+                    // model rejects the follow-up (e.g. a signature quirk) or
+                    // the network blips, we still confirm what actually
+                    // happened instead of throwing away a completed action.
+                    val finalText = try {
+                        val followUpRequest = GeminiRequest(
+                            contents = updatedHistory,
+                            tools = toolsDefinition,
+                            systemInstruction = systemInstruction
+                        )
+                        val followUpResponse = RetrofitClient.geminiService.generateContent(apiKey, followUpRequest)
+                        followUpResponse.candidates?.firstOrNull()?.content?.parts
+                            ?.firstOrNull { !it.text.isNullOrBlank() }?.text
+                            ?: toolResult.toString()
+                    } catch (e: Exception) {
+                        // Tool already succeeded — report its result plainly.
+                        toolResult.toString()
+                    }
 
                     updatedHistory.add(
                         GeminiContent(role = "model", parts = listOf(GeminiPart(text = finalText)))
@@ -312,7 +326,9 @@ class GeminiRepository(
 
     private suspend fun executeTool(
         call: GeminiFunctionCall,
-        onAlarmCreated: suspend (AlarmEntity) -> Unit
+        isArabic: Boolean,
+        onAlarmCreated: suspend (AlarmEntity) -> Unit,
+        onReminderCreated: suspend (Long) -> Unit
     ): Any {
         val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
         return when (call.name) {
@@ -330,7 +346,10 @@ class GeminiRepository(
                 val id = notificationRepository.insertReminder(
                     ReminderEntity(title = title, note = note, dueDate = due, category = cat)
                 )
-                "Reminder '$title' added successfully (ID: $id)."
+                // Schedule the alert so an AI-created reminder actually fires.
+                onReminderCreated(id)
+                if (isArabic) "تم إنشاء التذكير \"$title\" وسيصلك تنبيهه في موعده ✅"
+                else "Reminder '$title' created — you'll be alerted on time ✅"
             }
             "getDebtsAndLedger" -> {
                 val persons = notificationRepository.allPersons.first()
@@ -412,7 +431,8 @@ class GeminiRepository(
                 } else {
                     val emoji = call.args["emoji"]?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: "✅"
                     notificationRepository.insertHabit(HabitEntity(title = title, emoji = emoji))
-                    "Habit '$title' created. It appears in the Habits screen and on the dashboard."
+                    if (isArabic) "تمت إضافة عادة \"$title\" — تلاقيها في شاشة العادات وعلى الرئيسية ✅"
+                    else "Habit '$title' created — find it in Habits and on the dashboard ✅"
                 }
             }
             "completeHabitToday" -> {
@@ -425,7 +445,9 @@ class GeminiRepository(
                     notificationRepository.setHabitDone(habit.id, HabitCalculator.dayStartOf(), true)
                     val days = notificationRepository.allHabitLogs.first()
                         .filter { it.habitId == habit.id }.map { it.dayStart }.toSet()
-                    "'${habit.title}' checked off for today. Current streak: ${HabitCalculator.currentStreak(days)} days."
+                    val streak = HabitCalculator.currentStreak(days)
+                    if (isArabic) "سجّلت إنجاز \"${habit.title}\" النهارده 🔥 سلسلتك الحالية $streak يوم"
+                    else "'${habit.title}' checked off for today 🔥 current streak: $streak days"
                 }
             }
             "setSmartAlarm" -> {
@@ -441,7 +463,8 @@ class GeminiRepository(
                 val alarmId = notificationRepository.insertAlarm(alarm)
                 val fullAlarm = alarm.copy(id = alarmId)
                 onAlarmCreated(fullAlarm)
-                "Alarm '$title' scheduled for ${dateFormat.format(Date(targetMillis))}."
+                if (isArabic) "ضبطت منبه \"$title\" الساعة ${dateFormat.format(Date(targetMillis))} ⏰"
+                else "Alarm '$title' set for ${dateFormat.format(Date(targetMillis))} ⏰"
             }
             else -> "Unknown function call: ${call.name}"
         }

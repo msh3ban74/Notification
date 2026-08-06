@@ -34,3 +34,11 @@ jobs:
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=$GEMINI_API_KEY")
           echo "HTTP_STATUS_PLAIN: $STATUS2"
           head -c 800 resp2.json; echo ""
+          # Replicate the APP's exact request: tools + systemInstruction.
+          BODY3='{"contents":[{"role":"user","parts":[{"text":"What are my tasks?"}]}],"tools":[{"functionDeclarations":[{"name":"getReminders","description":"Get reminders","parameters":{"type":"OBJECT","properties":{}}}]}],"systemInstruction":{"parts":[{"text":"You are Rafeeq."}]}}'
+          STATUS3=$(curl -s -o resp3.json -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY3" \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=$GEMINI_API_KEY")
+          echo "HTTP_STATUS_APP_SHAPE (tools+systemInstruction): $STATUS3"
+          head -c 1200 resp3.json; echo ""

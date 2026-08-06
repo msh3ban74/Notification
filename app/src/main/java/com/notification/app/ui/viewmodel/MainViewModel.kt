@@ -548,8 +548,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 geminiRepository.sendMessage(
                     history = previousHistory,
                     userMessage = userText,
+                    isArabic = language.value == "ar",
                     onAlarmCreated = { alarm ->
                         AlarmManagerScheduler.scheduleExactAlarm(getApplication(), alarm)
+                    },
+                    onReminderCreated = { reminderId ->
+                        repository.getReminderById(reminderId)?.let {
+                            AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), it)
+                        }
                     }
                 )
             }
