@@ -46,7 +46,10 @@ fun LedgerScreen(
     onAddTransaction: (LedgerTransactionEntity) -> Unit,
     onDeleteTransaction: (LedgerTransactionEntity) -> Unit,
     // Sprint 5 — edit flow. Optional so existing call sites keep working.
-    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null
+    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null,
+    // Person profile edit / delete (optional).
+    onUpdatePerson: ((PersonEntity) -> Unit)? = null,
+    onDeletePerson: ((PersonEntity) -> Unit)? = null
 ) {
     var selectedPersonForDetail by remember { mutableStateOf<PersonEntity?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Owed to me (لهم), 1: I owe (لي)
@@ -65,6 +68,8 @@ fun LedgerScreen(
             onAddTransaction = onAddTransaction,
             onDeleteTransaction = onDeleteTransaction,
             onUpdateTransaction = onUpdateTransaction,
+            onUpdatePerson = onUpdatePerson,
+            onDeletePerson = onDeletePerson?.let { del -> { p: PersonEntity -> del(p); selectedPersonForDetail = null } },
             onExportStatement = {
                 val statement = StatementExporter.generatePersonLedgerStatement(selectedPersonForDetail!!, personTxs)
                 val intent = Intent(Intent.ACTION_SEND).apply {
@@ -239,6 +244,10 @@ fun LedgerScreen(
         var email by remember { mutableStateOf("") }
         var address by remember { mutableStateOf("") }
         var category by remember { mutableStateOf("") }
+        var company by remember { mutableStateOf("") }
+        var nationalId by remember { mutableStateOf("") }
+        var notes by remember { mutableStateOf("") }
+        var tags by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showAddPersonDialog = false },
@@ -278,6 +287,26 @@ fun LedgerScreen(
                         label = { Text(if (isArabic) "التصنيف (عائلة، أصدقاء، عملاء…)" else "Category (family, friends, clients…)") },
                         singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
+                    OutlinedTextField(
+                        value = company, onValueChange = { company = it },
+                        label = { Text(if (isArabic) "الشركة (اختياري)" else "Company (optional)") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = nationalId, onValueChange = { nationalId = it },
+                        label = { Text(if (isArabic) "الرقم القومي (اختياري)" else "National ID (optional)") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = tags, onValueChange = { tags = it },
+                        label = { Text(if (isArabic) "وسوم (بفاصلة)" else "Tags (comma-separated)") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = notes, onValueChange = { notes = it },
+                        label = { Text(if (isArabic) "ملاحظات (اختياري)" else "Notes (optional)") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
@@ -288,7 +317,9 @@ fun LedgerScreen(
                             PersonEntity(
                                 name = name.trim(), phoneNumber = phone.trim(),
                                 whatsapp = whatsapp.trim(), email = email.trim(),
-                                address = address.trim(), category = category.trim()
+                                address = address.trim(), category = category.trim(),
+                                company = company.trim(), nationalId = nationalId.trim(),
+                                notes = notes.trim(), tags = tags.trim()
                             )
                         )
                         showAddPersonDialog = false
@@ -395,11 +426,16 @@ fun PersonDetailScreen(
     onExportStatement: () -> Unit,
     // Sprint 5 — edit flow. When provided, each transaction row gets an
     // Edit action that reopens the same dialog pre-filled.
-    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null
+    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null,
+    onUpdatePerson: ((PersonEntity) -> Unit)? = null,
+    onDeletePerson: ((PersonEntity) -> Unit)? = null
 ) {
     val summary = remember(transactions) { LedgerCalculator.calculateNetBalance(transactions) }
     var showAddTxDialog by remember { mutableStateOf(false) }
     var editingTx by remember { mutableStateOf<LedgerTransactionEntity?>(null) }
+    var showEditPerson by remember { mutableStateOf(false) }
+    var showDeletePerson by remember { mutableStateOf(false) }
+    var personMenu by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
 
     Scaffold(
@@ -412,8 +448,43 @@ fun PersonDetailScreen(
                     }
                 },
                 actions = {
+                    if (onUpdatePerson != null) {
+                        IconButton(onClick = { onUpdatePerson(person.copy(isFavorite = !person.isFavorite)) }) {
+                            Icon(
+                                imageVector = if (person.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = if (isArabic) "مفضّلة" else "Favorite",
+                                tint = if (person.isFavorite) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
+                        }
+                    }
                     IconButton(onClick = onExportStatement) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = "Export Statement")
+                        Icon(imageVector = Icons.Default.Share, contentDescription = if (isArabic) "مشاركة كشف الحساب" else "Share statement")
+                    }
+                    if (onUpdatePerson != null || onDeletePerson != null) {
+                        IconButton(onClick = { personMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = if (isArabic) "خيارات" else "Options")
+                        }
+                        DropdownMenu(expanded = personMenu, onDismissRequest = { personMenu = false }) {
+                            if (onUpdatePerson != null) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isArabic) "تعديل جهة الاتصال" else "Edit contact") },
+                                    onClick = { personMenu = false; showEditPerson = true },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (person.isArchived) (if (isArabic) "إلغاء الأرشفة" else "Unarchive") else (if (isArabic) "أرشفة" else "Archive")) },
+                                    onClick = { personMenu = false; onUpdatePerson(person.copy(isArchived = !person.isArchived)) },
+                                    leadingIcon = { Icon(if (person.isArchived) Icons.Default.Unarchive else Icons.Default.Archive, contentDescription = null) }
+                                )
+                            }
+                            if (onDeletePerson != null) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isArabic) "حذف جهة الاتصال" else "Delete contact") },
+                                    onClick = { personMenu = false; showDeletePerson = true },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) }
+                                )
+                            }
+                        }
                     }
                 }
             )
@@ -667,6 +738,71 @@ fun PersonDetailScreen(
                     Text(if (isArabic) "إلغاء" else "Cancel")
                 }
             }
+        )
+    }
+
+    if (showEditPerson && onUpdatePerson != null) {
+        var eName by remember { mutableStateOf(person.name) }
+        var ePhone by remember { mutableStateOf(person.phoneNumber) }
+        var eWhatsapp by remember { mutableStateOf(person.whatsapp) }
+        var eEmail by remember { mutableStateOf(person.email) }
+        var eAddress by remember { mutableStateOf(person.address) }
+        var eCategory by remember { mutableStateOf(person.category) }
+        var eCompany by remember { mutableStateOf(person.company) }
+        var eNationalId by remember { mutableStateOf(person.nationalId) }
+        var eTags by remember { mutableStateOf(person.tags) }
+        var eNotes by remember { mutableStateOf(person.notes) }
+        AlertDialog(
+            onDismissRequest = { showEditPerson = false },
+            title = { Text(if (isArabic) "تعديل جهة الاتصال" else "Edit contact") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    OutlinedTextField(eName, { eName = it }, label = { Text(if (isArabic) "الاسم" else "Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(ePhone, { ePhone = it }, label = { Text(if (isArabic) "رقم الهاتف" else "Phone") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eWhatsapp, { eWhatsapp = it }, label = { Text(if (isArabic) "واتساب" else "WhatsApp") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eEmail, { eEmail = it }, label = { Text(if (isArabic) "البريد الإلكتروني" else "Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eAddress, { eAddress = it }, label = { Text(if (isArabic) "العنوان" else "Address") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eCategory, { eCategory = it }, label = { Text(if (isArabic) "التصنيف" else "Category") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eCompany, { eCompany = it }, label = { Text(if (isArabic) "الشركة" else "Company") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eNationalId, { eNationalId = it }, label = { Text(if (isArabic) "الرقم القومي" else "National ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eTags, { eTags = it }, label = { Text(if (isArabic) "وسوم (بفاصلة)" else "Tags (comma-separated)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eNotes, { eNotes = it }, label = { Text(if (isArabic) "ملاحظات" else "Notes") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = eName.isNotBlank(),
+                    onClick = {
+                        onUpdatePerson(
+                            person.copy(
+                                name = eName.trim(), phoneNumber = ePhone.trim(), whatsapp = eWhatsapp.trim(),
+                                email = eEmail.trim(), address = eAddress.trim(), category = eCategory.trim(),
+                                company = eCompany.trim(), nationalId = eNationalId.trim(),
+                                tags = eTags.trim(), notes = eNotes.trim()
+                            )
+                        )
+                        showEditPerson = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
+                ) { Text(if (isArabic) "حفظ" else "Save") }
+            },
+            dismissButton = { TextButton(onClick = { showEditPerson = false }) { Text(if (isArabic) "إلغاء" else "Cancel") } }
+        )
+    }
+
+    if (showDeletePerson && onDeletePerson != null) {
+        AlertDialog(
+            onDismissRequest = { showDeletePerson = false },
+            title = { Text(if (isArabic) "حذف جهة الاتصال؟" else "Delete contact?") },
+            text = { Text(if (isArabic) "سيتم حذف جهة الاتصال وكل معاملاتها ومرفقاتها نهائيًا." else "This permanently deletes the contact with all its transactions and attachments.") },
+            confirmButton = {
+                Button(onClick = { showDeletePerson = false; onDeletePerson(person) },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(if (isArabic) "حذف" else "Delete") }
+            },
+            dismissButton = { TextButton(onClick = { showDeletePerson = false }) { Text(if (isArabic) "إلغاء" else "Cancel") } }
         )
     }
 }

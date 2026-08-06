@@ -436,7 +436,9 @@ class MainActivity : ComponentActivity() {
                                     onAddPersonFull = { viewModel.addPersonFull(it) },
                                     onAddTransaction = { viewModel.addLedgerTransaction(it) },
                                     onDeleteTransaction = { viewModel.deleteLedgerTransaction(it) },
-                                    onUpdateTransaction = { viewModel.updateLedgerTransaction(it) }
+                                    onUpdateTransaction = { viewModel.updateLedgerTransaction(it) },
+                                    onUpdatePerson = { viewModel.updatePerson(it) },
+                                    onDeletePerson = { viewModel.deletePerson(it) }
                                 )
                             }
 
