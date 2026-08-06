@@ -11,9 +11,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,7 +56,10 @@ fun NotificationsScreen(
     alarms: List<AlarmEntity>,
     isArabic: Boolean = false,
     /** v1.0 — empty-state CTA: jump to Tasks to schedule the first reminder. */
-    onCreateFirst: (() -> Unit)? = null
+    onCreateFirst: (() -> Unit)? = null,
+    // Product Completion — full delete from the feed (alarms + reminders).
+    onDeleteAlarm: ((AlarmEntity) -> Unit)? = null,
+    onDeleteReminder: ((ReminderEntity) -> Unit)? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("EEE dd MMM, hh:mm a", Locale.getDefault()) }
     val now = System.currentTimeMillis()
@@ -114,7 +119,8 @@ fun NotificationsScreen(
                     reminder = reminder,
                     isArabic = isArabic,
                     dateFormat = dateFormat,
-                    overdue = true
+                    overdue = true,
+                    onDelete = onDeleteReminder?.let { d -> { d(reminder) } }
                 )
             }
         }
@@ -131,7 +137,8 @@ fun NotificationsScreen(
                     reminder = reminder,
                     isArabic = isArabic,
                     dateFormat = dateFormat,
-                    overdue = false
+                    overdue = false,
+                    onDelete = onDeleteReminder?.let { d -> { d(reminder) } }
                 )
             }
         }
@@ -170,6 +177,15 @@ fun NotificationsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        if (onDeleteAlarm != null) {
+                            IconButton(onClick = { onDeleteAlarm(alarm) }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = if (isArabic) "حذف" else "Delete",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -193,7 +209,8 @@ private fun ReminderFeedCard(
     reminder: ReminderEntity,
     isArabic: Boolean,
     dateFormat: SimpleDateFormat,
-    overdue: Boolean
+    overdue: Boolean,
+    onDelete: (() -> Unit)? = null
 ) {
     val category = ReminderCategory.fromString(reminder.category)
 
@@ -243,6 +260,15 @@ private fun ReminderFeedCard(
                     maxLines = 1,
                     modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs)
                 )
+            }
+            if (onDelete != null) {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = if (isArabic) "حذف" else "Delete",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
     }

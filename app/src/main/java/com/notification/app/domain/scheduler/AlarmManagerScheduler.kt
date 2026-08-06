@@ -100,10 +100,22 @@ object AlarmManagerScheduler {
         triggerAtMillis: Long,
         pendingIntent: PendingIntent
     ) {
+        // setAlarmClock is the strongest guarantee: it fires at the EXACT
+        // time even in Doze, and — unlike setExactAndAllowWhileIdle — it
+        // does NOT require the SCHEDULE_EXACT_ALARM permission on Android
+        // 12+. This is why a short "in 1 minute" alarm now rings on time
+        // instead of being deferred to a ~9-minute idle window.
+        try {
+            val info = AlarmManager.AlarmClockInfo(triggerAtMillis, pendingIntent)
+            alarmManager.setAlarmClock(info, pendingIntent)
+            return
+        } catch (e: Exception) {
+            // Fall through to the exact/inexact ladder below.
+        }
+
         val canExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             alarmManager.canScheduleExactAlarms()
         } else true
-
         try {
             if (canExact) {
                 alarmManager.setExactAndAllowWhileIdle(
