@@ -253,6 +253,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Phase D — CRUD extras (pin / archive / duplicate).
+    fun toggleReminderPinned(reminder: ReminderEntity) {
+        viewModelScope.launch {
+            repository.updateReminder(reminder.copy(isPinned = !reminder.isPinned))
+        }
+    }
+
+    fun setReminderArchived(reminder: ReminderEntity, archived: Boolean) {
+        viewModelScope.launch {
+            repository.updateReminder(reminder.copy(isArchived = archived))
+        }
+    }
+
+    /**
+     * Duplicate rides the SAME insert-and-schedule pipeline as a new
+     * reminder, so the copy gets its own alarms. The copy starts fresh:
+     * not completed, not pinned, id 0 (auto-generated).
+     */
+    fun duplicateReminder(reminder: ReminderEntity) {
+        viewModelScope.launch {
+            insertAndScheduleReminder(
+                reminder.copy(
+                    id = 0,
+                    isCompleted = false,
+                    isPinned = false,
+                    isArchived = false,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+
     // Ledger Actions
     fun addPerson(name: String, phone: String = "") {
         viewModelScope.launch {

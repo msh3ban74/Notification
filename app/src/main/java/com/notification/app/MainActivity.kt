@@ -135,6 +135,9 @@ class MainActivity : ComponentActivity() {
             val lastSyncTime by viewModel.lastSyncTime.collectAsState()
 
             val reminders by viewModel.allReminders.collectAsState()
+            // Phase D — archived tasks stay out of Dashboard/Notifications;
+            // only the Tasks list (archive view) shows them.
+            val visibleReminders = remember(reminders) { reminders.filter { !it.isArchived } }
             val persons by viewModel.allPersons.collectAsState()
             val transactions by viewModel.allTransactions.collectAsState()
             val gam3iyas by viewModel.allGam3iyas.collectAsState()
@@ -329,7 +332,7 @@ class MainActivity : ComponentActivity() {
                                     isArabic = isArabic,
                                     userName = userName,
                                     gam3iyas = gam3iyas,
-                                    reminders = reminders,
+                                    reminders = visibleReminders,
                                     persons = persons,
                                     transactions = transactions,
                                     alarms = alarms,
@@ -394,7 +397,12 @@ class MainActivity : ComponentActivity() {
                                     onDeleteReminder = { viewModel.deleteReminder(it) },
                                     onEditReminder = { reminder ->
                                         navController.navigate(Screen.CreateTask.createRoute(reminder.id))
-                                    }
+                                    },
+                                    onTogglePin = { viewModel.toggleReminderPinned(it) },
+                                    onSetArchived = { reminder, archived ->
+                                        viewModel.setReminderArchived(reminder, archived)
+                                    },
+                                    onDuplicate = { viewModel.duplicateReminder(it) }
                                 )
                             }
 
@@ -402,7 +410,7 @@ class MainActivity : ComponentActivity() {
                                 // Sprint 5: real scheduled notifications from
                                 // the existing reminder + alarm flows.
                                 NotificationsScreen(
-                                    reminders = reminders,
+                                    reminders = visibleReminders,
                                     alarms = alarms,
                                     isArabic = isArabic,
                                     onCreateFirst = {
@@ -418,7 +426,7 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.Home.route) {
                                 HomeScreen(
                                     userName = userName,
-                                    reminders = reminders,
+                                    reminders = visibleReminders,
                                     prayerTimes = prayerTimes,
                                     isArabic = isArabic,
                                     onNavigateToReminders = { navController.navigate(Screen.Reminders.route) },
@@ -438,7 +446,12 @@ class MainActivity : ComponentActivity() {
                                     onDeleteReminder = { viewModel.deleteReminder(it) },
                                     onEditReminder = { reminder ->
                                         navController.navigate(Screen.CreateTask.createRoute(reminder.id))
-                                    }
+                                    },
+                                    onTogglePin = { viewModel.toggleReminderPinned(it) },
+                                    onSetArchived = { reminder, archived ->
+                                        viewModel.setReminderArchived(reminder, archived)
+                                    },
+                                    onDuplicate = { viewModel.duplicateReminder(it) }
                                 )
                             }
 
@@ -731,7 +744,17 @@ class MainActivity : ComponentActivity() {
                                     onEdit = { navController.navigate(Screen.EditFinancial.createRoute(it.id)) },
                                     onDelete = { viewModel.deleteFinancialItem(it) },
                                     onTogglePaid = { viewModel.updateFinancialItem(it.copy(isPaid = !it.isPaid)) },
-                                    onAdd = { navController.navigate(Screen.CreateFinancial.createRoute("BILL")) }
+                                    onAdd = { navController.navigate(Screen.CreateFinancial.createRoute("BILL")) },
+                                    // Phase D — duplicate as a fresh unpaid copy.
+                                    onDuplicate = {
+                                        viewModel.addFinancialItem(
+                                            it.copy(
+                                                id = 0,
+                                                isPaid = false,
+                                                createdAt = System.currentTimeMillis()
+                                            )
+                                        )
+                                    }
                                 )
                             }
 

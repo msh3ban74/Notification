@@ -12,20 +12,28 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -56,10 +64,28 @@ fun FinancialListScreen(
     onEdit: (FinancialItemEntity) -> Unit,
     onDelete: (FinancialItemEntity) -> Unit,
     onTogglePaid: (FinancialItemEntity) -> Unit,
-    onAdd: () -> Unit
+    onAdd: () -> Unit,
+    // Phase D — duplicate an item as a fresh unpaid copy.
+    onDuplicate: ((FinancialItemEntity) -> Unit)? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-    val sorted = remember(items) { items.sortedWith(compareBy({ it.isPaid }, { it.dueDate })) }
+
+    // Phase D — search + type filter on top of the unpaid-first sort.
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var typeFilter by rememberSaveable { mutableStateOf("") } // "" = all, else FinancialType name
+    val sorted = remember(items, searchQuery, typeFilter) {
+        val query = searchQuery.trim()
+        items.asSequence()
+            .filter { typeFilter.isEmpty() || it.type == typeFilter }
+            .filter {
+                query.isEmpty() ||
+                    it.title.contains(query, ignoreCase = true) ||
+                    it.seller.contains(query, ignoreCase = true) ||
+                    it.note.contains(query, ignoreCase = true)
+            }
+            .sortedWith(compareBy({ it.isPaid }, { it.dueDate }))
+            .toList()
+    }
 
     Scaffold(
         topBar = {
@@ -80,7 +106,7 @@ fun FinancialListScreen(
             )
         }
     ) { innerPadding ->
-        if (sorted.isEmpty()) {
+        if (items.isEmpty()) {
             Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                 EmptyState(
                     icon = Icons.Default.ReceiptLong,
@@ -93,16 +119,63 @@ fun FinancialListScreen(
             return@Scaffold
         }
 
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = AppPadding.screen),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                top = Spacing.sm, bottom = 96.dp
-            )
+                .padding(horizontal = AppPadding.screen)
         ) {
+            // Phase D — search + type filter controls.
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text(if (isArabic) "ابحث…" else "Search…") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.sm)
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                modifier = Modifier.padding(vertical = Spacing.xs)
+            ) {
+                FilterChip(
+                    selected = typeFilter.isEmpty(),
+                    onClick = { typeFilter = "" },
+                    label = { Text(if (isArabic) "الكل" else "All", maxLines = 1, softWrap = false) }
+                )
+                FinancialType.entries.forEach { t ->
+                    FilterChip(
+                        selected = typeFilter == t.name,
+                        onClick = { typeFilter = if (typeFilter == t.name) "" else t.name },
+                        label = {
+                            Text(
+                                if (isArabic) t.displayAr else t.displayEn,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    )
+                }
+            }
+
+            if (sorted.isEmpty()) {
+                Text(
+                    text = if (isArabic) "لا توجد نتائج مطابقة" else "No matching results",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(Spacing.sm)
+                )
+            }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    top = Spacing.sm, bottom = 96.dp
+                )
+            ) {
             items(sorted, key = { it.id }) { item ->
                 val type = FinancialType.fromString(item.type)
                 val icon = when (type) {
@@ -152,6 +225,15 @@ fun FinancialListScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                        if (onDuplicate != null) {
+                            IconButton(onClick = { onDuplicate(item) }) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = if (isArabic) "تكرار" else "Duplicate",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         IconButton(onClick = { onDelete(item) }) {
                             Icon(
                                 Icons.Default.Delete,
@@ -161,6 +243,7 @@ fun FinancialListScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

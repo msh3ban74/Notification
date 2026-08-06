@@ -20,5 +20,10 @@ data class ReminderEntity(
     val checklist: String = "",
     val tags: String = "",          // comma-separated
     val progress: Int = 0,          // 0..100
-    val location: String = ""
+    val location: String = "",
+    // Final Product sprint (Phase D) — CRUD extras, added via Migration
+    // 4→5. Pinned items always sort first; archived items are hidden
+    // from the main list (soft delete).
+    val isPinned: Boolean = false,
+    val isArchived: Boolean = false
 )
