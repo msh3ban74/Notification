@@ -523,7 +523,7 @@ private fun renderMarkdownLite(text: String): androidx.compose.ui.text.Annotated
                 return@forEachIndexed
             }
             // Pipe table: drop separator rows, render cells spaced.
-            if (trimmed.startsWith("|") && trimmed.contains("|", startIndex = 1)) {
+            if (trimmed.startsWith("|") && trimmed.indexOf('|', 1) >= 0) {
                 val cells = trimmed.trim('|').split("|").map { it.trim() }
                 if (cells.all { it.isEmpty() || it.all { ch -> ch == '-' || ch == ':' } }) {
                     return@forEachIndexed // separator row → skip
