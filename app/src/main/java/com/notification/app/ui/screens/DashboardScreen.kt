@@ -226,6 +226,7 @@ fun DashboardScreen(
             reminders = reminders,
             persons = persons,
             transactions = transactions,
+            financialItems = financialItems,
             aiSuggestions = aiSuggestions,
             aiLoading = aiSuggestionsLoading,
             onRefresh = onRefreshSuggestions,
@@ -933,6 +934,7 @@ private fun RafeeqSuggestionsSection(
     reminders: List<ReminderEntity>,
     persons: List<PersonEntity>,
     transactions: List<LedgerTransactionEntity>,
+    financialItems: List<FinancialItemEntity>,
     aiSuggestions: List<AiSuggestion>,
     aiLoading: Boolean,
     onRefresh: () -> Unit,
@@ -1004,7 +1006,8 @@ private fun RafeeqSuggestionsSection(
         isArabic = isArabic,
         reminders = reminders,
         persons = persons,
-        transactions = transactions
+        transactions = transactions,
+        financialItems = financialItems
     )
 }
 
@@ -1058,12 +1061,13 @@ private fun LocalRuleSuggestions(
     isArabic: Boolean,
     reminders: List<ReminderEntity>,
     persons: List<PersonEntity>,
-    transactions: List<LedgerTransactionEntity>
+    transactions: List<LedgerTransactionEntity>,
+    financialItems: List<FinancialItemEntity> = emptyList()
 ) {
     val now = System.currentTimeMillis()
     val weekAhead = now + 7L * 24 * 60 * 60 * 1000
 
-    val suggestions = remember(reminders, persons, transactions, isArabic) {
+    val suggestions = remember(reminders, persons, transactions, financialItems, isArabic) {
         buildList {
             val overdue = reminders.count { !it.isCompleted && it.dueDate < now }
             if (overdue > 0) add(
@@ -1097,6 +1101,13 @@ private fun LocalRuleSuggestions(
             if (medicineToday > 0) add(
                 if (isArabic) "لا تنسَ دواءك — $medicineToday ${if (medicineToday == 1) "جرعة" else "جرعات"} خلال ٢٤ ساعة"
                 else "Don't forget your medicine — $medicineToday dose${if (medicineToday == 1) "" else "s"} in the next 24h"
+            )
+
+            // Phase E — unpaid money items due within a week.
+            val paymentsDueSoon = financialItems.count { !it.isPaid && it.dueDate in now..weekAhead }
+            if (paymentsDueSoon > 0) add(
+                if (isArabic) "لديك $paymentsDueSoon ${if (paymentsDueSoon == 1) "التزام مالي" else "التزامات مالية"} خلال أسبوع — جهّز المبلغ"
+                else "You have $paymentsDueSoon payment${if (paymentsDueSoon == 1) "" else "s"} due within a week — plan ahead"
             )
         }.take(3)
     }
