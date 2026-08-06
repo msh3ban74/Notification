@@ -13,8 +13,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Snooze
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -62,12 +66,16 @@ class AlarmRingingActivity : ComponentActivity() {
         val ringtoneUri = intent.getStringExtra("EXTRA_RINGTONE_URI") ?: ""
         val snoozeMinutes = intent.getIntExtra("EXTRA_SNOOZE_MIN", SNOOZE_MINUTES)
 
+        val isArabic = java.util.Locale.getDefault().language == "ar"
+
         setContent {
-            NotificationTheme(darkTheme = true) {
+            NotificationTheme(darkTheme = true, isArabic = isArabic) {
                 AlarmRingingScreen(
                     title = title,
                     note = note,
                     category = category,
+                    isArabic = isArabic,
+                    snoozeMinutes = snoozeMinutes,
                     onDismiss = {
                         stopAlarmService()
                         finish()
@@ -105,14 +113,40 @@ class AlarmRingingActivity : ComponentActivity() {
     }
 }
 
+/** Category string → a fitting glyph for the ringing screen. */
+private fun iconForCategory(category: String): ImageVector = when (category.uppercase()) {
+    "BILL", "MONEY" -> Icons.Default.Payments
+    "APPOINTMENT" -> Icons.Default.CalendarMonth
+    "MEDICINE" -> Icons.Default.Medication
+    else -> Icons.Default.Alarm
+}
+
 @Composable
 fun AlarmRingingScreen(
     title: String,
     note: String,
     category: String,
+    isArabic: Boolean = false,
+    snoozeMinutes: Int = 10,
     onDismiss: () -> Unit,
     onSnooze: () -> Unit
 ) {
+    // Live clock — updates every second so the ringing screen shows the
+    // real current time, like a professional alarm.
+    var nowMillis by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    val timeFormat = androidx.compose.runtime.remember {
+        java.text.SimpleDateFormat("hh:mm", java.util.Locale.getDefault())
+    }
+    val ampmFormat = androidx.compose.runtime.remember {
+        java.text.SimpleDateFormat("a", java.util.Locale.getDefault())
+    }
+
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -140,7 +174,28 @@ fun AlarmRingingScreen(
             verticalArrangement = Arrangement.Center
         ) {
 
-            // Pulsing Animated Bell Symbol
+            // Large live clock.
+            if (nowMillis > 0) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = timeFormat.format(java.util.Date(nowMillis)),
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontSize = 72.sp, fontWeight = FontWeight.Bold
+                        ),
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = ampmFormat.format(java.util.Date(nowMillis)),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(bottom = 14.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // Pulsing Animated Category Symbol
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -155,7 +210,7 @@ fun AlarmRingingScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Alarm,
+                        imageVector = iconForCategory(category),
                         contentDescription = "Ringing Icon",
                         tint = Color.White,
                         modifier = Modifier.size(56.dp)
@@ -223,7 +278,10 @@ fun AlarmRingingScreen(
                 ) {
                     Icon(imageVector = Icons.Default.Snooze, contentDescription = "Snooze")
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Snooze 10m", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = if (isArabic) "غفوة $snoozeMinutes د" else "Snooze $snoozeMinutes m",
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
 
                 Button(
@@ -240,7 +298,7 @@ fun AlarmRingingScreen(
                 ) {
                     Icon(imageVector = Icons.Default.Check, contentDescription = "Dismiss")
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Done", fontWeight = FontWeight.Bold)
+                    Text(text = if (isArabic) "تم" else "Done", fontWeight = FontWeight.Bold)
                 }
             }
         }
