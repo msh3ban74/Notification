@@ -849,6 +849,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _fileRestoreState.value = null
     }
 
+    // ── Sprint 3 — automatic scheduled backup ──────────────────────────────
+    val autoBackupFreq: StateFlow<String> = preferencesRepository.autoBackupFreqFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "OFF")
+    val autoBackupCharging: StateFlow<Boolean> = preferencesRepository.autoBackupChargingFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val autoBackupWifi: StateFlow<Boolean> = preferencesRepository.autoBackupWifiFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val autoBackupTreeUri: StateFlow<String> = preferencesRepository.autoBackupTreeUriFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val autoBackupLast: StateFlow<Long> = preferencesRepository.autoBackupLastFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+
+    /** Re-arm the WorkManager schedule from the latest persisted settings. */
+    private suspend fun rearmAutoBackup() {
+        com.notification.app.domain.backup.AutoBackupScheduler.reschedule(
+            getApplication(),
+            preferencesRepository.autoBackupFreqFlow.first(),
+            preferencesRepository.autoBackupChargingFlow.first(),
+            preferencesRepository.autoBackupWifiFlow.first()
+        )
+    }
+
+    fun setAutoBackupFrequency(value: String) {
+        viewModelScope.launch {
+            preferencesRepository.setAutoBackupFreq(value)
+            rearmAutoBackup()
+        }
+    }
+
+    fun setAutoBackupCharging(value: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setAutoBackupCharging(value)
+            rearmAutoBackup()
+        }
+    }
+
+    fun setAutoBackupWifi(value: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setAutoBackupWifi(value)
+            rearmAutoBackup()
+        }
+    }
+
+    /** The user granted a destination folder — persist the URI (with a
+     *  persistable permission held by the Activity) and re-arm. */
+    fun setAutoBackupFolder(treeUri: android.net.Uri) {
+        viewModelScope.launch {
+            preferencesRepository.setAutoBackupTreeUri(treeUri.toString())
+            rearmAutoBackup()
+        }
+    }
+
     /** After a restore, re-schedule alarms + pending reminders so restored
      *  items actually fire (their AlarmManager registrations are gone). */
     private suspend fun rescheduleEverythingAfterRestore() {

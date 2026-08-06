@@ -34,7 +34,25 @@ class UserPreferencesRepository(private val context: Context) {
         // survives process death / app restart (ViewModel alone only
         // survives rotation).
         val CHAT_HISTORY = stringPreferencesKey("ai_chat_history_json")
+        // Sprint 3 — automatic scheduled backup settings.
+        val AUTO_BACKUP_FREQ = stringPreferencesKey("auto_backup_frequency") // OFF/DAILY/WEEKLY/MONTHLY
+        val AUTO_BACKUP_CHARGING = booleanPreferencesKey("auto_backup_charging_only")
+        val AUTO_BACKUP_WIFI = booleanPreferencesKey("auto_backup_wifi_only")
+        val AUTO_BACKUP_TREE_URI = stringPreferencesKey("auto_backup_tree_uri")
+        val AUTO_BACKUP_LAST = longPreferencesKey("auto_backup_last_at")
     }
+
+    val autoBackupFreqFlow: Flow<String> = context.dataStore.data.map { it[PreferenceKeys.AUTO_BACKUP_FREQ] ?: "OFF" }
+    val autoBackupChargingFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.AUTO_BACKUP_CHARGING] ?: false }
+    val autoBackupWifiFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.AUTO_BACKUP_WIFI] ?: false }
+    val autoBackupTreeUriFlow: Flow<String> = context.dataStore.data.map { it[PreferenceKeys.AUTO_BACKUP_TREE_URI] ?: "" }
+    val autoBackupLastFlow: Flow<Long> = context.dataStore.data.map { it[PreferenceKeys.AUTO_BACKUP_LAST] ?: 0L }
+
+    suspend fun setAutoBackupFreq(v: String) { context.dataStore.edit { it[PreferenceKeys.AUTO_BACKUP_FREQ] = v } }
+    suspend fun setAutoBackupCharging(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.AUTO_BACKUP_CHARGING] = v } }
+    suspend fun setAutoBackupWifi(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.AUTO_BACKUP_WIFI] = v } }
+    suspend fun setAutoBackupTreeUri(v: String) { context.dataStore.edit { it[PreferenceKeys.AUTO_BACKUP_TREE_URI] = v } }
+    suspend fun setAutoBackupLast(v: Long) { context.dataStore.edit { it[PreferenceKeys.AUTO_BACKUP_LAST] = v } }
 
     val chatHistoryFlow: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[PreferenceKeys.CHAT_HISTORY] ?: ""

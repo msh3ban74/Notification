@@ -530,6 +530,11 @@ class MainActivity : ComponentActivity() {
                                 val fileBackupState by viewModel.fileBackupState.collectAsState()
                                 val fileRestoreState by viewModel.fileRestoreState.collectAsState()
                                 val restorePreview by viewModel.restorePreview.collectAsState()
+                                val autoBackupFreq by viewModel.autoBackupFreq.collectAsState()
+                                val autoBackupCharging by viewModel.autoBackupCharging.collectAsState()
+                                val autoBackupWifi by viewModel.autoBackupWifi.collectAsState()
+                                val autoBackupTreeUri by viewModel.autoBackupTreeUri.collectAsState()
+                                val autoBackupLast by viewModel.autoBackupLast.collectAsState()
                                 SettingsScreen(
                                     currentLanguage = language,
                                     isLoggedIn = isLoggedIn,
@@ -550,6 +555,15 @@ class MainActivity : ComponentActivity() {
                                     restorePreview = restorePreview,
                                     onConfirmRestore = { viewModel.confirmRestoreFromFile() },
                                     onCancelRestore = { viewModel.cancelRestorePreview() },
+                                    autoBackupFreq = autoBackupFreq,
+                                    autoBackupCharging = autoBackupCharging,
+                                    autoBackupWifi = autoBackupWifi,
+                                    autoBackupTreeUri = autoBackupTreeUri,
+                                    autoBackupLast = autoBackupLast,
+                                    onSetAutoBackupFreq = { viewModel.setAutoBackupFrequency(it) },
+                                    onSetAutoBackupCharging = { viewModel.setAutoBackupCharging(it) },
+                                    onSetAutoBackupWifi = { viewModel.setAutoBackupWifi(it) },
+                                    onPickAutoBackupFolder = { viewModel.setAutoBackupFolder(it) },
                                     onSignOut = {
                                         // Stability sprint — REAL logout:
                                         // Firebase sign-out + persisted session
