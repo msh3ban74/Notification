@@ -15,18 +15,7 @@ import java.util.concurrent.TimeUnit
 data class GeminiRequest(
     val contents: List<GeminiContent>,
     val tools: List<GeminiTool>? = null,
-    val systemInstruction: GeminiContent? = null,
-    // gemini-2.5-flash "thinks" before answering by default; a chat app
-    // with a 15s ceiling wants instant answers, so thinking is off.
-    val generationConfig: GeminiGenerationConfig? = GeminiGenerationConfig()
-)
-
-data class GeminiGenerationConfig(
-    val thinkingConfig: GeminiThinkingConfig? = GeminiThinkingConfig()
-)
-
-data class GeminiThinkingConfig(
-    val thinkingBudget: Int = 0
+    val systemInstruction: GeminiContent? = null
 )
 
 data class GeminiContent(
@@ -70,10 +59,13 @@ data class GeminiCandidate(
 )
 
 interface GeminiApiService {
-    // gemini-1.5-flash was retired by Google (every call now returns 404,
-    // which made the assistant "never reply"). gemini-2.5-flash is the
-    // current stable GA model on the same v1beta generateContent API.
-    @POST("v1beta/models/gemini-2.5-flash:generateContent")
+    // Pinned model names keep dying (1.5-flash retired; 2.5-flash closed
+    // to new API keys — both verified via the AI Smoke Test workflow).
+    // "gemini-flash-latest" is Google's rolling alias for the newest
+    // flash model, so this can never 404 again. Verified 200 OK with
+    // this project's key. No generationConfig: newer models reject the
+    // old thinkingBudget knob (400 INVALID_ARGUMENT).
+    @POST("v1beta/models/gemini-flash-latest:generateContent")
     suspend fun generateContent(
         @Query("key") apiKey: String,
         @Body request: GeminiRequest
