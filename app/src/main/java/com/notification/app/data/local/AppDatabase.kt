@@ -18,9 +18,11 @@ import com.notification.app.data.local.entities.*
         Gam3iyaMemberEntity::class,
         AlarmEntity::class,
         WorkNoteEntity::class,
-        FinancialItemEntity::class
+        FinancialItemEntity::class,
+        HabitEntity::class,
+        HabitLogEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun alarmDao(): AlarmDao
     abstract fun workNoteDao(): WorkNoteDao
     abstract fun financialDao(): FinancialDao
+    abstract fun habitDao(): HabitDao
 
     companion object {
         @Volatile
@@ -86,6 +89,41 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration 3→4 — Phase C: the habit engine tables. CREATE TABLE
+         * only (plus the unique per-day log index Room expects), so no
+         * existing data is touched. Mirrors HabitEntity / HabitLogEntity.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS habits (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        title TEXT NOT NULL,
+                        emoji TEXT NOT NULL DEFAULT '✅',
+                        note TEXT NOT NULL DEFAULT '',
+                        isArchived INTEGER NOT NULL DEFAULT 0,
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS habit_logs (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        habitId INTEGER NOT NULL,
+                        dayStart INTEGER NOT NULL,
+                        completedAt INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_habit_logs_habitId_dayStart ON habit_logs(habitId, dayStart)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -93,7 +131,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "notification_app_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 // Safety net only — real migrations above preserve data.
                 .fallbackToDestructiveMigration()
                 .build()

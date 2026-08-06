@@ -89,6 +89,28 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun updateFinancialItem(item: FinancialItemEntity) = db.financialDao().update(item)
     suspend fun deleteFinancialItem(item: FinancialItemEntity) = db.financialDao().delete(item)
 
+    // Phase C — habit engine. A habit is "done today" when a log row
+    // exists for today's local-midnight dayStart; toggling deletes or
+    // inserts that row (unique index keeps it one-per-day).
+    val allHabits: Flow<List<HabitEntity>> = db.habitDao().getAllHabits()
+    val allHabitLogs: Flow<List<HabitLogEntity>> = db.habitDao().getAllLogs()
+
+    suspend fun insertHabit(habit: HabitEntity): Long = db.habitDao().insertHabit(habit)
+    suspend fun updateHabit(habit: HabitEntity) = db.habitDao().updateHabit(habit)
+
+    suspend fun deleteHabit(habit: HabitEntity) {
+        db.habitDao().deleteLogsForHabit(habit.id)
+        db.habitDao().deleteHabit(habit)
+    }
+
+    suspend fun setHabitDone(habitId: Long, dayStart: Long, done: Boolean) {
+        if (done) {
+            db.habitDao().insertLog(HabitLogEntity(habitId = habitId, dayStart = dayStart))
+        } else {
+            db.habitDao().deleteLog(habitId, dayStart)
+        }
+    }
+
     // Work Notes
     val allWorkNotes: Flow<List<WorkNoteEntity>> = db.workNoteDao().getAllNotes()
 

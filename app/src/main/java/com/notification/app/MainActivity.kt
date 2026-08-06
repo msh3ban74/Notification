@@ -115,6 +115,9 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
 
     // The money list (bills / installments / subscriptions).
     object Financial : Screen("financial", "Money", "المالية", Icons.Default.AccountBalanceWallet)
+
+    // Final Product sprint (Phase C) — the habit engine screen.
+    object Habits : Screen("habits", "Habits", "العادات", Icons.Default.Add)
 }
 
 class MainActivity : ComponentActivity() {
@@ -732,6 +735,24 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            // Phase C — the habit engine.
+                            composable(Screen.Habits.route) {
+                                val habits by viewModel.allHabits.collectAsState()
+                                val habitLogs by viewModel.allHabitLogs.collectAsState()
+                                HabitsScreen(
+                                    isArabic = isArabic,
+                                    habits = habits,
+                                    logs = habitLogs,
+                                    onBack = { navController.popBackStack() },
+                                    onAddHabit = { viewModel.addHabit(it) },
+                                    onDeleteHabit = { viewModel.deleteHabit(it) },
+                                    onArchiveHabit = { viewModel.updateHabit(it) },
+                                    onToggleToday = { habitId, dayStart, done ->
+                                        viewModel.setHabitDone(habitId, dayStart, done)
+                                    }
+                                )
+                            }
+
                             composable(Screen.CreateGam3iya.route) {
                                 CreateGam3iyaScreen(
                                     isArabic = isArabic,
@@ -808,6 +829,7 @@ class MainActivity : ComponentActivity() {
                                         Screen.CreateSmartReminder.createRoute(item.id)
                                     )
                                     "gam3iya" -> navController.navigate(Screen.CreateGam3iya.route)
+                                    "habit" -> navController.navigate(Screen.Habits.route)
                                     else -> navController.navigate(
                                         Screen.SmartItemPlaceholder.createRoute(item.id)
                                     )

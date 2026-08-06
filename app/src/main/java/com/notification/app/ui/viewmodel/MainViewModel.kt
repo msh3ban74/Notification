@@ -99,6 +99,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteFinancialItem(item) }
     }
 
+    // Phase C — habit engine. The log flow feeds HabitCalculator
+    // (streaks / calendar / percentages) in the UI layer.
+    val allHabits: StateFlow<List<HabitEntity>> = repository.allHabits
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val allHabitLogs: StateFlow<List<HabitLogEntity>> = repository.allHabitLogs
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    fun addHabit(habit: HabitEntity) {
+        viewModelScope.launch { repository.insertHabit(habit) }
+    }
+
+    fun updateHabit(habit: HabitEntity) {
+        viewModelScope.launch { repository.updateHabit(habit) }
+    }
+
+    fun deleteHabit(habit: HabitEntity) {
+        viewModelScope.launch { repository.deleteHabit(habit) }
+    }
+
+    fun setHabitDone(habitId: Long, dayStart: Long, done: Boolean) {
+        viewModelScope.launch { repository.setHabitDone(habitId, dayStart, done) }
+    }
+
     // Islamic Prayers State
     private val _prayerTimes = MutableStateFlow<List<PrayerTime>>(emptyList())
     val prayerTimes: StateFlow<List<PrayerTime>> = _prayerTimes.asStateFlow()
