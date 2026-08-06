@@ -34,12 +34,33 @@ class UserPreferencesRepository(private val context: Context) {
         // survives process death / app restart (ViewModel alone only
         // survives rotation).
         val CHAT_HISTORY = stringPreferencesKey("ai_chat_history_json")
+        // Water tracker — persisted per-day so the count survives app
+        // restart / process death and resets automatically on a new day.
+        val WATER_COUNT = intPreferencesKey("water_count_today")
+        val WATER_DAY = longPreferencesKey("water_count_day_start")
         // Sprint 3 — automatic scheduled backup settings.
         val AUTO_BACKUP_FREQ = stringPreferencesKey("auto_backup_frequency") // OFF/DAILY/WEEKLY/MONTHLY
         val AUTO_BACKUP_CHARGING = booleanPreferencesKey("auto_backup_charging_only")
         val AUTO_BACKUP_WIFI = booleanPreferencesKey("auto_backup_wifi_only")
         val AUTO_BACKUP_TREE_URI = stringPreferencesKey("auto_backup_tree_uri")
         val AUTO_BACKUP_LAST = longPreferencesKey("auto_backup_last_at")
+    }
+
+    private fun todayStartMillis(): Long = java.util.Calendar.getInstance().apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    /** Today's water count; automatically 0 once the stored day is not today. */
+    val waterCountFlow: Flow<Int> = context.dataStore.data.map { prefs ->
+        if ((prefs[PreferenceKeys.WATER_DAY] ?: 0L) == todayStartMillis()) prefs[PreferenceKeys.WATER_COUNT] ?: 0 else 0
+    }
+
+    suspend fun setWaterCount(count: Int) {
+        context.dataStore.edit {
+            it[PreferenceKeys.WATER_COUNT] = count.coerceAtLeast(0)
+            it[PreferenceKeys.WATER_DAY] = todayStartMillis()
+        }
     }
 
     val autoBackupFreqFlow: Flow<String> = context.dataStore.data.map { it[PreferenceKeys.AUTO_BACKUP_FREQ] ?: "OFF" }

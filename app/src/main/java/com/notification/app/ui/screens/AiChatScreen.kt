@@ -58,6 +58,7 @@ fun AiChatScreen(
     onOpenTasks: () -> Unit = {},
     onOpenLedger: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
+    onOpenFinancial: () -> Unit = {},
     // AI sprint — chat controls.
     onStopGeneration: () -> Unit = {},
     onRegenerate: () -> Unit = {},
@@ -141,7 +142,8 @@ fun AiChatScreen(
                                     isArabic = isArabic,
                                     onOpenTasks = onOpenTasks,
                                     onOpenLedger = onOpenLedger,
-                                    onOpenNotifications = onOpenNotifications
+                                    onOpenNotifications = onOpenNotifications,
+                                    onOpenFinancial = onOpenFinancial
                                 )
                             }
                         }
@@ -426,14 +428,17 @@ private fun ActionChipsRow(
     isArabic: Boolean,
     onOpenTasks: () -> Unit,
     onOpenLedger: () -> Unit,
-    onOpenNotifications: () -> Unit
+    onOpenNotifications: () -> Unit,
+    onOpenFinancial: () -> Unit
 ) {
     data class ChipAction(val label: String, val onClick: () -> Unit)
 
     val lower = replyText.lowercase()
     val chips = buildList {
-        if ("فاتورة" in replyText || "فواتير" in replyText || "bill" in lower) {
-            add(ChipAction(if (isArabic) "افتح الفواتير" else "Open Bills", onOpenTasks))
+        if ("فاتورة" in replyText || "فواتير" in replyText || "قسط" in replyText ||
+            "أقساط" in replyText || "bill" in lower || "installment" in lower
+        ) {
+            add(ChipAction(if (isArabic) "افتح المالية" else "Open Money", onOpenFinancial))
         }
         if ("دين" in replyText || "ديون" in replyText || "فلوس" in replyText ||
             "debt" in lower || "owe" in lower

@@ -376,9 +376,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         const val AI_GENERATION_TIMEOUT_MS: Long = 30_000L
     }
 
-    // Water counter state
-    private val _waterCount = MutableStateFlow(0)
-    val waterCount: StateFlow<Int> = _waterCount.asStateFlow()
+    // Water counter — persisted per-day (survives restart, resets each day).
+    val waterCount: StateFlow<Int> = preferencesRepository.waterCountFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     init {
         // Stability sprint — runtime verification of the key pipeline
@@ -899,7 +899,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun incrementWater() {
-        _waterCount.value++
+        viewModelScope.launch { preferencesRepository.setWaterCount(waterCount.value + 1) }
     }
 
     // AI Chat

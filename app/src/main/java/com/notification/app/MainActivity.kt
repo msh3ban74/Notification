@@ -41,10 +41,10 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     object Tasks : Screen("tasks", "Tasks", "المهام", Icons.Default.Assignment)
     object Notifications : Screen("notifications", "Notifications", "الإشعارات", Icons.Default.NotificationsActive)
 
-    // Existing feature screens — kept fully intact and reachable from
-    // Dashboard's Quick Actions, but no longer shown in Bottom Navigation.
-    object Home : Screen("home", "Home", "الرئيسية", Icons.Default.Home)
-    object Reminders : Screen("reminders", "Reminders", "التذكيرات", Icons.Default.NotificationsActive)
+    // Existing feature screens — reachable from Dashboard's Quick Actions,
+    // not shown in Bottom Navigation. (The old Home surface + its duplicate
+    // Reminders route were removed — Dashboard is the home surface and the
+    // Tasks route hosts the live reminders screen.)
     object Ledger : Screen("ledger", "Ledger", "دفتر الديون", Icons.Default.AccountBalanceWallet)
     object Gam3iya : Screen("gam3iya", "Gam3iya", "الجمعيات", Icons.Default.Group)
     object Islamic : Screen("islamic", "Islamic", "إسلاميات", Icons.Default.Mosque)
@@ -420,40 +420,6 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            composable(Screen.Home.route) {
-                                HomeScreen(
-                                    userName = userName,
-                                    reminders = visibleReminders,
-                                    prayerTimes = prayerTimes,
-                                    isArabic = isArabic,
-                                    onNavigateToReminders = { navController.navigate(Screen.Reminders.route) },
-                                    onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
-                                    onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
-                                    onNavigateToAiChat = { navController.navigate(Screen.AiChat.route) },
-                                    onToggleReminder = { viewModel.toggleReminderCompleted(it) }
-                                )
-                            }
-
-                            composable(Screen.Reminders.route) {
-                                RemindersScreen(
-                                    reminders = reminders,
-                                    isArabic = isArabic,
-                                    onToggleReminder = { viewModel.toggleReminderCompleted(it) },
-                                    onDeleteReminder = { viewModel.deleteReminder(it) },
-                                    onEditReminder = { reminder ->
-                                        navController.navigate(Screen.CreateTask.createRoute(reminder.id))
-                                    },
-                                    onTogglePin = { viewModel.toggleReminderPinned(it) },
-                                    onSetArchived = { reminder, archived ->
-                                        viewModel.setReminderArchived(reminder, archived)
-                                    },
-                                    onDuplicate = { viewModel.duplicateReminder(it) },
-                                    onCreateTask = {
-                                        navController.navigate(Screen.CreateTask.createRoute())
-                                    }
-                                )
-                            }
-
                             composable(Screen.Ledger.route) {
                                 LedgerScreen(
                                     persons = persons,
@@ -488,6 +454,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     onOpenLedger = { navController.navigate(Screen.Ledger.route) },
+                                    onOpenFinancial = { navController.navigate(Screen.Financial.route) },
                                     onOpenNotifications = {
                                         navController.navigate(Screen.Notifications.route) {
                                             popUpTo(Screen.Dashboard.route) { saveState = true }
