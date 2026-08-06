@@ -4,7 +4,9 @@
 # verified continuously (the existing "Extract ZIP & Build Signed Release
 # APK" workflow only runs when a .zip is pushed to main — it is untouched).
 #
-# Produces an installable debug APK artifact for every push.
+# Builds ONLY the signed release APK — no debug build, to keep GitHub
+# Actions minutes usage minimal. The release APK is the compile gate,
+# the emulator-test target, and the published artifact.
 name: Rafeeq Branch CI
 
 on:
@@ -65,30 +67,6 @@ jobs:
           fi
           chmod +x gradlew
 
-      - name: Generate debug keystore
-        # The repo's debug signing config expects ./debug.keystore with the
-        # standard Android debug alias/passwords; the file itself is not
-        # committed, so create it on the runner.
-        run: |
-          if [ ! -f "debug.keystore" ]; then
-            keytool -genkeypair -v \
-              -keystore debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: rafeeq-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-
       # ---- Signed RELEASE build — same secrets and signing key as the
       # ---- existing "Extract ZIP & Build Signed Release APK" workflow,
       # ---- so the APK carries the user's real (Firebase-registered)
@@ -144,23 +122,21 @@ jobs:
             shots/
           if-no-files-found: ignore
 
-      - name: Publish APKs to the rafeeq-latest release
+      - name: Publish APK to the rafeeq-latest release
         # ONE rolling release ("rafeeq-latest") always holding the newest
-        # signed release APK (primary) plus the debug APK — permanent
-        # public download links:
+        # signed release APK — permanent public download link:
         # .../releases/download/rafeeq-latest/Rafeeq-release.apk
-        # .../releases/download/rafeeq-latest/Rafeeq-debug.apk
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp "$(ls app/build/outputs/apk/release/*.apk | head -1)" Rafeeq-release.apk
-          cp "$(ls app/build/outputs/apk/debug/*.apk | head -1)" Rafeeq-debug.apk
           if ! gh release view rafeeq-latest --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release create rafeeq-latest \
               --repo "$GITHUB_REPOSITORY" \
               --title "Rafeeq (latest)" \
-              --notes "Rolling release: newest signed release APK (and debug APK) built by Rafeeq Branch CI."
+              --notes "Rolling release: newest signed release APK built by Rafeeq Branch CI."
           fi
-          gh release upload rafeeq-latest Rafeeq-release.apk Rafeeq-debug.apk --repo "$GITHUB_REPOSITORY" --clobber
-          # One-time cleanup of the older debug-only rolling release.
-          gh release delete debug-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release upload rafeeq-latest Rafeeq-release.apk --repo "$GITHUB_REPOSITORY" --clobber
+          # Debug builds are gone — drop the stale debug asset so nobody
+          # downloads an outdated APK.
+          gh release delete-asset rafeeq-latest Rafeeq-debug.apk --repo "$GITHUB_REPOSITORY" --yes || true
