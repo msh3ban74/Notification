@@ -381,9 +381,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     init {
-        // Stability sprint — runtime verification of the key pipeline
-        // (GitHub Secret -> .env -> BuildConfig). Logs availability ONLY.
-        Log.i("Rafeeq", "API Key Available = " + BuildConfig.GEMINI_API_KEY.isNotBlank())
+        // Debug-only diagnostic of the key pipeline (GitHub Secret -> .env ->
+        // BuildConfig). Logs a boolean availability flag ONLY, never the key,
+        // and is stripped from release builds.
+        if (BuildConfig.DEBUG) {
+            Log.i("Rafeeq", "API Key Available = " + BuildConfig.GEMINI_API_KEY.isNotBlank())
+        }
         updatePrayerTimes()
         loadChat()
     }
