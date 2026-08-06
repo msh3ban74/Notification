@@ -206,6 +206,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAiLoading = MutableStateFlow(false)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
 
+    // AI sprint — single-flight guard + persistence.
+    private var aiJob: kotlinx.coroutines.Job? = null
+    private var lastUserMessage: String? = null
+
+    /** Persist the visible conversation (role + text) so it survives
+     *  process death / app restart, not just rotation. */
+    private fun persistChat() {
+        viewModelScope.launch {
+            val arr = org.json.JSONArray()
+            _chatMessages.value.forEach { c ->
+                val text = c.parts.firstOrNull { !it.text.isNullOrBlank() }?.text ?: return@forEach
+                arr.put(org.json.JSONObject().put("role", c.role ?: "model").put("text", text))
+            }
+            preferencesRepository.setChatHistory(arr.toString())
+        }
+    }
+
+    private fun loadChat() {
+        viewModelScope.launch {
+            val json = preferencesRepository.chatHistoryFlow.first()
+            if (json.isBlank()) return@launch
+            runCatching {
+                val arr = org.json.JSONArray(json)
+                val restored = (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                    val text = o.optString("text").ifBlank { return@mapNotNull null }
+                    GeminiContent(role = o.optString("role", "model"), parts = listOf(GeminiPart(text = text)))
+                }
+                if (restored.isNotEmpty() && _chatMessages.value.isEmpty()) {
+                    _chatMessages.value = restored
+                }
+            }
+        }
+    }
+
     // Dashboard "Rafeeq Suggestions" — produced by the EXISTING Gemini
     // pipeline from real data (see GeminiRepository.generateDashboardSuggestions).
     private val _aiSuggestions = MutableStateFlow<List<AiSuggestion>>(emptyList())
@@ -252,18 +287,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             preferencesRepository.setUserAuth("Guest User", "", false)
         }
+        aiJob?.cancel()
         _chatMessages.value = emptyList()
         _aiSuggestions.value = emptyList()
         aiSuggestionsFetchedAt = 0L
         _isAiLoading.value = false
+        persistChat()
     }
 
     companion object {
         /** How long cached AI suggestions stay fresh before a silent re-fetch. */
         const val AI_SUGGESTIONS_TTL_MS: Long = 15 * 60 * 1000L
 
-        /** Hard ceiling for a single AI generation before a friendly cancel. */
-        const val AI_GENERATION_TIMEOUT_MS: Long = 15_000L
+        /** Hard ceiling for a single AI generation before a friendly cancel.
+         *  30s covers a tool round-trip plus one transient retry; the OkHttp
+         *  call timeout (25s) usually trips first, so this is the backstop. */
+        const val AI_GENERATION_TIMEOUT_MS: Long = 30_000L
     }
 
     // Water counter state
@@ -275,6 +314,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // (GitHub Secret -> .env -> BuildConfig). Logs availability ONLY.
         Log.i("Rafeeq", "API Key Available = " + BuildConfig.GEMINI_API_KEY.isNotBlank())
         updatePrayerTimes()
+        loadChat()
     }
 
     fun updatePrayerTimes() {
@@ -539,19 +579,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun sendAiMessage(userText: String) {
         if (userText.isBlank()) return
         if (_isAiLoading.value) return
+        val isArabic = language.value == "ar"
         val previousHistory = _chatMessages.value
+        lastUserMessage = userText
 
         // Optimistic UI: show the user's bubble right away.
         _chatMessages.value = previousHistory +
             GeminiContent(role = "user", parts = listOf(GeminiPart(text = userText)))
-        _isAiLoading.value = true
+        persistChat()
 
-        viewModelScope.launch {
+        // Offline pre-check — fail fast with a clear message, never spin.
+        if (!com.notification.app.data.remote.NetworkMonitor.isOnline(getApplication())) {
+            appendModel(
+                if (isArabic) "لا يوجد اتصال بالإنترنت — تأكد من الشبكة وحاول مجددًا 🌐"
+                else "No internet connection — check your network and try again 🌐"
+            )
+            return
+        }
+
+        _isAiLoading.value = true
+        aiJob = viewModelScope.launch {
             val result = withTimeoutOrNull(AI_GENERATION_TIMEOUT_MS) {
                 geminiRepository.sendMessage(
                     history = previousHistory,
                     userMessage = userText,
-                    isArabic = language.value == "ar",
+                    isArabic = isArabic,
                     onAlarmCreated = { alarm ->
                         AlarmManagerScheduler.scheduleExactAlarm(getApplication(), alarm)
                     },
@@ -559,24 +611,69 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         repository.getReminderById(reminderId)?.let {
                             AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), it)
                         }
-                    }
+                    },
+                    onLogWater = { incrementWater() }
                 )
             }
-            _chatMessages.value = if (result != null) {
-                result.second
+            if (result != null) {
+                _chatMessages.value = result.second
             } else {
-                _chatMessages.value + GeminiContent(
+                _chatMessages.value = _chatMessages.value + GeminiContent(
                     role = "model",
                     parts = listOf(
                         GeminiPart(
-                            text = "استغرق الرد وقتًا أطول من المعتاد فأوقفته — جرّب مرة أخرى الآن 🙏\n" +
-                                "That took longer than usual, so I stopped it — please try again."
+                            text = if (isArabic)
+                                "استغرق الرد وقتًا أطول من المعتاد فأوقفته — اضغط \"إعادة\" للمحاولة 🙏"
+                            else "That took longer than usual, so I stopped it — tap \"Regenerate\" to retry 🙏"
                         )
                     )
                 )
             }
             _isAiLoading.value = false
+            persistChat()
         }
+    }
+
+    /** Append a model bubble + persist (used for offline / stop notices). */
+    private fun appendModel(text: String) {
+        _chatMessages.value = _chatMessages.value +
+            GeminiContent(role = "model", parts = listOf(GeminiPart(text = text)))
+        _isAiLoading.value = false
+        persistChat()
+    }
+
+    /** Stop an in-flight generation — the conversation never hangs. */
+    fun stopAiGeneration() {
+        if (!_isAiLoading.value) return
+        aiJob?.cancel()
+        aiJob = null
+        appendModel(
+            if (language.value == "ar") "أوقفت الرد. اضغط \"إعادة\" وقت ما تحب."
+            else "Stopped. Tap \"Regenerate\" whenever you like."
+        )
+    }
+
+    /** Regenerate — drop trailing model replies and resend the last user turn. */
+    fun regenerateLastResponse() {
+        if (_isAiLoading.value) return
+        val lastUser = lastUserMessage ?: _chatMessages.value.lastOrNull { it.role == "user" }
+            ?.parts?.firstOrNull()?.text ?: return
+        // Trim history back to just before the last user message so we
+        // don't stack duplicate user bubbles.
+        val msgs = _chatMessages.value.toMutableList()
+        while (msgs.isNotEmpty() && msgs.last().role != "user") msgs.removeAt(msgs.lastIndex)
+        if (msgs.isNotEmpty() && msgs.last().role == "user") msgs.removeAt(msgs.lastIndex)
+        _chatMessages.value = msgs
+        persistChat()
+        sendAiMessage(lastUser)
+    }
+
+    /** Clear the whole conversation (and its persisted copy). */
+    fun clearChat() {
+        aiJob?.cancel()
+        _chatMessages.value = emptyList()
+        _isAiLoading.value = false
+        persistChat()
     }
 
     // User Preferences Actions

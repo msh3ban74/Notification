@@ -30,6 +30,18 @@ class UserPreferencesRepository(private val context: Context) {
         val DUHA_ENABLED = booleanPreferencesKey("duha_enabled")
         val ALARM_RINGTONE_URI = stringPreferencesKey("default_alarm_ringtone_uri")
         val LAST_SYNC_TIME = longPreferencesKey("last_sync_timestamp")
+        // AI sprint — the visible conversation, persisted as JSON so it
+        // survives process death / app restart (ViewModel alone only
+        // survives rotation).
+        val CHAT_HISTORY = stringPreferencesKey("ai_chat_history_json")
+    }
+
+    val chatHistoryFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[PreferenceKeys.CHAT_HISTORY] ?: ""
+    }
+
+    suspend fun setChatHistory(json: String) {
+        context.dataStore.edit { prefs -> prefs[PreferenceKeys.CHAT_HISTORY] = json }
     }
 
     val languageFlow: Flow<String> = context.dataStore.data.map { prefs ->

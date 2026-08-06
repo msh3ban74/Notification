@@ -15,6 +15,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,10 +57,16 @@ fun AiChatScreen(
     // EXISTING navigation flows only.
     onOpenTasks: () -> Unit = {},
     onOpenLedger: () -> Unit = {},
-    onOpenNotifications: () -> Unit = {}
+    onOpenNotifications: () -> Unit = {},
+    // AI sprint — chat controls.
+    onStopGeneration: () -> Unit = {},
+    onRegenerate: () -> Unit = {},
+    onClearChat: () -> Unit = {}
 ) {
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     // Keep the newest message in view.
     LaunchedEffect(messages.size, isLoading) {
@@ -89,11 +100,22 @@ fun AiChatScreen(
                         top = Spacing.md, bottom = Spacing.md
                     )
                 ) {
-                    items(messages) { msg ->
+                    val lastModelIndex = messages.indexOfLast { it.role == "model" }
+                    itemsIndexed(messages) { index, msg ->
                         val isUser = msg.role == "user"
-                        val text = msg.parts.firstOrNull()?.text ?: ""
+                        val text = msg.parts.firstOrNull { !it.text.isNullOrBlank() }?.text ?: ""
                         if (text.isNotBlank()) {
                             ChatBubble(text = text, isUser = isUser)
+                            // Copy / share row under every model reply.
+                            if (!isUser) {
+                                MessageActionsRow(
+                                    isArabic = isArabic,
+                                    onCopy = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(text)) },
+                                    onShare = { shareText(context, text) },
+                                    // Regenerate only under the newest reply.
+                                    onRegenerate = if (index == lastModelIndex && !isLoading) onRegenerate else null
+                                )
+                            }
                         }
                     }
 
@@ -163,15 +185,19 @@ fun AiChatScreen(
 
                 Spacer(modifier = Modifier.width(Spacing.sm))
 
+                // While generating, this becomes a STOP button so the user
+                // can always cancel — the conversation never traps them.
                 FilledIconButton(
                     onClick = {
-                        if (inputText.isNotBlank()) {
+                        if (isLoading) {
+                            onStopGeneration()
+                        } else if (inputText.isNotBlank()) {
                             val messageToSend = inputText
                             inputText = ""
                             onSendMessage(messageToSend)
                         }
                     },
-                    enabled = inputText.isNotBlank() && !isLoading,
+                    enabled = isLoading || inputText.isNotBlank(),
                     shape = CircleShape,
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaroonPrimary,
@@ -182,8 +208,12 @@ fun AiChatScreen(
                     modifier = Modifier.size(54.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = if (isArabic) "إرسال" else "Send"
+                        imageVector = if (isLoading) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send,
+                        contentDescription = if (isLoading) {
+                            if (isArabic) "إيقاف" else "Stop"
+                        } else {
+                            if (isArabic) "إرسال" else "Send"
+                        }
                     )
                 }
             }
@@ -302,6 +332,47 @@ private fun AssistantEmptyState(
     }
 }
 
+/** Copy / share / regenerate actions under a model reply. */
+@Composable
+private fun MessageActionsRow(
+    isArabic: Boolean,
+    onCopy: () -> Unit,
+    onShare: () -> Unit,
+    onRegenerate: (() -> Unit)?
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = Spacing.xs, top = 2.dp)
+    ) {
+        TextButton(onClick = onCopy, contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = 0.dp)) {
+            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(if (isArabic) "نسخ" else "Copy", style = MaterialTheme.typography.labelMedium)
+        }
+        TextButton(onClick = onShare, contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = 0.dp)) {
+            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(if (isArabic) "مشاركة" else "Share", style = MaterialTheme.typography.labelMedium)
+        }
+        if (onRegenerate != null) {
+            TextButton(onClick = onRegenerate, contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = 0.dp)) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(if (isArabic) "إعادة" else "Regenerate", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+private fun shareText(context: android.content.Context, text: String) {
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(android.content.Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(android.content.Intent.createChooser(intent, null))
+}
+
 /** Soft breathing dots — "Rafeeq is thinking". */
 @Composable
 private fun ThinkingIndicator(isArabic: Boolean) {
@@ -394,41 +465,79 @@ private fun ActionChipsRow(
 }
 
 /**
- * Markdown-lite for Rafeeq's replies: **bold** spans and "- " bullets
- * render properly instead of showing raw markdown characters.
+ * Markdown-lite for Rafeeq's replies. Handles headers (#/##/###), bullets
+ * (- / *), **bold**, inline `code`, fenced ```code blocks``` (monospace),
+ * and simple pipe tables (rendered as spaced monospace rows, separator
+ * rows dropped). Anything else prints as plain text — raw markdown syntax
+ * is never shown.
  */
 private fun renderMarkdownLite(text: String): androidx.compose.ui.text.AnnotatedString {
+    val mono = androidx.compose.ui.text.SpanStyle(
+        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+    )
+    val bold = androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold)
+
+    fun androidx.compose.ui.text.AnnotatedString.Builder.appendInline(src: String) {
+        var rest = src
+        while (rest.isNotEmpty()) {
+            val boldStart = rest.indexOf("**")
+            val codeStart = rest.indexOf("`")
+            // Nothing special left.
+            if (boldStart < 0 && codeStart < 0) { append(rest); break }
+            // Whichever marker comes first.
+            val useBold = boldStart >= 0 && (codeStart < 0 || boldStart < codeStart)
+            if (useBold) {
+                val end = rest.indexOf("**", boldStart + 2)
+                if (end < 0) { append(rest); break }
+                append(rest.substring(0, boldStart))
+                pushStyle(bold); append(rest.substring(boldStart + 2, end)); pop()
+                rest = rest.substring(end + 2)
+            } else {
+                val end = rest.indexOf("`", codeStart + 1)
+                if (end < 0) { append(rest); break }
+                append(rest.substring(0, codeStart))
+                pushStyle(mono); append(rest.substring(codeStart + 1, end)); pop()
+                rest = rest.substring(end + 1)
+            }
+        }
+    }
+
     return androidx.compose.ui.text.buildAnnotatedString {
+        var inFence = false
         text.split("\n").forEachIndexed { lineIndex, rawLine ->
-            if (lineIndex > 0) append("\n")
             val trimmed = rawLine.trimStart()
-            // Markdown headers (#, ##, ###) → a clean bold line, no raw hashes.
-            if (trimmed.startsWith("#")) {
-                val headerText = trimmed.trimStart('#', ' ')
-                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
-                append(headerText)
-                pop()
+
+            // Fenced code block toggling.
+            if (trimmed.startsWith("```")) {
+                inFence = !inFence
                 return@forEachIndexed
             }
+            if (lineIndex > 0) append("\n")
+            if (inFence) {
+                pushStyle(mono); append(rawLine); pop()
+                return@forEachIndexed
+            }
+            // Headers.
+            if (trimmed.startsWith("#")) {
+                pushStyle(bold); append(trimmed.trimStart('#', ' ')); pop()
+                return@forEachIndexed
+            }
+            // Pipe table: drop separator rows, render cells spaced.
+            if (trimmed.startsWith("|") && trimmed.contains("|", startIndex = 1)) {
+                val cells = trimmed.trim('|').split("|").map { it.trim() }
+                if (cells.all { it.isEmpty() || it.all { ch -> ch == '-' || ch == ':' } }) {
+                    return@forEachIndexed // separator row → skip
+                }
+                pushStyle(mono); append(cells.joinToString("   ")); pop()
+                return@forEachIndexed
+            }
+            // Bullets.
             val line = when {
                 trimmed.startsWith("- ") -> rawLine.replaceFirst("- ", "• ")
                 trimmed.startsWith("* ") -> rawLine.replaceFirst("* ", "• ")
                 else -> rawLine
             }
-            var rest = line
-            while (true) {
-                val start = rest.indexOf("**")
-                val end = if (start >= 0) rest.indexOf("**", start + 2) else -1
-                if (start < 0 || end < 0) {
-                    append(rest)
-                    break
-                }
-                append(rest.substring(0, start))
-                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
-                append(rest.substring(start + 2, end))
-                pop()
-                rest = rest.substring(end + 2)
-            }
+            appendInline(line)
         }
     }
 }
