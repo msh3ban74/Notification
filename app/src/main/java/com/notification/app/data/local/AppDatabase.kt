@@ -22,7 +22,7 @@ import com.notification.app.data.local.entities.*
         HabitEntity::class,
         HabitLogEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -149,6 +149,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration 6→7 — Alarm engine: per-alarm behaviour columns.
+         * Additive ALTER TABLEs with defaults that reproduce the old
+         * always-vibrate / no-flash / 80% / 10-min-snooze behaviour.
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE alarms ADD COLUMN vibrate INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE alarms ADD COLUMN flashlight INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE alarms ADD COLUMN volumePercent INTEGER NOT NULL DEFAULT 80")
+                db.execSQL("ALTER TABLE alarms ADD COLUMN snoozeMinutes INTEGER NOT NULL DEFAULT 10")
+                db.execSQL("ALTER TABLE alarms ADD COLUMN autoStopMinutes INTEGER NOT NULL DEFAULT 5")
+                db.execSQL("ALTER TABLE alarms ADD COLUMN repeatDays TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -156,7 +172,10 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "notification_app_database"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
+                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7
+                )
                 // Safety net only — real migrations above preserve data.
                 .fallbackToDestructiveMigration()
                 .build()

@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- API 34+: a foreground service declared with type specialUse MUST
+         also hold this permission, otherwise the OS refuses to start it
+         and the alarm never rings. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Required for ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS to show the
          direct exemption dialog; without it the request is silently ignored. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
