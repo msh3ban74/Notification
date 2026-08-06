@@ -401,11 +401,18 @@ private fun renderMarkdownLite(text: String): androidx.compose.ui.text.Annotated
     return androidx.compose.ui.text.buildAnnotatedString {
         text.split("\n").forEachIndexed { lineIndex, rawLine ->
             if (lineIndex > 0) append("\n")
+            val trimmed = rawLine.trimStart()
+            // Markdown headers (#, ##, ###) → a clean bold line, no raw hashes.
+            if (trimmed.startsWith("#")) {
+                val headerText = trimmed.trimStart('#', ' ')
+                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
+                append(headerText)
+                pop()
+                return@forEachIndexed
+            }
             val line = when {
-                rawLine.trimStart().startsWith("- ") ->
-                    rawLine.replaceFirst("- ", "• ")
-                rawLine.trimStart().startsWith("* ") ->
-                    rawLine.replaceFirst("* ", "• ")
+                trimmed.startsWith("- ") -> rawLine.replaceFirst("- ", "• ")
+                trimmed.startsWith("* ") -> rawLine.replaceFirst("* ", "• ")
                 else -> rawLine
             }
             var rest = line
