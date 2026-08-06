@@ -463,7 +463,7 @@ class GeminiRepository(
                 val gam3iyas = notificationRepository.allGam3iyas.first()
                 if (gam3iyas.isEmpty()) "No active gam3iyas."
                 else {
-                    gam3iyas.joinToString("\n\n") { g ->
+                    gam3iyas.map { g ->
                         val members = if (g.mode == "PARTICIPANT") emptyList()
                         else notificationRepository.getMembersForGam3iya(g.id).first()
                         val payments = notificationRepository.getPaymentsForGam3iya(g.id).first()
