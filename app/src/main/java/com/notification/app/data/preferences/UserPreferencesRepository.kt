@@ -17,7 +17,6 @@ class UserPreferencesRepository(private val context: Context) {
         val USER_NAME = stringPreferencesKey("user_display_name")
         val USER_EMAIL = stringPreferencesKey("user_email")
         val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
-        val GEMINI_KEY = stringPreferencesKey("gemini_api_key")
         val WATER_INTERVAL = intPreferencesKey("water_interval_hours")
         val PRAYER_FAJR = booleanPreferencesKey("prayer_fajr")
         val PRAYER_DHUHR = booleanPreferencesKey("prayer_dhuhr")
@@ -103,10 +102,6 @@ class UserPreferencesRepository(private val context: Context) {
         prefs[PreferenceKeys.USER_EMAIL] ?: ""
     }
 
-    val geminiApiKeyFlow: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[PreferenceKeys.GEMINI_KEY] ?: ""
-    }
-
     val waterIntervalFlow: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[PreferenceKeys.WATER_INTERVAL] ?: 2
     }
@@ -147,10 +142,6 @@ class UserPreferencesRepository(private val context: Context) {
             prefs[PreferenceKeys.USER_EMAIL] = email
             prefs[PreferenceKeys.IS_LOGGED_IN] = isLoggedIn
         }
-    }
-
-    suspend fun setGeminiApiKey(key: String) {
-        context.dataStore.edit { prefs -> prefs[PreferenceKeys.GEMINI_KEY] = key }
     }
 
     suspend fun setWaterInterval(hours: Int) {

@@ -57,7 +57,11 @@ class AlarmReceiver : BroadcastReceiver() {
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setAutoCancel(true)
                 .build()
-            nm.notify((System.currentTimeMillis() % 100000).toInt(), n)
+            // Distinct id per pre-alert lead so day-before and hour-before
+            // don't overwrite each other.
+            val preId = 30_000_000 +
+                (intent.getStringExtra("EXTRA_PRE_ALERT_LABEL")?.hashCode() ?: 0).and(0xFFFF)
+            nm.notify(preId, n)
             return
         }
 
@@ -163,6 +167,13 @@ class AlarmReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
 
-        notificationManager.notify((System.currentTimeMillis() % 10000).toInt(), notification)
+        // Stable id per alarm/reminder so a later alert can't silently
+        // overwrite this one and it stays dismissible by id.
+        val notifyId = when {
+            alarmId > 0 -> (alarmId % 1_000_000).toInt() + 10_000_000
+            reminderId > 0 -> (reminderId % 1_000_000).toInt() + 20_000_000
+            else -> (System.currentTimeMillis() % 100000).toInt()
+        }
+        notificationManager.notify(notifyId, notification)
     }
 }

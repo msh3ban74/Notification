@@ -68,6 +68,9 @@ class LocalBackupManager(
     companion object {
         const val MAGIC = "RAFEEQ_BACKUP"
         const val FORMAT_VERSION = 1
+        // A personal backup is kilobytes; 32 MB is a generous ceiling that
+        // still stops a decompression-bomb / huge-file OOM on import.
+        private const val MAX_BACKUP_BYTES = 32 * 1024 * 1024
         const val CURRENT_DB_VERSION = 7
         private const val KEY_ALIAS = "rafeeq_backup_key"
         private const val GCM_TAG_BITS = 128
@@ -119,8 +122,23 @@ class LocalBackupManager(
 
     suspend fun readAndValidate(uri: Uri): Result {
         return try {
-            val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                ?: return Result.Failure("Could not open the selected file.")
+            val raw = context.contentResolver.openInputStream(uri)?.use { input ->
+                // Cap the read so a crafted huge/looping file can't OOM the
+                // app (bounded manual read — readNBytes needs API 33+).
+                val out = java.io.ByteArrayOutputStream()
+                val buf = ByteArray(64 * 1024)
+                var total = 0
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    total += n
+                    if (total > MAX_BACKUP_BYTES) {
+                        return Result.Failure("TOO LARGE — this file exceeds the backup size limit.")
+                    }
+                    out.write(buf, 0, n)
+                }
+                out.toByteArray()
+            } ?: return Result.Failure("Could not open the selected file.")
             val envelope = try {
                 JSONObject(String(raw, Charsets.UTF_8))
             } catch (e: Exception) {

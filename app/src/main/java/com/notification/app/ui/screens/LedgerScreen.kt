@@ -546,9 +546,17 @@ fun PersonDetailScreen(
                                 else
                                     "Hi ${person.name}, a reminder about the ${summary.netAmount.toLong()} EGP due between us. Thank you."
                                 val url = "https://wa.me/$nudgeNumber?text=" + java.net.URLEncoder.encode(msg, "UTF-8")
+                                // Target WhatsApp explicitly so no other app that
+                                // registers https can intercept the number+amount.
                                 try {
-                                    shareContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                } catch (_: Exception) { }
+                                    shareContext.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(url)).setPackage("com.whatsapp")
+                                    )
+                                } catch (_: Exception) {
+                                    try {
+                                        shareContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    } catch (_: Exception) { }
+                                }
                             }) {
                                 Text(if (isArabic) "تذكير عبر واتساب" else "Remind on WhatsApp")
                             }
@@ -619,7 +627,12 @@ fun PersonDetailScreen(
                             Spacer(Modifier.width(12.dp))
                             Text(a.label.ifBlank { if (isArabic) "إيصال" else "Receipt" }, Modifier.weight(1f), maxLines = 1)
                             TextButton(onClick = {
-                                try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.uri)).apply { addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch (_: Exception) {}
+                                // Only open our own SAF content URIs — a
+                                // restored backup could carry an arbitrary URI.
+                                val parsed = Uri.parse(a.uri)
+                                if (parsed.scheme == "content") {
+                                    try { ctx.startActivity(Intent(Intent.ACTION_VIEW, parsed).apply { addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch (_: Exception) {}
+                                }
                             }) { Text(if (isArabic) "فتح" else "Open") }
                             IconButton(onClick = { onDeleteLedgerAttachment?.invoke(a) }) {
                                 Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))

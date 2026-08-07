@@ -18,23 +18,32 @@ class BootReceiver : BroadcastReceiver() {
             AlarmManagerScheduler.scheduleMorningBrief(context)
             AlarmManagerScheduler.scheduleEveningBrief(context)
 
+            // goAsync keeps the process alive past onReceive so the DB read +
+            // re-arm loop actually finishes — without it Android could kill us
+            // first and reboot would silently lose every alarm/reminder.
+            val pending = goAsync()
             val db = AppDatabase.getDatabase(context)
             CoroutineScope(Dispatchers.IO).launch {
-                val now = System.currentTimeMillis()
+                try {
+                    val now = System.currentTimeMillis()
 
-                db.alarmDao().getActiveAlarms().forEach { alarm ->
-                    if (alarm.timeInMillis > now) {
-                        AlarmManagerScheduler.scheduleExactAlarm(context, alarm)
+                    db.alarmDao().getActiveAlarms().forEach { alarm ->
+                        if (alarm.timeInMillis > now) {
+                            AlarmManagerScheduler.scheduleExactAlarm(context, alarm)
+                        }
                     }
+
+                    // Reboot wipes EVERY AlarmManager registration — task, bill
+                    // and medicine reminders included, not just clock alarms.
+                    db.reminderDao().getPendingReminders().first()
+                        .filter { !it.isArchived && it.dueDate > now }
+                        .forEach { reminder ->
+                            AlarmManagerScheduler.scheduleReminderAlarm(context, reminder)
+                        }
+                } catch (_: Exception) {
+                } finally {
+                    pending.finish()
                 }
-
-                // Reboot wipes EVERY AlarmManager registration — task, bill
-                // and medicine reminders included, not just clock alarms.
-                db.reminderDao().getPendingReminders().first()
-                    .filter { !it.isArchived && it.dueDate > now }
-                    .forEach { reminder ->
-                        AlarmManagerScheduler.scheduleReminderAlarm(context, reminder)
-                    }
             }
         }
     }

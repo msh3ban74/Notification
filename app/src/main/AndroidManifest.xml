@@ -11,7 +11,6 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- API 34+: a foreground service declared with type specialUse MUST
          also hold this permission, otherwise the OS refuses to start it
@@ -22,15 +21,13 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Lets the alarm channel bypass Do-Not-Disturb (setBypassDnd). -->
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Alarm flashlight strobe (setTorchMode needs no runtime permission;
          the feature is optional so devices without a flash still install). -->
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -51,21 +48,23 @@
             </intent-filter>
         </activity>
 
+        <!-- exported=false: only ever launched from the app's own full-screen
+             PendingIntent. Keeping it exported let any app spoof a
+             lock-screen alarm with attacker-controlled title/note text. -->
         <activity
             android:name=".ui.screens.AlarmRingingActivity"
-            android:exported="true"
+            android:exported="false"
             android:showOnLockScreen="true"
             android:turnScreenOn="true"
             android:theme="@style/Theme.MyApplication" />
 
+        <!-- exported=false: only ever fired by the app's own AlarmManager
+             PendingIntents (which target the component explicitly, so no
+             intent-filter is needed). Keeping it exported let any app
+             broadcast a fake alarm and mutate the reminders table. -->
         <receiver
             android:name=".receiver.AlarmReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.notification.app.ACTION_ALARM_TRIGGER" />
-                <action android:name="com.notification.app.ACTION_REMINDER_TRIGGER" />
-            </intent-filter>
-        </receiver>
+            android:exported="false" />
 
         <receiver
             android:name=".receiver.MorningBriefReceiver"

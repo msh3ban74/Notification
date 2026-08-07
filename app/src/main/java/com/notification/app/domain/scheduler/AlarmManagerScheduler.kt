@@ -172,8 +172,12 @@ object AlarmManagerScheduler {
         schedulePreAlerts(context, alarmManager, reminder)
     }
 
-    private fun preAlertRequestCode(reminderId: Long, ordinal: Int): Int =
-        (reminderId * 8 + ordinal + 700_000).toInt()
+    private fun preAlertRequestCode(reminderId: Long, ordinal: Int): Int {
+        // Gam3iya reminder ids start at 900_000_000, so reminderId*8 overflows
+        // Int and collides. Hash into a stable positive range instead.
+        val base = (reminderId.hashCode() and 0x0FFFFFFF)
+        return 700_000_000 + (base % 40_000_000) * 8 + ordinal
+    }
 
     private fun schedulePreAlerts(
         context: Context,

@@ -134,7 +134,11 @@ fun InstallmentDetailScreen(
             }
             items(attachments, key = { it.id }) { a ->
                 AttachmentRow(a, isArabic, onOpen = {
-                    try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.uri)).apply { addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch (_: Exception) {}
+                    // Only open our own SAF content URIs (restore-safety).
+                    val parsed = Uri.parse(a.uri)
+                    if (parsed.scheme == "content") {
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW, parsed).apply { addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch (_: Exception) {}
+                    }
                 }, onDelete = { viewModel.deleteFinancialAttachment(a) })
             }
         }
