@@ -67,6 +67,12 @@ import com.notification.app.ui.designsystem.PremiumButton
 import com.notification.app.ui.designsystem.PremiumCard
 import com.notification.app.ui.designsystem.PremiumCardStyle
 import com.notification.app.ui.designsystem.SkeletonLine
+import com.notification.app.ui.theme.AccentAmber
+import com.notification.app.ui.theme.AccentCoral
+import com.notification.app.ui.theme.AccentPink
+import com.notification.app.ui.theme.AccentSky
+import com.notification.app.ui.theme.AccentTeal
+import com.notification.app.ui.theme.AccentViolet
 import com.notification.app.ui.theme.Spacing
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -90,6 +96,7 @@ private data class TodayItem(
     val icon: ImageVector,
     val title: String,
     val timeLabel: String,
+    val accent: androidx.compose.ui.graphics.Color,
     val isOverdue: Boolean = false,
     val reminder: ReminderEntity? = null,   // checkable when present
     val onOpen: () -> Unit
@@ -156,6 +163,7 @@ fun DashboardScreen(
                         icon = categoryIcon(r.category),
                         title = r.title,
                         timeLabel = if (isArabic) "متأخر" else "Overdue",
+                        accent = categoryAccent(r.category),
                         isOverdue = true,
                         reminder = r,
                         onOpen = onNavigateToTasks
@@ -169,6 +177,7 @@ fun DashboardScreen(
                         icon = categoryIcon(r.category),
                         title = r.title,
                         timeLabel = timeFormat.format(Date(r.dueDate)),
+                        accent = categoryAccent(r.category),
                         reminder = r,
                         onOpen = onNavigateToTasks
                     ))
@@ -180,6 +189,7 @@ fun DashboardScreen(
                         icon = Icons.Default.Alarm,
                         title = a.title.ifBlank { if (isArabic) "منبّه" else "Alarm" },
                         timeLabel = timeFormat.format(Date(a.timeInMillis)),
+                        accent = AccentSky,
                         onOpen = onNavigateToNotifications
                     ))
                 }
@@ -194,6 +204,7 @@ fun DashboardScreen(
                         title = if (isArabic) "دين مع $name — ${tx.amount.toLong()} ج.م"
                         else "Debt with $name — ${tx.amount.toLong()} EGP",
                         timeLabel = if (isArabic) "النهاردة" else "Today",
+                        accent = com.notification.app.ui.theme.Primary,
                         onOpen = onNavigateToLedger
                     ))
                 }
@@ -287,6 +298,16 @@ private fun categoryIcon(category: String): ImageVector = when (category) {
     ReminderCategory.BIRTHDAY.name -> Icons.Default.Cake
     ReminderCategory.WORK.name -> Icons.Default.Work
     else -> Icons.Default.NotificationsActive
+}
+
+/** Rafeeq Vivid — one accent per life-category, same saturation family. */
+private fun categoryAccent(category: String): androidx.compose.ui.graphics.Color = when (category) {
+    ReminderCategory.MEDICINE.name -> AccentCoral
+    ReminderCategory.BILL.name -> AccentAmber
+    ReminderCategory.APPOINTMENT.name -> AccentTeal
+    ReminderCategory.BIRTHDAY.name -> AccentPink
+    ReminderCategory.WORK.name -> AccentViolet
+    else -> com.notification.app.ui.theme.Primary // MONEY + default = indigo
 }
 
 // ── Hero: greeting + honest one-line summary of the day ────────────────────
@@ -418,15 +439,16 @@ private fun TodayRow(item: TodayItem, onToggleReminderDone: (ReminderEntity) -> 
                     imageVector = if (item.reminder.isCompleted) Icons.Default.CheckCircle
                     else Icons.Default.RadioButtonUnchecked,
                     contentDescription = null,
+                    // Done is ALWAYS green; pending carries its category color.
                     tint = if (item.reminder.isCompleted) MaterialTheme.colorScheme.tertiary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
+                    else item.accent
                 )
             }
         } else {
             Icon(
                 imageVector = item.icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = item.accent,
                 modifier = Modifier.size(AppDimens.iconSizeSmall)
             )
         }
@@ -445,8 +467,7 @@ private fun TodayRow(item: TodayItem, onToggleReminderDone: (ReminderEntity) -> 
                 text = item.timeLabel,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = if (item.isOverdue) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.primary
+                color = if (item.isOverdue) MaterialTheme.colorScheme.error else item.accent
             )
         }
     }
@@ -568,6 +589,7 @@ private fun CompanionWidgets(
             title = if (isArabic) "الصلاة القادمة" else "Next prayer",
             primaryLine = nextPrayer?.let { if (isArabic) it.nameAr else it.nameEn } ?: "",
             secondaryLine = nextPrayer?.timeFormatted,
+            accent = AccentTeal,
             onClick = onNavigateToIslamic
         )
 
@@ -577,6 +599,7 @@ private fun CompanionWidgets(
             title = if (isArabic) "شرب المياه" else "Water",
             primaryLine = "$waterCount / $waterGoal",
             secondaryLine = if (isArabic) "اضغط لتسجيل كوب 💧" else "Tap to log a glass 💧",
+            accent = AccentSky,
             onClick = onWaterClick
         )
 
@@ -593,6 +616,7 @@ private fun CompanionWidgets(
                     if (isArabic) "يوم مكتمل — واصل السلسلة 🔥" else "Perfect day — keep the streak 🔥"
                 else -> if (isArabic) "اضغط لتسجيل إنجازك" else "Tap to check in"
             },
+            accent = AccentAmber,
             onClick = onNavigateToHabits
         )
 
@@ -601,6 +625,7 @@ private fun CompanionWidgets(
             icon = Icons.Default.CheckCircle,
             title = if (isArabic) "ملاحظات الشغل" else "Work notes",
             primaryLine = if (isArabic) "$openNotes قيد التنفيذ" else "$openNotes open",
+            accent = AccentViolet,
             onClick = onNavigateToHealthNotes
         )
     }

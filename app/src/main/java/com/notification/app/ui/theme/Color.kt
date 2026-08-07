@@ -3,58 +3,58 @@ package com.notification.app.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ============================================================
-// Rafeeq Royal Palette — black & champagne gold
-// (from the official brand board: Rich Black #0B0B10, Charcoal
-// #14161A, Dark Slate #1C1E24, Champagne Gold #D4AF37, Soft
-// Gold #F0C97A, Cream #F7F4EE, Muted Bronze)
+// Rafeeq Vivid — the light, lively, premium palette.
+//
+// One idea: a clean white canvas, electric-indigo identity, and
+// GREEN for everything the user finished (done = growth). A small
+// family of accents is distributed across the dashboard cards so
+// the app feels alive — every accent shares the same saturation
+// and depth so they always sit well together.
 // ============================================================
-val Primary = Color(0xFFD4AF37)        // Champagne Gold
-val PrimaryLight = Color(0xFFF0C97A)   // Soft Gold
-val PrimaryDark = Color(0xFFB8912A)    // Deep Gold
-val Secondary = Color(0xFFF0C97A)
-val Accent = Color(0xFFE5C378)
 
-val Background = Color(0xFFF7F4EE)     // Cream (light mode)
-val Surface = Color(0xFFFFFDF8)
-val SurfaceVariant = Color(0xFFEFE9DC)
+// Identity
+val Primary = Color(0xFF4F46E5)        // Rafeeq Indigo (electric, premium)
+val PrimaryLight = Color(0xFF818CF8)   // Soft indigo
+val PrimaryDark = Color(0xFF3730A3)    // Deep indigo
 
-val OnPrimary = Color(0xFF14161A)      // dark on gold
-val OnSecondary = Color(0xFF14161A)
-val OnBackground = Color(0xFF1C1E24)
-val OnSurface = Color(0xFF1C1E24)
-val OnSurfaceVariant = Color(0xFF6E6656)
+val Secondary = Color(0xFF0D9488)      // Teal — calm, fresh companion accent
+val Accent = Color(0xFF7C3AED)         // Violet — sparse premium highlights
 
-val Success = Color(0xFF2E9E77)     // elegant emerald
-val Warning = Color(0xFFD4AF37)
-val Error = Color(0xFFC94F4F)       // soft red
-val Info = Color(0xFF7A93B8)        // muted blue
+// Canvas — white with a whisper of indigo so cards still float
+val Background = Color(0xFFFAFAFF)
+val Surface = Color(0xFFFFFFFF)
+val SurfaceVariant = Color(0xFFEEF0FA)
 
-// Dark ("royal") side of the palette
-val RichBlack = Color(0xFF0B0B10)
-val Charcoal = Color(0xFF14161A)
-val DarkSlate = Color(0xFF1C1E24)
-val Cream = Color(0xFFF7F4EE)
-val MutedBronze = Color(0xFFA69B84)
-val GoldContainerDark = Color(0xFF2A2410)  // deep gold-tinted container
-val GoldOutlineDark = Color(0xFF4A4332)
+// Ink
+val OnPrimary = Color(0xFFFFFFFF)
+val OnSecondary = Color(0xFFFFFFFF)
+val OnBackground = Color(0xFF23205A)   // deep indigo-ink, softer than black
+val OnSurface = Color(0xFF23205A)
+val OnSurfaceVariant = Color(0xFF5D6078)
 
-// Gradient Colors for premium accents
-val GradientBlueStart = Color(0xFFD4AF37)  // legacy name — now gold start
-val GradientBlueEnd = Color(0xFFF0C97A)    // legacy name — now gold end
-val GradientPurpleStart = Color(0xFFB8912A)
-val GradientPurpleEnd = Color(0xFFF0C97A)
+// Semantics — DONE is always green
+val Success = Color(0xFF16A34A)        // vivid green: completed, paid, streaks
+val Warning = Color(0xFFF59E0B)        // amber
+val Error = Color(0xFFE11D48)          // vivid rose-red: overdue, you-owe
+val Info = Color(0xFF0284C7)           // sky blue
 
-// Rafeeq brand-mark colors (launcher icon + splash artwork)
-val RafeeqRichBlack = Color(0xFF0A0A0C)
-val PlatinumTint = Color(0xFFF7F4EE)
-val ChampagneGoldLight = Color(0xFFF3DFAE)
-val ChampagneGoldDeep = Color(0xFFE5C378)
+// Accent family — distributed across dashboard cards & category icons.
+// Same saturation family as the primary so mixes stay harmonious.
+val AccentTeal = Color(0xFF0D9488)     // prayer / appointments
+val AccentSky = Color(0xFF0284C7)      // water
+val AccentAmber = Color(0xFFF59E0B)    // habits / bills
+val AccentViolet = Color(0xFF7C3AED)   // work / notes
+val AccentCoral = Color(0xFFF43F5E)    // medicine / health
+val AccentPink = Color(0xFFDB2777)     // birthdays / events
 
-// Legacy aliases for backward compatibility — every existing screen that
-// references these gets the golden identity automatically.
+// Rafeeq brand-mark colors (splash artwork)
+val RafeeqCanvas = Color(0xFFFAFAFF)
+val RafeeqIndigo = Primary
+val RafeeqIndigoLight = PrimaryLight
+val RafeeqIndigoDeep = PrimaryDark
+
+// Legacy aliases — every existing screen that references these gets the
+// vivid identity automatically (they date back to the maroon/gold eras).
 val MaroonPrimary = Primary
 val MaroonPrimaryLight = PrimaryLight
 val MaroonPrimaryDark = PrimaryDark
-val ChampagneGold = Primary
-val MaroonContainerDark = GoldContainerDark
-val PlatinumDarkBackground = RichBlack

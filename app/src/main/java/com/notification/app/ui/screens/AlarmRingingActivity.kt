@@ -33,11 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.notification.app.domain.scheduler.AlarmManagerScheduler
 import com.notification.app.service.AlarmService
-import com.notification.app.ui.theme.MaroonContainerDark
-import com.notification.app.ui.theme.OnPrimary
 import com.notification.app.ui.theme.MaroonPrimary
 import com.notification.app.ui.theme.NotificationTheme
-import com.notification.app.ui.theme.PlatinumDarkBackground
+import com.notification.app.ui.theme.Primary
+import com.notification.app.ui.theme.PrimaryDark
 
 class AlarmRingingActivity : ComponentActivity() {
 
@@ -69,7 +68,7 @@ class AlarmRingingActivity : ComponentActivity() {
         val isArabic = java.util.Locale.getDefault().language == "ar"
 
         setContent {
-            NotificationTheme(darkTheme = true, isArabic = isArabic) {
+            NotificationTheme(isArabic = isArabic) {
                 AlarmRingingScreen(
                     title = title,
                     note = note,
@@ -162,8 +161,10 @@ fun AlarmRingingScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(
+                // Vivid wake-up: a deep→electric indigo wash. White clock
+                // and text stay perfectly readable on it.
                 Brush.verticalGradient(
-                    colors = listOf(PlatinumDarkBackground, MaroonContainerDark, Color(0xFF140307))
+                    colors = listOf(PrimaryDark, Primary, Color(0xFF6366F1))
                 )
             )
             .padding(24.dp),
@@ -201,18 +202,18 @@ fun AlarmRingingScreen(
                 modifier = Modifier
                     .size(160.dp)
                     .scale(pulseScale)
-                    .background(MaroonPrimary.copy(alpha = 0.25f), shape = CircleShape)
+                    .background(Color.White.copy(alpha = 0.22f), shape = CircleShape)
             ) {
                 Box(
                     modifier = Modifier
                         .size(110.dp)
-                        .background(MaroonPrimary, shape = CircleShape),
+                        .background(Color.White, shape = CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = iconForCategory(category),
                         contentDescription = "Ringing Icon",
-                        tint = Color.White,
+                        tint = MaroonPrimary,
                         modifier = Modifier.size(56.dp)
                     )
                 }
@@ -252,7 +253,7 @@ fun AlarmRingingScreen(
                 Text(
                     text = note,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color.LightGray,
+                    color = Color.White.copy(alpha = 0.85f),
                     textAlign = TextAlign.Center
                 )
             }
@@ -267,8 +268,8 @@ fun AlarmRingingScreen(
                 Button(
                     onClick = onSnooze,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        containerColor = Color.White.copy(alpha = 0.18f),
+                        contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier
@@ -287,8 +288,8 @@ fun AlarmRingingScreen(
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaroonPrimary,
-                        contentColor = OnPrimary
+                        containerColor = Color.White,
+                        contentColor = MaroonPrimary
                     ),
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier

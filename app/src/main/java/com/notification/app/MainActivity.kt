@@ -124,6 +124,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Rafeeq Vivid is light-only: dark status/navigation bar icons so
+        // they stay readable over the white canvas.
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
+
         setContent {
             val language by viewModel.language.collectAsState()
             val isLoggedIn by viewModel.isLoggedIn.collectAsState()
@@ -153,8 +160,9 @@ class MainActivity : ComponentActivity() {
             val isArabic = language == "ar"
             val layoutDirection = if (isArabic) LayoutDirection.Rtl else LayoutDirection.Ltr
 
-            // Stability sprint — Rafeeq is officially dark-theme only.
-            NotificationTheme(darkTheme = true, isArabic = isArabic) {
+            // Rafeeq Vivid — light-only by design (white canvas, indigo
+            // identity, green for done). No dark theme, on purpose.
+            NotificationTheme(isArabic = isArabic) {
                 // Ask for the notification permission on first launch so
                 // alerts and alarms can actually appear (Android 13+).
                 com.notification.app.ui.permissions.RequestCorePermissions()
