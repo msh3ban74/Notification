@@ -37,7 +37,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -355,7 +359,7 @@ private fun TodayHero(
 
     // Quick capture — the fastest path into the smart memory: type it and
     // Rafeeq files it (reminder, debt, gam3iya…) through the assistant.
-    var quickText by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
+    var quickText by rememberSaveable { mutableStateOf("") }
     fun sendQuick() {
         val t = quickText.trim()
         if (t.isNotEmpty()) { onAskRafeeq(t); quickText = "" }
