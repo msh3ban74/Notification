@@ -71,7 +71,7 @@ fun LedgerStatsScreen(
             }
             item {
                 StatCard(if (isArabic) "نسبة التحصيل" else "Collection rate") {
-                    ProgressBarWithLabel(stats.collectionRate)
+                    ProgressBarWithLabel(stats.collectionRate.toFloat())
                 }
             }
             item {
