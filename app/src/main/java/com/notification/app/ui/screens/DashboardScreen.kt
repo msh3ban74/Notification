@@ -358,37 +358,14 @@ private fun TodayHero(
         androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    androidx.compose.ui.graphics.Brush.linearGradient(
-                        colors = listOf(
-                            androidx.compose.ui.graphics.Color(0xFFF5F4FE),
-                            androidx.compose.ui.graphics.Color(0xFFECE9FD),
-                            androidx.compose.ui.graphics.Color(0xFFE2DDFB)
-                        )
-                    )
-                )
+                .background(androidx.compose.ui.graphics.Color(0xFFF7F6FE))
         ) {
-            // Quiet wave lines in the card's lower half.
-            androidx.compose.foundation.Canvas(modifier = Modifier.matchParentSize()) {
-                val w = size.width
-                val h = size.height
-                for (i in 0..3) {
-                    val base = h * (0.68f + i * 0.09f)
-                    val path = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(-w * 0.05f, base)
-                        cubicTo(
-                            w * 0.3f, base - h * 0.18f,
-                            w * 0.6f, base + h * 0.10f,
-                            w * 1.05f, base - h * 0.22f
-                        )
-                    }
-                    drawPath(
-                        path = path,
-                        color = com.notification.app.ui.theme.Primary.copy(alpha = 0.07f),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
-                    )
-                }
-            }
+            // Rafeeq DNA — the «يومك» atmosphere: lavender dawn with
+            // breathing light orbs and flowing waves.
+            com.notification.app.ui.components.RafeeqAtmosphere(
+                palette = com.notification.app.ui.components.RafeeqWeather.Day,
+                modifier = Modifier.matchParentSize()
+            )
             Column(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier

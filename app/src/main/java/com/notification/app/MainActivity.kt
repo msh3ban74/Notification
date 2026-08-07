@@ -211,46 +211,18 @@ class MainActivity : ComponentActivity() {
                         },
                         bottomBar = {
                             if (showChrome) {
-                                // Flat premium nav (mock): white bar, no pill
-                                // indicator — selection is the indigo tint alone.
-                                NavigationBar(
-                                    containerColor = androidx.compose.ui.graphics.Color.White,
-                                    tonalElevation = 0.dp
-                                ) {
-                                    bottomBarScreens.forEach { screen ->
-                                        NavigationBarItem(
-                                            selected = currentRoute == screen.route,
-                                            onClick = {
-                                                navController.navigate(screen.route) {
-                                                    popUpTo(Screen.Dashboard.route) {
-                                                        saveState = true
-                                                    }
-                                                    launchSingleTop = true
-                                                    restoreState = true
-                                                }
-                                            },
-                                            icon = {
-                                                Icon(
-                                                    imageVector = screen.icon,
-                                                    contentDescription = screen.titleEn
-                                                )
-                                            },
-                                            label = {
-                                                Text(
-                                                    text = if (isArabic) screen.titleAr else screen.titleEn,
-                                                    maxLines = 1
-                                                )
-                                            },
-                                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
-                                                indicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                                                selectedIconColor = com.notification.app.ui.theme.Primary,
-                                                selectedTextColor = com.notification.app.ui.theme.Primary,
-                                                unselectedIconColor = androidx.compose.ui.graphics.Color(0xFF9CA3AF),
-                                                unselectedTextColor = androidx.compose.ui.graphics.Color(0xFF9CA3AF)
-                                            )
-                                        )
+                                RafeeqFloatingNav(
+                                    screens = bottomBarScreens,
+                                    currentRoute = currentRoute,
+                                    isArabic = isArabic,
+                                    onSelect = { screen ->
+                                        navController.navigate(screen.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
                                     }
-                                }
+                                )
                             }
                         },
                         floatingActionButton = {
@@ -905,6 +877,86 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Rafeeq Design DNA — the FLOATING NAV.
+ *
+ * The second signature element: navigation floats above the content on a
+ * soft glass pill, detached from the screen edges. The selected tab sits
+ * inside an animated indigo capsule; unselected tabs stay quiet gray.
+ */
+@Composable
+private fun RafeeqFloatingNav(
+    screens: List<Screen>,
+    currentRoute: String?,
+    isArabic: Boolean,
+    onSelect: (Screen) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 18.dp)
+            .padding(bottom = 12.dp)
+    ) {
+        Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(32.dp),
+            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.97f),
+            shadowElevation = 14.dp,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp, androidx.compose.ui.graphics.Color(0xFFEDEDF8)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                screens.forEach { screen ->
+                    val selected = currentRoute == screen.route
+                    val capsule by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (selected)
+                            com.notification.app.ui.theme.Primary.copy(alpha = 0.10f)
+                        else androidx.compose.ui.graphics.Color.Transparent,
+                        animationSpec = tween(250),
+                        label = "navCapsule"
+                    )
+                    val tint by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (selected) com.notification.app.ui.theme.Primary
+                        else androidx.compose.ui.graphics.Color(0xFF9CA3AF),
+                        animationSpec = tween(250),
+                        label = "navTint"
+                    )
+                    Surface(
+                        onClick = { if (!selected) onSelect(screen) },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                        color = capsule,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.padding(vertical = 7.dp)
+                        ) {
+                            Icon(
+                                imageVector = screen.icon,
+                                contentDescription = screen.titleEn,
+                                tint = tint,
+                                modifier = Modifier.size(23.dp)
+                            )
+                            Text(
+                                text = if (isArabic) screen.titleAr else screen.titleEn,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = tint,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }

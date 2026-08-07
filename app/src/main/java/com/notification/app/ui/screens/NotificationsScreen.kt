@@ -104,16 +104,23 @@ fun NotificationsScreen(
     val isEmpty = upcomingReminders.isEmpty() && overdueReminders.isEmpty() && upcomingAlarms.isEmpty()
 
     if (isEmpty) {
-        EmptyState(
-            icon = Icons.Default.NotificationsNone,
-            title = if (isArabic) "لا توجد إشعارات مجدولة" else "No scheduled notifications",
-            subtitle = if (isArabic) "التنبيهات المجدولة ستظهر هنا في موعدها"
-            else "Scheduled alerts will appear here on time",
-            actionLabel = if (onCreateFirst != null) {
-                if (isArabic) "أنشئ تذكيرًا" else "Schedule Reminder"
-            } else null,
-            onAction = onCreateFirst
-        )
+        // Rafeeq DNA — the «الإشعارات» atmosphere: golden hour.
+        androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+            com.notification.app.ui.components.RafeeqAtmosphere(
+                palette = com.notification.app.ui.components.RafeeqWeather.Alerts,
+                modifier = Modifier.matchParentSize()
+            )
+            EmptyState(
+                icon = Icons.Default.NotificationsNone,
+                title = if (isArabic) "لا توجد إشعارات مجدولة" else "No scheduled notifications",
+                subtitle = if (isArabic) "التنبيهات المجدولة ستظهر هنا في موعدها"
+                else "Scheduled alerts will appear here on time",
+                actionLabel = if (onCreateFirst != null) {
+                    if (isArabic) "أنشئ تذكيرًا" else "Schedule Reminder"
+                } else null,
+                onAction = onCreateFirst
+            )
+        }
         return
     }
 

@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
@@ -291,6 +292,12 @@ private fun AssistantEmptyState(
         "Record a task"
     )
 
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Rafeeq DNA — the assistant's atmosphere: indigo dusk.
+        com.notification.app.ui.components.RafeeqAtmosphere(
+            palette = com.notification.app.ui.components.RafeeqWeather.Assistant,
+            modifier = Modifier.matchParentSize()
+        )
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -298,12 +305,24 @@ private fun AssistantEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Brand mark — light halo with the indigo sparkle (product mock).
+        // Brand mark — a BREATHING halo: the assistant feels alive even
+        // before the first word is typed.
+        val breath by androidx.compose.animation.core.rememberInfiniteTransition(label = "aiBreath")
+            .animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(2600),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                ),
+                label = "aiBreathValue"
+            )
         Box(contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
                     .size(116.dp)
-                    .background(MaroonPrimary.copy(alpha = 0.06f), CircleShape)
+                    .scale(1f + 0.05f * breath)
+                    .background(MaroonPrimary.copy(alpha = 0.05f + 0.04f * breath), CircleShape)
             )
             Box(
                 modifier = Modifier
@@ -315,7 +334,9 @@ private fun AssistantEmptyState(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
                     tint = MaroonPrimary,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier
+                        .size(40.dp)
+                        .scale(1f + 0.06f * breath)
                 )
             }
         }
@@ -378,6 +399,7 @@ private fun AssistantEmptyState(
                 }
             }
         }
+    }
     }
 }
 

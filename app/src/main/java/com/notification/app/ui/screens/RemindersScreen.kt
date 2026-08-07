@@ -95,10 +95,15 @@ fun RemindersScreen(
             }
         }
     ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        // Rafeeq DNA — the «المهام» atmosphere: mint morning.
+        com.notification.app.ui.components.RafeeqAtmosphere(
+            palette = com.notification.app.ui.components.RafeeqWeather.Tasks,
+            modifier = Modifier.fillMaxWidth().height(230.dp)
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
 
@@ -233,6 +238,7 @@ fun RemindersScreen(
                     }
                 }
             }
+        }
         }
     }
 
