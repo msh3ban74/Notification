@@ -164,6 +164,47 @@ object AlarmManagerScheduler {
         )
 
         scheduleExactOrFallback(alarmManager, reminder.dueDate, pendingIntent)
+
+        // Pre-alerts (قبل يوم / قبل ساعة…): the entity always carried them,
+        // but nothing scheduled them — the promise "you'll be reminded a day
+        // before" silently never fired. Each pre-alert gets its own quiet
+        // heads-up notification ahead of the main alert.
+        schedulePreAlerts(context, alarmManager, reminder)
+    }
+
+    private fun preAlertRequestCode(reminderId: Long, ordinal: Int): Int =
+        (reminderId * 8 + ordinal + 700_000).toInt()
+
+    private fun schedulePreAlerts(
+        context: Context,
+        alarmManager: AlarmManager,
+        reminder: ReminderEntity
+    ) {
+        val now = System.currentTimeMillis()
+        com.notification.app.domain.model.PreAlertOption.entries.forEachIndexed { ordinal, option ->
+            val enabled = reminder.preAlerts.split(",")
+                .any { it.trim().equals(option.name, ignoreCase = true) }
+            if (!enabled) return@forEachIndexed
+            val triggerAt = reminder.dueDate - option.minutesBefore * 60_000L
+            if (triggerAt <= now) return@forEachIndexed
+            val intent = Intent(context, AlarmReceiver::class.java).apply {
+                action = "com.notification.app.ACTION_REMINDER_TRIGGER"
+                putExtra("EXTRA_REMINDER_ID", -1L)  // pre-alerts never re-arm recurrence
+                putExtra("EXTRA_TITLE", reminder.title)
+                putExtra("EXTRA_NOTE", reminder.note)
+                putExtra("EXTRA_CATEGORY", reminder.category)
+                putExtra("EXTRA_IS_ALARM", false)
+                putExtra("EXTRA_PRE_ALERT", true)
+                putExtra("EXTRA_PRE_ALERT_LABEL", option.name)
+            }
+            val pi = PendingIntent.getBroadcast(
+                context,
+                preAlertRequestCode(reminder.id, ordinal),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            scheduleExactOrFallback(alarmManager, triggerAt, pi)
+        }
     }
 
     /**
@@ -227,6 +268,17 @@ object AlarmManagerScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.cancel(pendingIntent)
+
+        // Mirror the pre-alert request-code namespace too.
+        com.notification.app.domain.model.PreAlertOption.entries.forEachIndexed { ordinal, _ ->
+            val pi = PendingIntent.getBroadcast(
+                context,
+                preAlertRequestCode(reminderId, ordinal),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pi)
+        }
     }
 
     fun cancelAlarm(context: Context, alarmId: Long) {

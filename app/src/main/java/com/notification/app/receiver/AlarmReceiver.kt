@@ -28,6 +28,39 @@ class AlarmReceiver : BroadcastReceiver() {
         val autoStopMin = intent.getIntExtra("EXTRA_AUTO_STOP_MIN", 5)
         val snoozeMin = intent.getIntExtra("EXTRA_SNOOZE_MIN", 10)
 
+        // Pre-alerts (قبل يوم / قبل ساعة): a quiet heads-up notification —
+        // no ringing service, no full-screen takeover, no recurrence logic.
+        if (intent.getBooleanExtra("EXTRA_PRE_ALERT", false)) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val channelId = "rafeeq_pre_alerts"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                nm.createNotificationChannel(
+                    NotificationChannel(
+                        channelId,
+                        "Rafeeq — Upcoming reminders",
+                        NotificationManager.IMPORTANCE_DEFAULT
+                    )
+                )
+            }
+            val isArabic = java.util.Locale.getDefault().language == "ar"
+            val leadLabel = when (intent.getStringExtra("EXTRA_PRE_ALERT_LABEL")) {
+                "ONE_MONTH" -> if (isArabic) "بعد شهر" else "In a month"
+                "ONE_WEEK" -> if (isArabic) "بعد أسبوع" else "In a week"
+                "ONE_DAY" -> if (isArabic) "غدًا" else "Tomorrow"
+                else -> if (isArabic) "بعد ساعة" else "In an hour"
+            }
+            val n = NotificationCompat.Builder(context, channelId)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("$leadLabel: $title")
+                .setContentText(note)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setAutoCancel(true)
+                .build()
+            nm.notify((System.currentTimeMillis() % 100000).toInt(), n)
+            return
+        }
+
         // Weekly repeat — arm the next occurrence before anything else, so a
         // crash mid-ring can't stop the series. No-op for one-shot alarms.
         com.notification.app.domain.scheduler.AlarmManagerScheduler.scheduleNextRepeat(context, intent)
