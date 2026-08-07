@@ -54,9 +54,15 @@ fun LedgerScreen(
     var selectedPersonForDetail by remember { mutableStateOf<PersonEntity?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Owed to me (لهم), 1: I owe (لي)
     var showAddPersonDialog by remember { mutableStateOf(false) }
+    var showStats by remember { mutableStateOf(false) }
     var personSearch by remember { mutableStateOf("") }
 
     val context = LocalContext.current
+
+    if (showStats) {
+        LedgerStatsScreen(transactions = transactions, isArabic = isArabic, onBack = { showStats = false })
+        return
+    }
 
     if (selectedPersonForDetail != null) {
         val personTxs = transactions.filter { it.personId == selectedPersonForDetail!!.id }
@@ -122,13 +128,22 @@ fun LedgerScreen(
                 .padding(horizontal = 16.dp)
         ) {
 
-            Text(
-                text = if (isArabic) "دفتر الديون والمعاملات" else "Debt & Loans Ledger",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = if (isArabic) "دفتر الديون والمعاملات" else "Debt & Loans Ledger",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { showStats = true }) {
+                    Icon(Icons.Default.BarChart, contentDescription = if (isArabic) "الإحصائيات" else "Statistics")
+                }
+            }
 
             // Tabs for "Owed to Me" vs "I Owe"
             TabRow(

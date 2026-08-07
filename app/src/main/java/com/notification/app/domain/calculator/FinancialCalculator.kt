@@ -131,6 +131,68 @@ object FinancialCalculator {
             monthlyPaid = monthly
         )
     }
+
+    /**
+     * Installment stats computed from the items alone (each item keeps its
+     * `remaining` and `paidInstallments` up to date after every payment), so
+     * the stats screen doesn't need to load every payment row. `monthlyDue`
+     * projects the next-12-months monthly outflow from active installments.
+     */
+    fun computeStatsFromItems(
+        items: List<FinancialItemEntity>,
+        now: Long = System.currentTimeMillis()
+    ): InstallmentStats {
+        val installments = items.filter { it.type == "INSTALLMENT" && !it.isArchived }
+        var totalRemaining = 0.0
+        var totalPaid = 0.0
+        var completionSum = 0f
+        var dueToday = 0; var dueWeek = 0; var dueMonth = 0; var overdue = 0; var paid = 0
+        val dayEnd = now + 24L * 3600_000
+        val weekEnd = now + 7L * 24 * 3600_000
+        val monthEnd = now + 30L * 24 * 3600_000
+        installments.forEach { it ->
+            val remaining = it.remaining.coerceAtLeast(0.0)
+            val paidAmount = (it.totalPrice - remaining).coerceAtLeast(0.0)
+            totalRemaining += remaining
+            totalPaid += paidAmount
+            completionSum += if (it.totalPrice > 0) (paidAmount / it.totalPrice).toFloat().coerceIn(0f, 1f) else if (it.isPaid) 1f else 0f
+            val finished = it.isPaid || remaining <= 0.01
+            if (finished) paid++
+            if (!finished && it.dueDate > 0) {
+                when {
+                    it.dueDate < now -> overdue++
+                    it.dueDate <= dayEnd -> dueToday++
+                    it.dueDate <= weekEnd -> dueWeek++
+                    it.dueDate <= monthEnd -> dueMonth++
+                }
+            }
+        }
+        val monthly = LinkedHashMap<String, Double>()
+        for (i in 0 until 12) {
+            val c = Calendar.getInstance().apply { timeInMillis = now; add(Calendar.MONTH, i) }
+            monthly["${c.get(Calendar.YEAR)}-${c.get(Calendar.MONTH) + 1}"] = 0.0
+        }
+        installments.forEach { it ->
+            if (!it.isPaid && it.remaining > 0.01 && it.monthlyAmount > 0) {
+                // Spread the projected monthly amount across the remaining months.
+                val remMonths = if (it.monthlyAmount > 0) ceil(it.remaining / it.monthlyAmount).toInt() else 0
+                val base = if (it.dueDate > now) it.dueDate else now
+                for (m in 0 until remMonths.coerceAtMost(12)) {
+                    val c = Calendar.getInstance().apply { timeInMillis = base; add(Calendar.MONTH, m) }
+                    val key = "${c.get(Calendar.YEAR)}-${c.get(Calendar.MONTH) + 1}"
+                    if (monthly.containsKey(key)) monthly[key] = (monthly[key] ?: 0.0) + it.monthlyAmount
+                }
+            }
+        }
+        return InstallmentStats(
+            totalCount = installments.size, paidCount = paid,
+            remainingCount = (installments.size - paid).coerceAtLeast(0),
+            totalRemaining = totalRemaining, totalPaid = totalPaid,
+            dueToday = dueToday, dueThisWeek = dueWeek, dueThisMonth = dueMonth, overdue = overdue,
+            completionRate = if (installments.isNotEmpty()) completionSum / installments.size else 0f,
+            monthlyPaid = monthly
+        )
+    }
 }
 
 data class InstallmentStats(

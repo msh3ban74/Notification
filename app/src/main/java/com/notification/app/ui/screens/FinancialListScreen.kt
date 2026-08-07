@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreditCard
@@ -72,6 +73,12 @@ fun FinancialListScreen(
 ) {
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
 
+    var showStats by rememberSaveable { mutableStateOf(false) }
+    if (showStats) {
+        InstallmentStatsScreen(items = items, isArabic = isArabic, onBack = { showStats = false })
+        return
+    }
+
     // Phase D — search + type filter on top of the unpaid-first sort.
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var typeFilter by rememberSaveable { mutableStateOf("") } // "" = all, else FinancialType name
@@ -103,6 +110,11 @@ fun FinancialListScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = if (isArabic) "رجوع" else "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showStats = true }) {
+                        Icon(Icons.Default.BarChart, contentDescription = if (isArabic) "الإحصائيات" else "Statistics")
                     }
                 }
             )
