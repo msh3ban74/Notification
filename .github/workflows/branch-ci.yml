@@ -47,12 +47,7 @@ jobs:
       # configures the project — so these files MUST exist first.
       - name: Write .env from secrets
         run: |
-          # All AI keys live ONLY in GitHub Secrets -> BuildConfig; they are
-          # never shown in the app UI. Missing secrets become empty strings.
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
-          echo "GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}" >> .env
-          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env
-          printf "GEMINI_API_KEY=\nGEMINI_API_KEY_2=\nGROQ_API_KEY=\n" > .env.example
 
       - name: Write local.properties from secrets
         run: |
@@ -82,6 +77,11 @@ jobs:
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          # Extra AI keys reach BuildConfig via System.getenv() in
+          # build.gradle.kts — never through .env, so an unset secret
+          # safely compiles to "".
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Remove keystore file

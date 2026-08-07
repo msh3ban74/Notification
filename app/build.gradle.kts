@@ -35,6 +35,16 @@ android {
       ?: "REPLACE_ME_GOOGLE_WEB_CLIENT_ID"
     buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
 
+    // Extra AI keys — from CI env (GitHub Secrets) or local.properties,
+    // ALWAYS quoted here so an unset secret compiles to "" instead of
+    // breaking BuildConfig generation. Never shown anywhere in the app.
+    val geminiKey2 = System.getenv("GEMINI_API_KEY_2")
+      ?: localProperties.getProperty("GEMINI_API_KEY_2") ?: ""
+    buildConfigField("String", "GEMINI_API_KEY_2", "\"$geminiKey2\"")
+    val groqKey = System.getenv("GROQ_API_KEY")
+      ?: localProperties.getProperty("GROQ_API_KEY") ?: ""
+    buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
+
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
