@@ -147,7 +147,7 @@ private fun SmartItemGridCard(
             contentPadding = AppPadding.cardCompact,
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(0.95f)
+                .aspectRatio(1.15f)
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -171,21 +171,15 @@ private fun SmartItemGridCard(
                     )
                 }
 
+                // Title only — subtitles were micro-explainers that also
+                // clipped vertically in the fixed square card.
                 Text(
                     text = if (isArabic) item.titleAr else item.titleEn,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     modifier = Modifier.padding(top = Spacing.xs)
-                )
-                Text(
-                    text = if (isArabic) item.subtitleAr else item.subtitleEn,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
         }
