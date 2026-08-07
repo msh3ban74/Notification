@@ -104,16 +104,11 @@ object RetrofitClient {
         // in debug builds; silent in release.
         .addInterceptor(
             HttpLoggingInterceptor().apply {
-                // Even in debug, never print the key-bearing URL param or the
-                // Authorization header, and stay at BASIC so user data (names,
-                // debts, reminders) doesn't land in logcat.
-                redactQueryParams("key")
+                // The key rides in the URL query param, so ANY logging level
+                // (even BASIC prints the request line) would leak it to
+                // logcat. Keep it fully off — no network logging in any build.
                 redactHeader("Authorization")
-                level = if (com.notification.app.BuildConfig.DEBUG) {
-                    HttpLoggingInterceptor.Level.BASIC
-                } else {
-                    HttpLoggingInterceptor.Level.NONE
-                }
+                level = HttpLoggingInterceptor.Level.NONE
             }
         )
         .build()
