@@ -1,6 +1,9 @@
 package com.notification.app.ui.screens
 
 import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,8 +24,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.notification.app.data.local.entities.LedgerAttachmentEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
+import kotlinx.coroutines.flow.Flow
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.calculator.LedgerStatus
 import com.notification.app.domain.calculator.LedgerSummary
@@ -49,7 +54,11 @@ fun LedgerScreen(
     onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null,
     // Person profile edit / delete (optional).
     onUpdatePerson: ((PersonEntity) -> Unit)? = null,
-    onDeletePerson: ((PersonEntity) -> Unit)? = null
+    onDeletePerson: ((PersonEntity) -> Unit)? = null,
+    // Person attachments (receipts / docs) — optional.
+    getLedgerAttachments: ((Long) -> Flow<List<LedgerAttachmentEntity>>)? = null,
+    onAddLedgerAttachment: ((Long, String) -> Unit)? = null,
+    onDeleteLedgerAttachment: ((LedgerAttachmentEntity) -> Unit)? = null
 ) {
     var selectedPersonForDetail by remember { mutableStateOf<PersonEntity?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Owed to me (لهم), 1: I owe (لي)
@@ -76,6 +85,9 @@ fun LedgerScreen(
             onUpdateTransaction = onUpdateTransaction,
             onUpdatePerson = onUpdatePerson,
             onDeletePerson = onDeletePerson?.let { del -> { p: PersonEntity -> del(p); selectedPersonForDetail = null } },
+            getLedgerAttachments = getLedgerAttachments,
+            onAddLedgerAttachment = onAddLedgerAttachment,
+            onDeleteLedgerAttachment = onDeleteLedgerAttachment,
             onExportStatement = {
                 val statement = StatementExporter.generatePersonLedgerStatement(selectedPersonForDetail!!, personTxs)
                 val intent = Intent(Intent.ACTION_SEND).apply {
@@ -443,7 +455,10 @@ fun PersonDetailScreen(
     // Edit action that reopens the same dialog pre-filled.
     onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null,
     onUpdatePerson: ((PersonEntity) -> Unit)? = null,
-    onDeletePerson: ((PersonEntity) -> Unit)? = null
+    onDeletePerson: ((PersonEntity) -> Unit)? = null,
+    getLedgerAttachments: ((Long) -> Flow<List<LedgerAttachmentEntity>>)? = null,
+    onAddLedgerAttachment: ((Long, String) -> Unit)? = null,
+    onDeleteLedgerAttachment: ((LedgerAttachmentEntity) -> Unit)? = null
 ) {
     val summary = remember(transactions) { LedgerCalculator.calculateNetBalance(transactions) }
     var showAddTxDialog by remember { mutableStateOf(false) }
@@ -552,6 +567,47 @@ fun PersonDetailScreen(
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(top = 4.dp)
                     )
+                }
+            }
+
+            if (getLedgerAttachments != null) {
+                val attachments by getLedgerAttachments(person.id).collectAsState(initial = emptyList())
+                val ctx = LocalContext.current
+                val attachPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                    if (uri != null) { takePersistable(ctx, uri); onAddLedgerAttachment?.invoke(person.id, uri.toString()) }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (isArabic) "المرفقات والإيصالات" else "Attachments & receipts",
+                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
+                    )
+                    TextButton(onClick = { attachPicker.launch(arrayOf("image/*", "application/pdf")) }) {
+                        Icon(Icons.Default.AttachFile, contentDescription = null); Spacer(Modifier.width(4.dp))
+                        Text(if (isArabic) "إضافة" else "Add")
+                    }
+                }
+                attachments.forEach { a ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Description, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Text(a.label.ifBlank { if (isArabic) "إيصال" else "Receipt" }, Modifier.weight(1f), maxLines = 1)
+                            TextButton(onClick = {
+                                try { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.uri)).apply { addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch (_: Exception) {}
+                            }) { Text(if (isArabic) "فتح" else "Open") }
+                            IconButton(onClick = { onDeleteLedgerAttachment?.invoke(a) }) {
+                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
                 }
             }
 

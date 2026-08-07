@@ -438,7 +438,10 @@ class MainActivity : ComponentActivity() {
                                     onDeleteTransaction = { viewModel.deleteLedgerTransaction(it) },
                                     onUpdateTransaction = { viewModel.updateLedgerTransaction(it) },
                                     onUpdatePerson = { viewModel.updatePerson(it) },
-                                    onDeletePerson = { viewModel.deletePerson(it) }
+                                    onDeletePerson = { viewModel.deletePerson(it) },
+                                    getLedgerAttachments = { id -> viewModel.getLedgerAttachmentsForPerson(id) },
+                                    onAddLedgerAttachment = { personId, uri -> viewModel.addLedgerAttachment(personId, 0, uri, "RECEIPT", "") },
+                                    onDeleteLedgerAttachment = { viewModel.deleteLedgerAttachment(it) }
                                 )
                             }
 
