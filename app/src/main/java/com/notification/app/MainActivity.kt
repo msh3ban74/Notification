@@ -389,9 +389,10 @@ class MainActivity : ComponentActivity() {
                                         viewModel.setReminderArchived(reminder, archived)
                                     },
                                     onDuplicate = { viewModel.duplicateReminder(it) },
-                                    onCreateTask = {
-                                        navController.navigate(Screen.CreateTask.createRoute())
-                                    }
+                                    // The Tasks "+" opens the SAME organized
+                                    // sheet as the Dashboard — every type gets
+                                    // its own dedicated form.
+                                    onCreateTask = { showSmartItemSheet = true }
                                 )
                             }
 
