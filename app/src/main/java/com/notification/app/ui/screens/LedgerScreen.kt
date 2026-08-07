@@ -537,19 +537,52 @@ fun PersonDetailScreen(
                     // the awkwardness.
                     val nudgeNumber = person.whatsapp.ifBlank { person.phoneNumber }
                         .filter { it.isDigit() || it == '+' }.removePrefix("+")
-                    if (summary.status == LedgerStatus.THEY_OWE_ME && nudgeNumber.isNotBlank()) {
-                        val nudgeContext = LocalContext.current
-                        TextButton(onClick = {
-                            val msg = if (isArabic)
-                                "مرحبًا ${person.name}، تذكير بخصوص مبلغ ${summary.netAmount.toLong()} ج.م المستحق بيننا. شكرًا لك."
-                            else
-                                "Hi ${person.name}, a reminder about the ${summary.netAmount.toLong()} EGP due between us. Thank you."
-                            val url = "https://wa.me/$nudgeNumber?text=" + java.net.URLEncoder.encode(msg, "UTF-8")
-                            try {
-                                nudgeContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                            } catch (_: Exception) { }
-                        }) {
-                            Text(if (isArabic) "تذكير عبر واتساب" else "Remind on WhatsApp")
+                    val shareContext = LocalContext.current
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (summary.status == LedgerStatus.THEY_OWE_ME && nudgeNumber.isNotBlank()) {
+                            TextButton(onClick = {
+                                val msg = if (isArabic)
+                                    "مرحبًا ${person.name}، تذكير بخصوص مبلغ ${summary.netAmount.toLong()} ج.م المستحق بيننا. شكرًا لك."
+                                else
+                                    "Hi ${person.name}, a reminder about the ${summary.netAmount.toLong()} EGP due between us. Thank you."
+                                val url = "https://wa.me/$nudgeNumber?text=" + java.net.URLEncoder.encode(msg, "UTF-8")
+                                try {
+                                    shareContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                } catch (_: Exception) { }
+                            }) {
+                                Text(if (isArabic) "تذكير عبر واتساب" else "Remind on WhatsApp")
+                            }
+                        }
+                        // «مشاركة كصورة» — بطاقة رفيق أنيقة بملخص الحساب.
+                        if (summary.status != LedgerStatus.SETTLED) {
+                            TextButton(onClick = {
+                                val dateFmt = java.text.SimpleDateFormat(
+                                    "d MMM yyyy",
+                                    if (isArabic) java.util.Locale("ar") else java.util.Locale.ENGLISH
+                                )
+                                val latestDue = transactions
+                                    .filter { it.dueDate > 0 }
+                                    .maxByOrNull { it.dueDate }?.dueDate
+                                val latestDate = transactions.maxByOrNull { it.date }?.date
+                                try {
+                                    com.notification.app.domain.share.DebtCardImage.share(
+                                        context = shareContext,
+                                        isArabic = isArabic,
+                                        personName = person.name,
+                                        amountLine = netString,
+                                        receivedLine = latestDate?.let {
+                                            (if (isArabic) "تاريخ المعاملة: " else "Transaction date: ") +
+                                                dateFmt.format(java.util.Date(it))
+                                        },
+                                        dueLine = latestDue?.let {
+                                            (if (isArabic) "تاريخ السداد: " else "Due date: ") +
+                                                dateFmt.format(java.util.Date(it))
+                                        }
+                                    )
+                                } catch (_: Exception) { }
+                            }) {
+                                Text(if (isArabic) "مشاركة كصورة" else "Share as image")
+                            }
                         }
                     }
                 }

@@ -131,13 +131,14 @@ fun EmptyState(
                 Button(
                     onClick = onAction,
                     shape = AppRadius.button,
-                    contentPadding = PaddingValues(horizontal = Spacing.xl, vertical = Spacing.sm),
+                    // Default content padding: a tight custom vertical inset
+                    // clipped tall Arabic ascenders to dots on device.
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaroonPrimary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
-                    Text(actionLabel, style = MaterialTheme.typography.labelLarge)
+                    Text(actionLabel)
                 }
             }
         }

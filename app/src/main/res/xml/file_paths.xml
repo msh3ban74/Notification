@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Share-as-image: debt/summary cards are rendered into cache/share and
+     exposed through this FileProvider — never stored publicly. -->
+<paths>
+    <cache-path name="share" path="share/" />
+</paths>

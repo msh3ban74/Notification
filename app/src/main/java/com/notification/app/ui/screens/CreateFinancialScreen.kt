@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -15,7 +16,10 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -124,6 +128,32 @@ fun CreateFinancialScreen(
                 .padding(top = Spacing.sm, bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
+            if (type == FinancialType.INSTALLMENT) {
+                // القسط ده عبارة عن إيه؟ — اختيار سريع يملأ الاسم.
+                Text(
+                    text = if (isArabic) "القسط ده عبارة عن إيه؟" else "What is this installment for?",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                )
+                val quickKinds = if (isArabic)
+                    listOf("موبايل", "ثلاجة", "غسالة", "أثاث", "عربية")
+                else listOf("Phone", "Fridge", "Washer", "Furniture", "Car")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                ) {
+                    quickKinds.forEach { kind ->
+                        androidx.compose.material3.FilterChip(
+                            selected = title == kind,
+                            onClick = { title = kind },
+                            label = { Text(kind) }
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -145,6 +175,38 @@ fun CreateFinancialScreen(
                 MoneyField(totalPrice, { totalPrice = it }, if (isArabic) "السعر الكلي (ج.م)" else "Total price (EGP)")
                 MoneyField(downPayment, { downPayment = it }, if (isArabic) "المقدّم (ج.م)" else "Down payment (EGP)")
                 MoneyField(monthlyAmount, { monthlyAmount = it }, if (isArabic) "القسط الشهري (ج.م)" else "Monthly amount (EGP)")
+
+                // معاينة حية: الباقي وعدد الأقساط المتوقع — قبل الحفظ.
+                val liveTotal = totalPrice.toDoubleOrNull() ?: 0.0
+                val liveDown = downPayment.toDoubleOrNull() ?: 0.0
+                val liveMonthly = monthlyAmount.toDoubleOrNull() ?: 0.0
+                val liveRemaining = (liveTotal - liveDown).coerceAtLeast(0.0)
+                if (liveTotal > 0) {
+                    androidx.compose.material3.Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(Spacing.md)) {
+                            Text(
+                                text = if (isArabic) "الباقي عليك: ${liveRemaining.toLong()} ج.م"
+                                else "Remaining: ${liveRemaining.toLong()} EGP",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (liveMonthly > 0 && liveRemaining > 0) {
+                                val count = kotlin.math.ceil(liveRemaining / liveMonthly).toInt()
+                                Text(
+                                    text = if (isArabic) "يعني تقريبًا $count ${if (count == 1) "قسط" else "أقساط"} شهرية"
+                                    else "≈ $count monthly installment${if (count == 1) "" else "s"}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
             } else {
                 MoneyField(
                     amount, { amount = it },

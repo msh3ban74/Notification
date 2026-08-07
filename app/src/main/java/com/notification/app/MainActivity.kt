@@ -68,6 +68,10 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     // Sprint 4 — Smart Debt: reuses the existing Ledger implementation.
     object CreateDebt : Screen("create_debt", "New Debt", "دين جديد", Icons.Default.Add)
 
+    // «مناسباتك» — weddings, birthdays, gatherings: a dedicated form that
+    // rides the reminder pipeline (pre-alerts included).
+    object CreateEvent : Screen("create_event", "New Occasion", "مناسبة جديدة", Icons.Default.Add)
+
     // Sprint 5 — Bill / Appointment / Medicine: the SAME shared reminder
     // form as Task, parametrized per type (SmartReminderFormConfig). One
     // pipeline, zero duplicated forms.
@@ -816,12 +820,13 @@ class MainActivity : ComponentActivity() {
                                 CreateDebtScreen(
                                     persons = persons,
                                     isArabic = isArabic,
-                                    onSave = { existingPersonId, personName, amount, isLent, dueDate, note ->
+                                    onSave = { existingPersonId, personName, amount, isLent, receivedDate, dueDate, note ->
                                         viewModel.addDebt(
                                             existingPersonId = existingPersonId,
                                             personName = personName,
                                             amount = amount,
                                             isLent = isLent,
+                                            receivedDate = receivedDate,
                                             dueDate = dueDate,
                                             note = note
                                         )
@@ -829,6 +834,23 @@ class MainActivity : ComponentActivity() {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(
                                                 if (isArabic) "تم حفظ الدين بنجاح" else "Debt saved successfully."
+                                            )
+                                        }
+                                    },
+                                    onCancel = { navController.popBackStack() }
+                                )
+                            }
+
+                            // «مناسباتك» — the dedicated occasions form.
+                            composable(Screen.CreateEvent.route) {
+                                CreateEventScreen(
+                                    isArabic = isArabic,
+                                    onSave = { reminder ->
+                                        viewModel.addReminder(reminder)
+                                        navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (isArabic) "تم حفظ المناسبة وسيصلك تذكير قبلها" else "Occasion saved — you'll be reminded."
                                             )
                                         }
                                     },
@@ -868,9 +890,7 @@ class MainActivity : ComponentActivity() {
                                     )
                                     "gam3iya" -> navController.navigate(Screen.CreateGam3iya.route)
                                     "habit" -> navController.navigate(Screen.Habits.route)
-                                    // study / work / event / personal / more —
-                                    // every remaining type opens the REAL shared
-                                    // reminder form with its own category preset.
+                                    "event" -> navController.navigate(Screen.CreateEvent.route)
                                     else -> navController.navigate(
                                         Screen.CreateSmartReminder.createRoute(item.id)
                                     )

@@ -5,6 +5,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,29 +76,45 @@ fun SmartItemBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = AppPadding.screen)
                 .padding(bottom = AppPadding.screen),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             Text(
-                text = if (isArabic) "عايز تنظم إيه؟" else "What would you like to organize?",
+                text = if (isArabic) "ماذا تريد أن تنظّم؟" else "What would you like to organize?",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold
             )
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                itemsIndexed(items = SmartItemType.all) { index, item ->
-                    SmartItemGridCard(
-                        item = item,
-                        isArabic = isArabic,
-                        entranceDelayMillis = index * 25,
-                        onClick = { onItemSelected(item) }
-                    )
+            // Organized, titled sections — each type opens its OWN form.
+            var entranceIndex = 0
+            com.notification.app.domain.model.SmartItemCatalog.sections.forEach { section ->
+                Text(
+                    text = if (isArabic) section.titleAr else section.titleEn,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                section.items.chunked(3).forEach { rowItems ->
+                    androidx.compose.foundation.layout.Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        rowItems.forEach { item ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                SmartItemGridCard(
+                                    item = item,
+                                    isArabic = isArabic,
+                                    entranceDelayMillis = (entranceIndex++) * 25,
+                                    onClick = { onItemSelected(item) }
+                                )
+                            }
+                        }
+                        repeat(3 - rowItems.size) {
+                            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }

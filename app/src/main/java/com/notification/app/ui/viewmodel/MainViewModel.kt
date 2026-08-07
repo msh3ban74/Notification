@@ -572,6 +572,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         personName: String,
         amount: Double,
         isLent: Boolean,
+        receivedDate: Long = System.currentTimeMillis(),
         dueDate: Long?,
         note: String
     ) {
@@ -600,8 +601,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         LedgerTransactionType.THEY_GAVE_ME.name
                     },
                     amount = amount,
-                    date = System.currentTimeMillis(),
+                    date = receivedDate,
                     note = note,
+                    dueDate = dueDate ?: 0L,
                     linkedReminderId = linkedReminderId
                 )
             )
