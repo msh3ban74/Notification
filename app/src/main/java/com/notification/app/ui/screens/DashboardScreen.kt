@@ -122,6 +122,7 @@ fun DashboardScreen(
     onNavigateToTasks: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToLedger: () -> Unit = {},
+    onNavigateToLedgerPerson: (Long) -> Unit = {},
     onNavigateToGam3iya: () -> Unit = {},
     onNavigateToIslamic: () -> Unit = {},
     onNavigateToHealthNotes: () -> Unit = {},
@@ -253,6 +254,7 @@ fun DashboardScreen(
             financialItems = financialItems,
             gam3iyas = gam3iyas,
             onOpenLedger = onNavigateToLedger,
+            onOpenLedgerPerson = onNavigateToLedgerPerson,
             onOpenFinancial = onNavigateToFinancial,
             onOpenGam3iya = onNavigateToGam3iya
         )
@@ -660,22 +662,41 @@ private fun MoneySnapshotCard(
     financialItems: List<FinancialItemEntity>,
     gam3iyas: List<Gam3iyaEntity>,
     onOpenLedger: () -> Unit,
+    onOpenLedgerPerson: (Long) -> Unit,
     onOpenFinancial: () -> Unit,
     onOpenGam3iya: () -> Unit
 ) {
     val now = System.currentTimeMillis()
-    val summaries = remember(persons, transactions) {
-        persons.map { p ->
-            LedgerCalculator.calculateNetBalance(transactions.filter { it.personId == p.id })
+    // Per-person balance + that person's nearest due date, so the card can
+    // name the ONE debt that matters most right now.
+    data class PersonDebt(
+        val person: PersonEntity,
+        val status: LedgerStatus,
+        val amount: Double,
+        val nextDue: Long
+    )
+    val personDebts = remember(persons, transactions) {
+        persons.mapNotNull { p ->
+            val txs = transactions.filter { it.personId == p.id }
+            if (txs.isEmpty()) return@mapNotNull null
+            val s = LedgerCalculator.calculateNetBalance(txs)
+            if (s.status == LedgerStatus.SETTLED) return@mapNotNull null
+            val due = txs.filter { it.dueDate > 0 }.minByOrNull { it.dueDate }?.dueDate ?: Long.MAX_VALUE
+            PersonDebt(p, s.status, s.netAmount, due)
         }
     }
-    val owedToMe = summaries.filter { it.status == LedgerStatus.THEY_OWE_ME }.sumOf { it.netAmount }
-    val iOwe = summaries.filter { it.status == LedgerStatus.I_OWE_THEM }.sumOf { it.netAmount }
+    // The focus debt: the one whose repayment date is nearest (whether it is
+    // owed TO the user or BY them). Falls back to the largest amount.
+    val focusDebt = remember(personDebts) {
+        personDebts.minWithOrNull(
+            compareBy({ it.nextDue }, { -it.amount })
+        )
+    }
     val nextPayment = remember(financialItems) {
         financialItems.filter { !it.isPaid && !it.isArchived && it.dueDate > now }
             .minByOrNull { it.dueDate }
     }
-    val hasAnyMoney = owedToMe > 0 || iOwe > 0 || nextPayment != null || gam3iyas.isNotEmpty()
+    val hasAnyMoney = focusDebt != null || nextPayment != null || gam3iyas.isNotEmpty()
     if (!hasAnyMoney) return
 
     val df = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
@@ -688,21 +709,26 @@ private fun MoneySnapshotCard(
                 fontWeight = FontWeight.SemiBold
             )
             HorizontalDivider()
-            if (owedToMe > 0) {
-                MoneyLine(
-                    icon = Icons.Default.AccountBalanceWallet,
-                    text = if (isArabic) "ليك عند الناس" else "People owe you",
-                    value = "${owedToMe.toLong()} ${if (isArabic) "ج.م" else "EGP"}",
-                    valueColor = MaterialTheme.colorScheme.tertiary
-                )
-            }
-            if (iOwe > 0) {
-                MoneyLine(
-                    icon = Icons.Default.AccountBalanceWallet,
-                    text = if (isArabic) "عليك للناس" else "You owe people",
-                    value = "${iOwe.toLong()} ${if (isArabic) "ج.م" else "EGP"}",
-                    valueColor = MaterialTheme.colorScheme.error
-                )
+            if (focusDebt != null) {
+                val name = focusDebt.person.name
+                val amount = "${focusDebt.amount.toLong()} ${if (isArabic) "ج.م" else "EGP"}"
+                val owedToMe = focusDebt.status == LedgerStatus.THEY_OWE_ME
+                androidx.compose.material3.Surface(
+                    onClick = { onOpenLedgerPerson(focusDebt.person.id) },
+                    color = androidx.compose.ui.graphics.Color.Transparent
+                ) {
+                    MoneyLine(
+                        icon = Icons.Default.AccountBalanceWallet,
+                        text = if (owedToMe) {
+                            if (isArabic) "لك عند $name" else "$name owes you"
+                        } else {
+                            if (isArabic) "عليك لـ$name" else "You owe $name"
+                        },
+                        value = amount,
+                        valueColor = if (owedToMe) MaterialTheme.colorScheme.tertiary
+                        else MaterialTheme.colorScheme.error
+                    )
+                }
             }
             if (nextPayment != null) {
                 MoneyLine(

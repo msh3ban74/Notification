@@ -46,6 +46,15 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     // Reminders route were removed — Dashboard is the home surface and the
     // Tasks route hosts the live reminders screen.)
     object Ledger : Screen("ledger", "Debts", "الديون", Icons.Default.AccountBalanceWallet)
+
+    // Opens the Debts screen straight into one person's detail (from the
+    // dashboard money card). Separate route so the Debts bottom-nav tab
+    // selection logic is untouched.
+    object LedgerPerson : Screen(
+        "ledger_person/{personId}", "Debts", "الديون", Icons.Default.AccountBalanceWallet
+    ) {
+        fun createRoute(personId: Long) = "ledger_person/$personId"
+    }
     object Gam3iya : Screen("gam3iya", "Gam3iya", "الجمعيات", Icons.Default.Group)
     object Islamic : Screen("islamic", "Islamic", "إسلاميات", Icons.Default.Mosque)
     object HealthNotes : Screen("health_notes", "Health/Notes", "الصحة", Icons.Default.WaterDrop)
@@ -360,6 +369,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
+                                    onNavigateToLedgerPerson = { pid -> navController.navigate(Screen.LedgerPerson.createRoute(pid)) },
                                     onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
                                     onNavigateToIslamic = { navController.navigate(Screen.Islamic.route) },
                                     onNavigateToHealthNotes = { navController.navigate(Screen.HealthNotes.route) },
@@ -433,6 +443,29 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            composable(
+                                Screen.LedgerPerson.route,
+                                arguments = listOf(navArgument("personId") { type = NavType.LongType })
+                            ) { backStackEntry ->
+                                val personId = backStackEntry.arguments?.getLong("personId")
+                                LedgerScreen(
+                                    persons = persons,
+                                    transactions = transactions,
+                                    isArabic = isArabic,
+                                    onAddPerson = { name, phone -> viewModel.addPerson(name, phone) },
+                                    onAddPersonFull = { viewModel.addPersonFull(it) },
+                                    onAddTransaction = { viewModel.addLedgerTransaction(it) },
+                                    onDeleteTransaction = { viewModel.deleteLedgerTransaction(it) },
+                                    onUpdateTransaction = { viewModel.updateLedgerTransaction(it) },
+                                    onUpdatePerson = { viewModel.updatePerson(it) },
+                                    onDeletePerson = { viewModel.deletePerson(it) },
+                                    getLedgerAttachments = { id -> viewModel.getLedgerAttachmentsForPerson(id) },
+                                    onAddLedgerAttachment = { pid, uri -> viewModel.addLedgerAttachment(pid, 0, uri, "RECEIPT", "") },
+                                    onDeleteLedgerAttachment = { viewModel.deleteLedgerAttachment(it) },
+                                    initialPersonId = personId
+                                )
+                            }
+
                             composable(Screen.Gam3iya.route) {
                                 Gam3iyaScreen(
                                     viewModel = viewModel,
@@ -493,11 +526,7 @@ class MainActivity : ComponentActivity() {
                                 val fileBackupState by viewModel.fileBackupState.collectAsState()
                                 val fileRestoreState by viewModel.fileRestoreState.collectAsState()
                                 val restorePreview by viewModel.restorePreview.collectAsState()
-                                val autoBackupFreq by viewModel.autoBackupFreq.collectAsState()
-                                val autoBackupCharging by viewModel.autoBackupCharging.collectAsState()
-                                val autoBackupWifi by viewModel.autoBackupWifi.collectAsState()
-                                val autoBackupTreeUri by viewModel.autoBackupTreeUri.collectAsState()
-                                val autoBackupLast by viewModel.autoBackupLast.collectAsState()
+                                val autoCloudBackup by viewModel.autoCloudBackup.collectAsState()
                                 SettingsScreen(
                                     currentLanguage = language,
                                     isLoggedIn = isLoggedIn,
@@ -518,15 +547,8 @@ class MainActivity : ComponentActivity() {
                                     restorePreview = restorePreview,
                                     onConfirmRestore = { viewModel.confirmRestoreFromFile() },
                                     onCancelRestore = { viewModel.cancelRestorePreview() },
-                                    autoBackupFreq = autoBackupFreq,
-                                    autoBackupCharging = autoBackupCharging,
-                                    autoBackupWifi = autoBackupWifi,
-                                    autoBackupTreeUri = autoBackupTreeUri,
-                                    autoBackupLast = autoBackupLast,
-                                    onSetAutoBackupFreq = { viewModel.setAutoBackupFrequency(it) },
-                                    onSetAutoBackupCharging = { viewModel.setAutoBackupCharging(it) },
-                                    onSetAutoBackupWifi = { viewModel.setAutoBackupWifi(it) },
-                                    onPickAutoBackupFolder = { viewModel.setAutoBackupFolder(it) },
+                                    autoCloudBackup = autoCloudBackup,
+                                    onSetAutoCloudBackup = { viewModel.setAutoCloudBackup(it) },
                                     onSignOut = {
                                         // Stability sprint — REAL logout:
                                         // Firebase sign-out + persisted session

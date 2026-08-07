@@ -1051,55 +1051,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _fileRestoreState.value = null
     }
 
-    // ── Sprint 3 — automatic scheduled backup ──────────────────────────────
-    val autoBackupFreq: StateFlow<String> = preferencesRepository.autoBackupFreqFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "OFF")
-    val autoBackupCharging: StateFlow<Boolean> = preferencesRepository.autoBackupChargingFlow
+    // ── Automatic cloud backup ─────────────────────────────────────────────
+    // A single ON/OFF toggle. When ON, every change to the user's data
+    // (something added or removed) silently mirrors to the cloud — no
+    // schedules, no folders, no Wi-Fi/charging conditions. The backup is a
+    // MIRROR: the cloud always equals the device, so a later restore on a new
+    // phone brings back EXACTLY what's there now.
+    val autoCloudBackup: StateFlow<Boolean> = preferencesRepository.autoCloudBackupFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-    val autoBackupWifi: StateFlow<Boolean> = preferencesRepository.autoBackupWifiFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-    val autoBackupTreeUri: StateFlow<String> = preferencesRepository.autoBackupTreeUriFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
-    val autoBackupLast: StateFlow<Long> = preferencesRepository.autoBackupLastFlow
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
-    /** Re-arm the WorkManager schedule from the latest persisted settings. */
-    private suspend fun rearmAutoBackup() {
-        com.notification.app.domain.backup.AutoBackupScheduler.reschedule(
-            getApplication(),
-            preferencesRepository.autoBackupFreqFlow.first(),
-            preferencesRepository.autoBackupChargingFlow.first(),
-            preferencesRepository.autoBackupWifiFlow.first()
-        )
-    }
-
-    fun setAutoBackupFrequency(value: String) {
+    fun setAutoCloudBackup(value: Boolean) {
         viewModelScope.launch {
-            preferencesRepository.setAutoBackupFreq(value)
-            rearmAutoBackup()
+            preferencesRepository.setAutoCloudBackup(value)
+            // Turning it ON takes an immediate snapshot so the cloud is never
+            // stale relative to what the user is looking at right now.
+            if (value) autoBackupNow()
         }
     }
 
-    fun setAutoBackupCharging(value: Boolean) {
+    /** Fire-and-forget mirror upload used by the auto-backup observer.
+     *  Never touches the visible backupState spinner — it's silent. */
+    private var autoBackupInFlight = false
+    private fun autoBackupNow() {
+        if (autoBackupInFlight) return
+        autoBackupInFlight = true
         viewModelScope.launch {
-            preferencesRepository.setAutoBackupCharging(value)
-            rearmAutoBackup()
+            try {
+                withTimeoutOrNull(30_000L) { backupRepository.backupNow() }
+                preferencesRepository.updateLastSyncTime(System.currentTimeMillis())
+            } finally {
+                autoBackupInFlight = false
+            }
         }
     }
 
-    fun setAutoBackupWifi(value: Boolean) {
+    init {
+        // Watch every data source that a backup captures. Each Room change
+        // pushes a new combined fingerprint; we debounce so a burst of edits
+        // collapses into one upload, drop the very first (initial load) so we
+        // don't back up just for opening the app, and only run while the
+        // toggle is ON.
         viewModelScope.launch {
-            preferencesRepository.setAutoBackupWifi(value)
-            rearmAutoBackup()
-        }
-    }
-
-    /** The user granted a destination folder — persist the URI (with a
-     *  persistable permission held by the Activity) and re-arm. */
-    fun setAutoBackupFolder(treeUri: android.net.Uri) {
-        viewModelScope.launch {
-            preferencesRepository.setAutoBackupTreeUri(treeUri.toString())
-            rearmAutoBackup()
+            kotlinx.coroutines.flow.combine(
+                repository.allReminders,
+                repository.allPersons,
+                repository.allTransactions,
+                repository.allFinancialItems,
+                repository.allGam3iyas
+            ) { a, b, c, d, e -> a.size + b.size + c.size + d.size + e.size }
+                .drop(1)
+                .debounce(4_000L)
+                .collect {
+                    if (autoCloudBackup.value) autoBackupNow()
+                }
         }
     }
 

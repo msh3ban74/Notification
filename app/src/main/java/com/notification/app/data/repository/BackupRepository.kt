@@ -5,8 +5,10 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.notification.app.data.local.AppDatabase
 import com.notification.app.data.local.entities.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 /**
  * Real cloud backup/restore for the local Room database, using Firestore
@@ -177,8 +179,9 @@ class BackupRepository(
             // REPLACE, not merge: wipe every local table first so anything the
             // user deleted before their last backup (e.g. a finished
             // installment) can NOT reappear after restoring on another phone.
-            // The cloud mirror is the single source of truth.
-            db.clearAllTables()
+            // clearAllTables() is a BLOCKING Room call — must be off the main
+            // thread or Room throws "cannot access database on the main thread".
+            withContext(Dispatchers.IO) { db.clearAllTables() }
 
             var count = 0
             userDocRef.collection("reminders").get().await().documents

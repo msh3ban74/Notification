@@ -376,85 +376,9 @@ fun CreateTaskScreen(
                 }
             }
 
-            // Tags + Location (Phase A rich fields).
-            OutlinedTextField(
-                value = tags,
-                onValueChange = { tags = it },
-                label = { Text(if (isArabic) "وسوم (مفصولة بفاصلة)" else "Tags (comma separated)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = location,
-                onValueChange = { location = it },
-                label = { Text(if (isArabic) "المكان (اختياري)" else "Location (optional)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Progress slider.
-            Text(
-                text = (if (isArabic) "التقدّم: " else "Progress: ") + "${progress.toInt()}%",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Slider(
-                value = progress,
-                onValueChange = { progress = it },
-                valueRange = 0f..100f,
-                steps = 9,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Checklist editor.
-            Text(
-                text = if (isArabic) "قائمة المهام الفرعية" else "Checklist",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            checklist.forEachIndexed { index, item ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Checkbox(
-                        checked = item.first,
-                        onCheckedChange = { checklist[index] = item.copy(first = it) }
-                    )
-                    Text(
-                        text = item.second,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { checklist.removeAt(index) }) {
-                        Icon(Icons.Default.Close, contentDescription = if (isArabic) "حذف" else "Remove")
-                    }
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = newChecklistItem,
-                    onValueChange = { newChecklistItem = it },
-                    label = { Text(if (isArabic) "أضف بندًا" else "Add item") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(
-                    onClick = {
-                        val t = newChecklistItem.trim()
-                        if (t.isNotEmpty()) {
-                            checklist.add(false to t)
-                            newChecklistItem = ""
-                        }
-                    }
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = if (isArabic) "إضافة" else "Add")
-                }
-            }
+            // Rich power-user fields (tags / location / progress / checklist)
+            // were removed to keep the task form calm and companion-simple.
+            // Their backing state stays at its empty defaults on save.
 
             PremiumButton(
                 text = if (isArabic) "حفظ" else "Save",

@@ -76,7 +76,7 @@ object SmartItemCatalog {
             items = listOf(
                 SmartItemType(
                     id = "task",
-                    titleEn = "Task / Appointment", titleAr = "مهمة أو موعد",
+                    titleEn = "Task", titleAr = "مهمة",
                     subtitleEn = "With a timely alert", subtitleAr = "بتنبيه في موعدها",
                     icon = Icons.Default.CheckCircle
                 ),

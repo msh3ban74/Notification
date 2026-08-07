@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.Flow
 import com.notification.app.domain.calculator.LedgerCalculator
 import com.notification.app.domain.calculator.LedgerStatus
 import com.notification.app.domain.calculator.LedgerSummary
-import com.notification.app.domain.calculator.StatementExporter
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.ui.theme.MaroonPrimary
 import com.notification.app.ui.theme.OnPrimary
@@ -58,9 +57,17 @@ fun LedgerScreen(
     // Person attachments (receipts / docs) — optional.
     getLedgerAttachments: ((Long) -> Flow<List<LedgerAttachmentEntity>>)? = null,
     onAddLedgerAttachment: ((Long, String) -> Unit)? = null,
-    onDeleteLedgerAttachment: ((LedgerAttachmentEntity) -> Unit)? = null
+    onDeleteLedgerAttachment: ((LedgerAttachmentEntity) -> Unit)? = null,
+    // When set (e.g. tapped from the dashboard money card), open straight
+    // into this person's debt detail on first composition.
+    initialPersonId: Long? = null
 ) {
     var selectedPersonForDetail by remember { mutableStateOf<PersonEntity?>(null) }
+    androidx.compose.runtime.LaunchedEffect(initialPersonId, persons) {
+        if (initialPersonId != null && selectedPersonForDetail == null) {
+            persons.firstOrNull { it.id == initialPersonId }?.let { selectedPersonForDetail = it }
+        }
+    }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Owed to me (لهم), 1: I owe (لي)
     var showAddPersonDialog by remember { mutableStateOf(false) }
     var showStats by remember { mutableStateOf(false) }
@@ -89,12 +96,28 @@ fun LedgerScreen(
             onAddLedgerAttachment = onAddLedgerAttachment,
             onDeleteLedgerAttachment = onDeleteLedgerAttachment,
             onExportStatement = {
-                val statement = StatementExporter.generatePersonLedgerStatement(selectedPersonForDetail!!, personTxs)
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, statement)
+                // Share the SAME clean branded card image everywhere — never
+                // the old raw English text statement.
+                val p = selectedPersonForDetail!!
+                val summary = LedgerCalculator.calculateNetBalance(personTxs)
+                val amountLine = when (summary.status) {
+                    LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${summary.netAmount.toLong()} ج.م" else "Owes you ${summary.netAmount.toLong()} EGP"
+                    LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${summary.netAmount.toLong()} ج.م" else "You owe ${summary.netAmount.toLong()} EGP"
+                    LedgerStatus.SETTLED -> if (isArabic) "الحساب مسدّد" else "Settled"
                 }
-                context.startActivity(Intent.createChooser(intent, "Share Ledger Statement"))
+                val dateFmt = java.text.SimpleDateFormat("d MMM yyyy", if (isArabic) java.util.Locale("ar") else java.util.Locale.ENGLISH)
+                val latestDue = personTxs.filter { it.dueDate > 0 }.maxByOrNull { it.dueDate }?.dueDate
+                val latestDate = personTxs.maxByOrNull { it.date }?.date
+                try {
+                    com.notification.app.domain.share.DebtCardImage.share(
+                        context = context,
+                        isArabic = isArabic,
+                        personName = p.name,
+                        amountLine = amountLine,
+                        receivedLine = latestDate?.let { (if (isArabic) "تاريخ المعاملة: " else "Date: ") + dateFmt.format(java.util.Date(it)) },
+                        dueLine = latestDue?.let { (if (isArabic) "تاريخ السداد: " else "Due: ") + dateFmt.format(java.util.Date(it)) }
+                    )
+                } catch (_: Exception) { }
             }
         )
         return

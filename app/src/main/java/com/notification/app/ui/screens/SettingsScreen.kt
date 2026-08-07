@@ -51,15 +51,8 @@ fun SettingsScreen(
     onConfirmRestore: () -> Unit = {},
     onCancelRestore: () -> Unit = {},
     // Sprint 3 — automatic scheduled backup.
-    autoBackupFreq: String = "OFF",
-    autoBackupCharging: Boolean = false,
-    autoBackupWifi: Boolean = false,
-    autoBackupTreeUri: String = "",
-    autoBackupLast: Long = 0L,
-    onSetAutoBackupFreq: (String) -> Unit = {},
-    onSetAutoBackupCharging: (Boolean) -> Unit = {},
-    onSetAutoBackupWifi: (Boolean) -> Unit = {},
-    onPickAutoBackupFolder: (android.net.Uri) -> Unit = {}
+    autoCloudBackup: Boolean = false,
+    onSetAutoCloudBackup: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -70,22 +63,6 @@ fun SettingsScreen(
     val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri -> if (uri != null) onPickRestoreFile?.invoke(uri) }
-    // Auto-backup destination folder — persist a durable grant so the
-    // background worker can keep writing to it after the app is closed.
-    val folderLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (_: SecurityException) { /* best-effort; folder may still work */ }
-            onPickAutoBackupFolder(uri)
-        }
-    }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
 
     LazyColumn(
@@ -302,137 +279,25 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Text(
-                        text = if (isArabic)
-                            "يحفظ نسخة في المجلد الذي تختاره حسب الجدول — بدون أي تدخل منك"
-                        else "Saves a copy into your chosen folder on schedule — hands-free",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
-                    )
-
-                    // Frequency chips
-                    val freqs = listOf(
-                        "OFF" to (if (isArabic) "إيقاف" else "Off"),
-                        "DAILY" to (if (isArabic) "يومي" else "Daily"),
-                        "WEEKLY" to (if (isArabic) "أسبوعي" else "Weekly"),
-                        "MONTHLY" to (if (isArabic) "شهري" else "Monthly")
-                    )
-                    androidx.compose.foundation.layout.FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        freqs.forEach { (value, label) ->
-                            FilterChip(
-                                selected = autoBackupFreq == value,
-                                onClick = { onSetAutoBackupFreq(value) },
-                                label = { Text(label, maxLines = 1, softWrap = false) }
-                            )
-                        }
-                    }
-
-                    // Extra options only make sense once a schedule is on.
-                    if (autoBackupFreq != "OFF") {
-                        Spacer(Modifier.height(6.dp))
-
-                        // Destination folder
-                        val folderChosen = autoBackupTreeUri.isNotBlank()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FolderOpen,
-                                    contentDescription = null,
-                                    tint = if (folderChosen) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = if (folderChosen)
-                                        (if (isArabic) "تم اختيار المجلد" else "Folder selected")
-                                    else (if (isArabic) "اختر مجلد الحفظ (مطلوب)" else "Choose a folder (required)"),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = if (folderChosen) MaterialTheme.colorScheme.onSurface
-                                    else MaterialTheme.colorScheme.error
-                                )
-                            }
-                            TextButton(onClick = { folderLauncher.launch(null) }) {
-                                Text(if (isArabic) "تغيير" else "Change")
-                            }
-                        }
-
-                        // Charging only
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Bolt,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = if (isArabic) "أثناء الشحن فقط" else "While charging only",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                            Switch(
-                                checked = autoBackupCharging,
-                                onCheckedChange = onSetAutoBackupCharging
-                            )
-                        }
-
-                        // Wi-Fi only
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Wifi,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = if (isArabic) "عبر Wi-Fi فقط" else "On Wi-Fi only",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                            Switch(
-                                checked = autoBackupWifi,
-                                onCheckedChange = onSetAutoBackupWifi
-                            )
-                        }
-
-                        // Last run
-                        if (autoBackupLast > 0L) {
-                            Text(
-                                text = (if (isArabic) "آخر نسخة: " else "Last backup: ") +
-                                    dateFormat.format(java.util.Date(autoBackupLast)),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 10.dp)
-                            )
-                        }
+                        Text(
+                            text = if (isArabic)
+                                "يرفع بياناتك للسحابة تلقائيًا مع كل تعديل"
+                            else "Backs up to the cloud automatically on every change",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f).padding(end = 12.dp)
+                        )
+                        Switch(
+                            checked = autoCloudBackup,
+                            onCheckedChange = onSetAutoCloudBackup
+                        )
                     }
                 }
             }
