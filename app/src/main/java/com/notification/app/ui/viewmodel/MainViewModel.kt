@@ -15,7 +15,6 @@ import com.notification.app.data.repository.NotificationRepository
 import com.notification.app.domain.calculator.Gam3iyaCalculator
 import com.notification.app.domain.calculator.PrayerTime
 import com.notification.app.domain.calculator.PrayerTimesCalculator
-import com.notification.app.domain.model.AiSuggestion
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.domain.model.RecurrenceType
 import com.notification.app.domain.model.ReminderCategory
@@ -308,41 +307,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Dashboard "Rafeeq Suggestions" — produced by the EXISTING Gemini
-    // pipeline from real data (see GeminiRepository.generateDashboardSuggestions).
-    private val _aiSuggestions = MutableStateFlow<List<AiSuggestion>>(emptyList())
-    val aiSuggestions: StateFlow<List<AiSuggestion>> = _aiSuggestions.asStateFlow()
-
-    private val _aiSuggestionsLoading = MutableStateFlow(false)
-    val aiSuggestionsLoading: StateFlow<Boolean> = _aiSuggestionsLoading.asStateFlow()
-
-    // Sprint 6 — TTL cache for AI suggestions: within the TTL the cached
-    // list is served instantly with no network call; pull-to-refresh
-    // passes force=true to bypass. The UI is never blocked either way.
-    private var aiSuggestionsFetchedAt = 0L
-
-    /**
-     * Refreshes the dashboard AI suggestions. Reuses the existing Gemini
-     * repository and API-key resolution; on failure the previous list is
-     * kept (or stays empty, letting the dashboard fall back to its local
-     * rule-based insights).
-     */
-    fun refreshAiSuggestions(isArabic: Boolean, force: Boolean = false) {
-        if (_aiSuggestionsLoading.value) return
-        val fresh = System.currentTimeMillis() - aiSuggestionsFetchedAt < AI_SUGGESTIONS_TTL_MS
-        if (!force && _aiSuggestions.value.isNotEmpty() && fresh) return
-        viewModelScope.launch {
-            _aiSuggestionsLoading.value = true
-            val result = geminiRepository.generateDashboardSuggestions(
-                isArabic = isArabic
-            )
-            if (result.isNotEmpty()) {
-                _aiSuggestions.value = result
-                aiSuggestionsFetchedAt = System.currentTimeMillis()
-            }
-            _aiSuggestionsLoading.value = false
-        }
-    }
+    // NOTE: AI dashboard suggestions were removed on purpose — they burned
+    // the free-tier quota the CHAT needs. «رفيق شايف إن…» on the home
+    // screen is computed locally from the user's own data at zero cost.
 
     /**
      * Stability sprint — full logout: Firebase sign-out happens at the
@@ -356,18 +323,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         aiJob?.cancel()
         _chatMessages.value = emptyList()
-        _aiSuggestions.value = emptyList()
-        aiSuggestionsFetchedAt = 0L
         _isAiLoading.value = false
         persistChat()
     }
 
     companion object {
-        /** How long cached AI suggestions stay fresh before a silent re-fetch. */
-        // 60 min: suggestions are ambient, and every fetch spends free-tier
-        // quota the CHAT needs more (the repeated "service busy" bug).
-        const val AI_SUGGESTIONS_TTL_MS: Long = 60 * 60 * 1000L
-
         /** Hard ceiling for a single AI generation before a friendly cancel.
          *  30s covers a tool round-trip plus one transient retry; the OkHttp
          *  call timeout (25s) usually trips first, so this is the backstop. */
@@ -378,6 +338,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val waterCount: StateFlow<Int> = preferencesRepository.waterCountFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
+    // العقل الاحتياطي — the user's optional second-provider key.
+    val fallbackAiKey: StateFlow<String> = preferencesRepository.fallbackAiKeyFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, "")
+
+    fun setFallbackAiKey(key: String) {
+        viewModelScope.launch { preferencesRepository.setFallbackAiKey(key) }
+    }
+
     init {
         // Debug-only diagnostic of the key pipeline (GitHub Secret -> .env ->
         // BuildConfig). Logs a boolean availability flag ONLY, never the key,
@@ -387,8 +355,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         updatePrayerTimes()
         loadChat()
-        // رسالة رفيق الصباحية — idempotent daily 8:00 brief.
+        // رسائل رفيق اليومية — idempotent 8:00 morning + 21:00 evening briefs.
         AlarmManagerScheduler.scheduleMorningBrief(getApplication())
+        AlarmManagerScheduler.scheduleEveningBrief(getApplication())
+        // Home-screen widget: refresh with live data whenever the app opens.
+        com.notification.app.receiver.TodayWidgetProvider.refreshAll(getApplication())
     }
 
     fun updatePrayerTimes() {
@@ -838,7 +809,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     onLogWater = { incrementWater() },
                     onGam3iyaCreated = { gam3iyaId ->
                         repository.getGam3iyaById(gam3iyaId)?.let { syncGam3iyaReminder(it) }
-                    }
+                    },
+                    fallbackApiKey = preferencesRepository.fallbackAiKeyFlow.first()
                 )
             }
             if (result != null) {

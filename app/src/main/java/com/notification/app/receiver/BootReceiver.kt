@@ -14,8 +14,9 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
-            // Reboot wipes AlarmManager — re-arm the daily morning brief too.
+            // Reboot wipes AlarmManager — re-arm the daily briefs too.
             AlarmManagerScheduler.scheduleMorningBrief(context)
+            AlarmManagerScheduler.scheduleEveningBrief(context)
 
             val db = AppDatabase.getDatabase(context)
             CoroutineScope(Dispatchers.IO).launch {

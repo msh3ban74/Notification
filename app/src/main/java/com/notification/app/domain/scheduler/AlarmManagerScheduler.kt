@@ -114,18 +114,25 @@ object AlarmManagerScheduler {
     }
 
     /**
-     * رسالة رفيق الصباحية — arms (or re-arms) the daily 8:00 brief. Uses a
-     * fixed request code, so calling it any number of times keeps exactly
-     * ONE pending brief. Cheap and idempotent: called on app start, after
-     * boot, and by the brief itself to schedule tomorrow.
+     * رسائل رفيق اليومية — arm (or re-arm) the daily briefs. Fixed request
+     * codes keep exactly ONE pending brief per kind, so these are cheap and
+     * idempotent: called on app start, after boot, and by each brief to
+     * schedule its own tomorrow.
      */
-    fun scheduleMorningBrief(context: Context, hour: Int = 8) {
+    fun scheduleMorningBrief(context: Context, hour: Int = 8) =
+        scheduleDailyBrief(context, hour, evening = false, requestCode = 777001)
+
+    fun scheduleEveningBrief(context: Context, hour: Int = 21) =
+        scheduleDailyBrief(context, hour, evening = true, requestCode = 777003)
+
+    private fun scheduleDailyBrief(context: Context, hour: Int, evening: Boolean, requestCode: Int) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, com.notification.app.receiver.MorningBriefReceiver::class.java).apply {
             action = "com.notification.app.ACTION_MORNING_BRIEF"
+            putExtra("EXTRA_EVENING", evening)
         }
         val pendingIntent = PendingIntent.getBroadcast(
-            context, 777001, intent,
+            context, requestCode, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val next = java.util.Calendar.getInstance().apply {

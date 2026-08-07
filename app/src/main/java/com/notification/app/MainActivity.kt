@@ -153,8 +153,6 @@ class MainActivity : ComponentActivity() {
             val workNotes by viewModel.allWorkNotes.collectAsState()
             val chatMessages by viewModel.chatMessages.collectAsState()
             val isAiLoading by viewModel.isAiLoading.collectAsState()
-            val aiSuggestions by viewModel.aiSuggestions.collectAsState()
-            val aiSuggestionsLoading by viewModel.aiSuggestionsLoading.collectAsState()
             val waterCount by viewModel.waterCount.collectAsState()
 
             val isArabic = language == "ar"
@@ -347,16 +345,7 @@ class MainActivity : ComponentActivity() {
                                     workNotes = workNotes,
                                     waterCount = waterCount,
                                     financialItems = financialItems,
-                                    aiSuggestions = aiSuggestions,
-                                    aiSuggestionsLoading = aiSuggestionsLoading,
                                     onToggleReminderDone = { viewModel.toggleReminderCompleted(it) },
-                                    onRefreshSuggestions = {
-                                        viewModel.refreshAiSuggestions(isArabic = isArabic)
-                                    },
-                                    onPullRefresh = {
-                                        // Pull-to-refresh: bypass the TTL cache.
-                                        viewModel.refreshAiSuggestions(isArabic = isArabic, force = true)
-                                    },
                                     onWaterClick = { viewModel.incrementWater() },
                                     onAskRafeeq = { question ->
                                         // Existing assistant flow: open the AI
@@ -549,6 +538,8 @@ class MainActivity : ComponentActivity() {
                                     onSetAutoBackupCharging = { viewModel.setAutoBackupCharging(it) },
                                     onSetAutoBackupWifi = { viewModel.setAutoBackupWifi(it) },
                                     onPickAutoBackupFolder = { viewModel.setAutoBackupFolder(it) },
+                                    fallbackAiKey = viewModel.fallbackAiKey.collectAsState().value,
+                                    onSetFallbackAiKey = { viewModel.setFallbackAiKey(it) },
                                     onSignOut = {
                                         // Stability sprint — REAL logout:
                                         // Firebase sign-out + persisted session

@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">رفيق</string>
+    <string name="widget_label">رفيق — يومك</string>
+    <string name="widget_title_placeholder">رفيق</string>
 </resources>

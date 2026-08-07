@@ -59,7 +59,11 @@ fun SettingsScreen(
     onSetAutoBackupFreq: (String) -> Unit = {},
     onSetAutoBackupCharging: (Boolean) -> Unit = {},
     onSetAutoBackupWifi: (Boolean) -> Unit = {},
-    onPickAutoBackupFolder: (android.net.Uri) -> Unit = {}
+    onPickAutoBackupFolder: (android.net.Uri) -> Unit = {},
+    // العقل الاحتياطي — optional key for a second AI provider used
+    // automatically when the primary free quota runs out.
+    fallbackAiKey: String = "",
+    onSetFallbackAiKey: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -103,6 +107,71 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
+        }
+
+        // ── Section: Rafeeq assistant ────────────────────────────────
+        item {
+            Text(
+                text = if (isArabic) "مساعد رفيق" else "Rafeeq assistant",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = if (isArabic) "عقل احتياطي لرفيق 🧠" else "A backup brain for Rafeeq 🧠",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isArabic)
+                            "لو حصة الذكاء المجانية خلصت، رفيق يكمل الرد من مزود تاني تلقائيًا. حط مفتاح Groq المجاني (console.groq.com) هنا:"
+                        else
+                            "If the free AI quota runs out, Rafeeq keeps answering through a second provider. Paste a free Groq key (console.groq.com):",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    var keyDraft by remember(fallbackAiKey) { mutableStateOf(fallbackAiKey) }
+                    OutlinedTextField(
+                        value = keyDraft,
+                        onValueChange = { keyDraft = it },
+                        label = { Text(if (isArabic) "مفتاح المزود الاحتياطي" else "Fallback provider key") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (fallbackAiKey.isNotBlank()) {
+                            Text(
+                                text = if (isArabic) "مفعّل ✓" else "Active ✓",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Spacer(Modifier.width(4.dp))
+                        }
+                        Button(
+                            enabled = keyDraft.trim() != fallbackAiKey,
+                            onClick = { onSetFallbackAiKey(keyDraft.trim()) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
+                        ) { Text(if (isArabic) "حفظ" else "Save") }
+                    }
+                }
+            }
         }
 
         // ── Section: Account ─────────────────────────────────────────
