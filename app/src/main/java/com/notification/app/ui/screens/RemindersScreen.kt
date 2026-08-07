@@ -209,9 +209,7 @@ fun RemindersScreen(
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.EventAvailable,
                     title = if (isArabic) "لا توجد تذكيرات حالياً" else "No Reminders Found",
-                    subtitle = if (isArabic) "أضف مهمة أو تذكيرًا وسيصلك تنبيه في موعده" else "Add a task or reminder and you'll be alerted on time",
-                    actionLabel = if (isArabic) "إضافة جديدة" else "Add new",
-                    onAction = { onCreateTask?.invoke() }
+                    subtitle = if (isArabic) "أضف مهمة أو تذكيرًا وسيصلك تنبيه في موعده" else "Add a task or reminder and you'll be alerted on time"
                 )
             } else {
                 LazyColumn(

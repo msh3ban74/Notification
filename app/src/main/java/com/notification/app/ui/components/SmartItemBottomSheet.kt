@@ -142,21 +142,22 @@ private fun SmartItemGridCard(
                 animationSpec = tween(AppAnimationDuration.normal)
             )
     ) {
+        // Height wraps the content (no fixed aspect ratio) so the title can
+        // NEVER be clipped, whatever the font metrics are.
         PremiumCard(
             onClick = onClick,
             contentPadding = AppPadding.cardCompact,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1.15f)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.xs),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
-                        .size(AppDimens.avatarSizeMedium)
+                        .size(40.dp)
                         .background(
                             color = MaterialTheme.colorScheme.primaryContainer,
                             shape = CircleShape
@@ -167,12 +168,10 @@ private fun SmartItemGridCard(
                         imageVector = item.icon,
                         contentDescription = if (isArabic) item.titleAr else item.titleEn,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(AppDimens.iconSizeMedium)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                // Title only — subtitles were micro-explainers that also
-                // clipped vertically in the fixed square card.
                 Text(
                     text = if (isArabic) item.titleAr else item.titleEn,
                     style = MaterialTheme.typography.titleSmall,
