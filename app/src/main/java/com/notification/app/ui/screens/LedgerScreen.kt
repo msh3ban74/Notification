@@ -541,15 +541,15 @@ fun PersonDetailScreen(
                         val nudgeContext = LocalContext.current
                         TextButton(onClick = {
                             val msg = if (isArabic)
-                                "أهلًا ${person.name} 🌟 تذكير ودّي بخصوص ${summary.netAmount.toLong()} ج.م اللي بينّا — لما تقدر 🙏"
+                                "مرحبًا ${person.name}، تذكير بخصوص مبلغ ${summary.netAmount.toLong()} ج.م المستحق بيننا. شكرًا لك."
                             else
-                                "Hey ${person.name} 🌟 a friendly reminder about the ${summary.netAmount.toLong()} EGP between us — whenever you can 🙏"
+                                "Hi ${person.name}, a reminder about the ${summary.netAmount.toLong()} EGP due between us. Thank you."
                             val url = "https://wa.me/$nudgeNumber?text=" + java.net.URLEncoder.encode(msg, "UTF-8")
                             try {
                                 nudgeContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                             } catch (_: Exception) { }
                         }) {
-                            Text(if (isArabic) "فكّره بلطف على واتساب 💬" else "Nudge kindly on WhatsApp 💬")
+                            Text(if (isArabic) "تذكير عبر واتساب" else "Remind on WhatsApp")
                         }
                     }
                 }
@@ -755,7 +755,7 @@ fun PersonDetailScreen(
                     // تلقائيًا (تذكير مجدول يتعمل مع الحفظ).
                     DateField(
                         value = dueDate, onPick = { dueDate = it },
-                        label = if (isArabic) "هيتسدد إمتى؟ (يفكرك رفيق)" else "When is it due? (Rafeeq reminds you)",
+                        label = if (isArabic) "تاريخ السداد (مع تذكير)" else "Due date (with reminder)",
                         context = txContext, isArabic = isArabic, allowEmpty = true
                     )
                     OutlinedTextField(

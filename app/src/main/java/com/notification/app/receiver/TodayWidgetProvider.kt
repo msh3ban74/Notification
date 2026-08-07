@@ -73,18 +73,18 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
         val title = when {
             todays.isEmpty() && overdue == 0 ->
-                if (isArabic) "رفيق ✨ يومك فاضي" else "Rafeeq ✨ nothing today"
+                if (isArabic) "رفيق — لا مهام اليوم" else "Rafeeq — nothing today"
             else ->
-                if (isArabic) "رفيق ✨ عليك ${todays.size + overdue} ${if (todays.size + overdue == 1) "حاجة" else "حاجات"}"
-                else "Rafeeq ✨ ${todays.size + overdue} thing${if (todays.size + overdue == 1) "" else "s"} on you"
+                if (isArabic) "رفيق — ${todays.size + overdue} ${if (todays.size + overdue == 1) "مهمة" else "مهام"} اليوم"
+                else "Rafeeq — ${todays.size + overdue} task${if (todays.size + overdue == 1) "" else "s"} today"
         }
         val lines = buildList {
-            if (overdue > 0) add(if (isArabic) "⚠️ $overdue متأخرة" else "⚠️ $overdue overdue")
+            if (overdue > 0) add(if (isArabic) "$overdue متأخرة" else "$overdue overdue")
             todays.take(3).forEach {
                 add("• ${it.title} — ${timeFormat.format(Date(it.dueDate))}")
             }
             if (todays.isEmpty() && overdue == 0) {
-                add(if (isArabic) "استمتع بيوم هادي ✨" else "Enjoy a calm day ✨")
+                add(if (isArabic) "جدولك خالٍ اليوم" else "Your schedule is clear")
             }
         }
         return title to lines.joinToString("\n")

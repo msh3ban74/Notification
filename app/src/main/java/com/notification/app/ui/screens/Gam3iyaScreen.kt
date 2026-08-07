@@ -88,11 +88,11 @@ fun Gam3iyaScreen(
             if (gam3iyas.isEmpty()) {
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.Group,
-                    title = if (isArabic) "مش مسجّل أي جمعية" else "No gam3iya yet",
+                    title = if (isArabic) "لا توجد جمعيات مسجّلة" else "No gam3iya yet",
                     subtitle = if (isArabic)
-                        "سجّل الجمعية اللي انت فيها ورفيق يفكرك بالقسط كل شهر ويقولك دورك إمتى"
-                    else "Track the gam3iya you take part in — Rafeeq reminds you of every installment and your turn",
-                    actionLabel = if (isArabic) "سجّل جمعيتك" else "Add yours",
+                        "سجّل جمعيتك لمتابعة الأقساط الشهرية وموعد دورك"
+                    else "Add your gam3iya to track monthly installments and your turn",
+                    actionLabel = if (isArabic) "إضافة جمعية" else "Add gam3iya",
                     onAction = { current = null; view = G3View.CREATE }
                 )
             } else {
@@ -153,7 +153,7 @@ private fun MyGam3iyaCard(
                 if (status.isFinished) {
                     Surface(color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f), shape = RoundedCornerShape(10.dp)) {
                         Text(
-                            if (isArabic) "خلصت 🎉" else "Done 🎉",
+                            if (isArabic) "مكتملة" else "Completed",
                             color = MaterialTheme.colorScheme.tertiary,
                             style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -207,7 +207,7 @@ private fun MyGam3iyaCard(
                 ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(if (isArabic) "دفعت قسط الشهر ✓" else "Paid this month ✓")
+                    Text(if (isArabic) "تم سداد قسط هذا الشهر" else "Paid this month")
                 }
             }
         }

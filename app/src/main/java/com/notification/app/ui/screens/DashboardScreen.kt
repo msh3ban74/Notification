@@ -194,7 +194,7 @@ fun DashboardScreen(
                         icon = Icons.Default.AccountBalanceWallet,
                         title = if (isArabic) "دين مع $name — ${tx.amount.toLong()} ج.م"
                         else "Debt with $name — ${tx.amount.toLong()} EGP",
-                        timeLabel = if (isArabic) "النهاردة" else "Today",
+                        timeLabel = if (isArabic) "اليوم" else "Today",
                         accent = com.notification.app.ui.theme.Primary,
                         onOpen = onNavigateToLedger
                     ))
@@ -313,7 +313,7 @@ private fun TodayHero(
         else -> "Good evening"
     }
     val displayName = userName.takeIf { it.isNotBlank() && it != "User" && it != "Guest User" }
-    val greetingLine = if (displayName != null) "$greeting، $displayName 👋" else "$greeting 👋"
+    val greetingLine = if (displayName != null) "$greeting، $displayName" else greeting
 
     val dateLine = remember(isArabic) {
         SimpleDateFormat(
@@ -324,15 +324,15 @@ private fun TodayHero(
 
     val summary = when {
         pendingCount == 0 && doneToday > 0 ->
-            if (isArabic) "خلّصت كل حاجة النهاردة 🎉" else "Everything done for today 🎉"
+            if (isArabic) "اكتمل كل شيء لليوم" else "All done for today"
         pendingCount == 0 ->
-            if (isArabic) "مفيش حاجة عليك النهاردة — يوم هادي ✨" else "Nothing on you today — enjoy ✨"
+            if (isArabic) "لا توجد مهام اليوم" else "Nothing scheduled today"
         overdueCount > 0 ->
-            if (isArabic) "عليك $pendingCount ${if (pendingCount == 1) "حاجة" else "حاجات"} — منها $overdueCount متأخرة"
-            else "$pendingCount thing${if (pendingCount == 1) "" else "s"} on you — $overdueCount overdue"
+            if (isArabic) "لديك $pendingCount ${if (pendingCount == 1) "مهمة" else "مهام"} — منها $overdueCount متأخرة"
+            else "$pendingCount task${if (pendingCount == 1) "" else "s"} — $overdueCount overdue"
         else ->
-            if (isArabic) "عليك $pendingCount ${if (pendingCount == 1) "حاجة" else "حاجات"} النهاردة"
-            else "$pendingCount thing${if (pendingCount == 1) "" else "s"} on you today"
+            if (isArabic) "لديك $pendingCount ${if (pendingCount == 1) "مهمة" else "مهام"} اليوم"
+            else "$pendingCount task${if (pendingCount == 1) "" else "s"} today"
     }
 
     // Quick capture — the fastest path into the smart memory: type it and
@@ -393,7 +393,7 @@ private fun TodayHero(
                 onValueChange = { quickText = it },
                 placeholder = {
                     Text(
-                        if (isArabic) "قول لرفيق يفتكرلك حاجة…" else "Tell Rafeeq to remember something…",
+                        if (isArabic) "أضف تذكيرًا أو مهمة…" else "Add a reminder or task…",
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f)
                     )
@@ -436,7 +436,7 @@ private fun TodayHero(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    if (isArabic) "لخصلي يومي ✨" else "Summarize my day ✨",
+                    if (isArabic) "ملخص اليوم" else "Today's summary",
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -457,15 +457,15 @@ private fun TodayTimelineCard(
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
-                text = if (isArabic) "عليك النهاردة" else "On you today",
+                text = if (isArabic) "مهام اليوم" else "Today's tasks",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             HorizontalDivider()
             if (items.isEmpty()) {
                 Text(
-                    text = if (isArabic) "مفيش حاجة مستحقة — استمتع بيومك ✨"
-                    else "Nothing due — enjoy your day ✨",
+                    text = if (isArabic) "لا توجد مهام مستحقة اليوم"
+                    else "Nothing due today",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -474,7 +474,7 @@ private fun TodayTimelineCard(
             }
             if (doneToday > 0) {
                 Text(
-                    text = if (isArabic) "أنجزت $doneToday النهاردة ✓" else "$doneToday done today ✓",
+                    text = if (isArabic) "اكتمل اليوم: $doneToday" else "Completed today: $doneToday",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.tertiary
                 )
@@ -482,8 +482,8 @@ private fun TodayTimelineCard(
             if (tomorrowCount > 0) {
                 HorizontalDivider()
                 Text(
-                    text = if (isArabic) "بكرة عليك $tomorrowCount ${if (tomorrowCount == 1) "حاجة" else "حاجات"}"
-                    else "Tomorrow: $tomorrowCount thing${if (tomorrowCount == 1) "" else "s"}",
+                    text = if (isArabic) "غدًا: $tomorrowCount ${if (tomorrowCount == 1) "مهمة" else "مهام"}"
+                    else "Tomorrow: $tomorrowCount task${if (tomorrowCount == 1) "" else "s"}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -577,7 +577,7 @@ private fun MoneySnapshotCard(
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(
-                text = if (isArabic) "فلوسك" else "Your money",
+                text = if (isArabic) "أموالك" else "Your money",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -669,7 +669,7 @@ private fun CompanionWidgets(
             icon = Icons.Default.WaterDrop,
             title = if (isArabic) "شرب المياه" else "Water",
             primaryLine = "$waterCount / $waterGoal",
-            secondaryLine = if (isArabic) "اضغط لتسجيل كوب 💧" else "Tap to log a glass 💧",
+            secondaryLine = if (isArabic) "اضغط لتسجيل كوب" else "Tap to log a glass",
             accent = AccentSky,
             onClick = onWaterClick
         )
@@ -684,7 +684,7 @@ private fun CompanionWidgets(
             else "$doneToday of ${habits.size} completed",
             secondaryLine = when {
                 doneToday >= habits.size ->
-                    if (isArabic) "يوم مكتمل — واصل السلسلة 🔥" else "Perfect day — keep the streak 🔥"
+                    if (isArabic) "اكتمل هدف اليوم" else "Daily goal complete"
                 else -> if (isArabic) "اضغط لتسجيل إنجازك" else "Tap to check in"
             },
             accent = AccentAmber,
@@ -734,8 +734,8 @@ private fun RafeeqNotices(
                     val name = personNames[tx.personId] ?: return@let
                     val days = ((now - tx.dueDate) / dayMs).toInt().coerceAtLeast(1)
                     add(
-                        if (isArabic) "وعد الدين مع $name عدّى معاده من $days ${if (days == 1) "يوم" else "أيام"} — تحب تفكّره؟"
-                        else "The debt with $name is $days day${if (days == 1) "" else "s"} past its promise — nudge them?"
+                        if (isArabic) "الدين مع $name تجاوز موعده بـ$days ${if (days == 1) "يوم" else "أيام"}"
+                        else "The debt with $name is $days day${if (days == 1) "" else "s"} past due"
                     )
                 }
 
@@ -751,8 +751,8 @@ private fun RafeeqNotices(
                     HabitCalculator.currentStreak(days, twoDaysAgo) >= 3
             }?.let { habit ->
                 add(
-                    if (isArabic) "سلسلة \"${habit.title}\" وقفت من يومين — نرجعلها النهاردة؟ 🔥"
-                    else "Your \"${habit.title}\" streak stopped 2 days ago — restart it today? 🔥"
+                    if (isArabic) "عادة \"${habit.title}\" متوقفة منذ يومين"
+                    else "\"${habit.title}\" has been paused for 2 days"
                 )
             }
 
@@ -763,8 +763,8 @@ private fun RafeeqNotices(
                 ?.let { f ->
                     val days = ((now - f.dueDate) / dayMs).toInt().coerceAtLeast(1)
                     add(
-                        if (isArabic) "\"${f.title}\" فات معادها من $days ${if (days == 1) "يوم" else "أيام"} — لو دفعتها علّمها ✓"
-                        else "\"${f.title}\" is $days day${if (days == 1) "" else "s"} past due — mark it paid if you did ✓"
+                        if (isArabic) "\"${f.title}\" تجاوزت موعد استحقاقها بـ$days ${if (days == 1) "يوم" else "أيام"}"
+                        else "\"${f.title}\" is $days day${if (days == 1) "" else "s"} past due"
                     )
                 }
 
@@ -773,8 +773,8 @@ private fun RafeeqNotices(
                     it.dueDate in now..(now + dayMs)
             }
             if (medicineToday > 0) add(
-                if (isArabic) "متنساش دواك — $medicineToday ${if (medicineToday == 1) "جرعة" else "جرعات"} خلال ٢٤ ساعة 💊"
-                else "Don't forget your medicine — $medicineToday dose${if (medicineToday == 1) "" else "s"} in the next 24h 💊"
+                if (isArabic) "لديك $medicineToday ${if (medicineToday == 1) "جرعة دواء" else "جرعات دواء"} خلال ٢٤ ساعة"
+                else "$medicineToday medicine dose${if (medicineToday == 1) "" else "s"} in the next 24 hours"
             )
 
             val billsThisWeek = reminders.count {
@@ -782,8 +782,8 @@ private fun RafeeqNotices(
                     it.dueDate in now..weekAhead
             }
             if (billsThisWeek > 0) add(
-                if (isArabic) "عندك $billsThisWeek ${if (billsThisWeek == 1) "فاتورة" else "فواتير"} الأسبوع ده — جهّز حسابك"
-                else "$billsThisWeek bill${if (billsThisWeek == 1) "" else "s"} due this week — plan ahead"
+                if (isArabic) "لديك $billsThisWeek ${if (billsThisWeek == 1) "فاتورة" else "فواتير"} خلال هذا الأسبوع"
+                else "$billsThisWeek bill${if (billsThisWeek == 1) "" else "s"} due this week"
             )
 
             val iOweCount = persons.count { p ->
@@ -792,8 +792,8 @@ private fun RafeeqNotices(
                 ).status == LedgerStatus.I_OWE_THEM
             }
             if (iOweCount > 0) add(
-                if (isArabic) "فيه ${if (iOweCount == 1) "شخص مستني" else "$iOweCount أشخاص مستنيين"} فلوس منك — شوف الديون"
-                else "You owe $iOweCount ${if (iOweCount == 1) "person" else "people"} — check your debts"
+                if (isArabic) "لديك مبالغ مستحقة لـ${if (iOweCount == 1) "شخص واحد" else "$iOweCount أشخاص"} في الديون"
+                else "You have amounts due to $iOweCount ${if (iOweCount == 1) "person" else "people"} in Debts"
             )
         }.take(4)
     }
@@ -813,7 +813,7 @@ private fun RafeeqNotices(
                     modifier = Modifier.size(AppDimens.iconSizeMedium)
                 )
                 Text(
-                    text = if (isArabic) "رفيق شايف إن…" else "Rafeeq noticed…",
+                    text = if (isArabic) "تنبيهات ذكية" else "Smart insights",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )

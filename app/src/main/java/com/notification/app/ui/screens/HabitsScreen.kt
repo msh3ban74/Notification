@@ -132,7 +132,7 @@ fun HabitsScreen(
                 EmptyState(
                     icon = Icons.Default.SelfImprovement,
                     title = if (isArabic) "ابدأ عادة جديدة" else "Start a new habit",
-                    subtitle = if (isArabic) "خطوة صغيرة كل يوم تصنع فرقًا كبيرًا" else "A small step every day makes a big difference",
+                    subtitle = if (isArabic) "تابع عاداتك اليومية وسلاسل إنجازك" else "Track your daily habits and streaks",
                     actionLabel = if (isArabic) "إضافة عادة" else "Add habit",
                     onAction = { showAddDialog = true }
                 )

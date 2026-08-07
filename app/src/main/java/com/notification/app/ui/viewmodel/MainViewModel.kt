@@ -778,8 +778,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Offline pre-check — fail fast with a clear message, never spin.
         if (!com.notification.app.data.remote.NetworkMonitor.isOnline(getApplication())) {
             appendModel(
-                if (isArabic) "لا يوجد اتصال بالإنترنت — تأكد من الشبكة وحاول مجددًا 🌐"
-                else "No internet connection — check your network and try again 🌐"
+                if (isArabic) "لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى."
+                else "No internet connection. Check your network and try again."
             )
             return
         }
@@ -813,8 +813,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     parts = listOf(
                         GeminiPart(
                             text = if (isArabic)
-                                "استغرق الرد وقتًا أطول من المعتاد فأوقفته — اضغط \"إعادة\" للمحاولة 🙏"
-                            else "That took longer than usual, so I stopped it — tap \"Regenerate\" to retry 🙏"
+                                "استغرق الرد وقتًا أطول من المعتاد. اضغط \"إعادة\" للمحاولة مرة أخرى."
+                            else "The response took longer than usual. Tap \"Regenerate\" to retry."
                         )
                     )
                 )

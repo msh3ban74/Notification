@@ -138,7 +138,7 @@ fun CreateFinancialScreen(
                 OutlinedTextField(
                     value = seller,
                     onValueChange = { seller = it },
-                    label = { Text(if (isArabic) "من مين؟ (اختياري)" else "From whom? (optional)") },
+                    label = { Text(if (isArabic) "الجهة (اختياري)" else "Provider (optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )

@@ -815,7 +815,7 @@ class MainActivity : ComponentActivity() {
                                         navController.popBackStack(Screen.Dashboard.route, inclusive = false)
                                         scope.launch {
                                             snackbarHostState.showSnackbar(
-                                                if (isArabic) "اتسجلت جمعيتك — هفكرك بالقسط كل شهر ✓" else "Gam3iya saved — I'll remind you monthly ✓"
+                                                if (isArabic) "تم حفظ الجمعية وتفعيل التذكير الشهري بالقسط" else "Gam3iya saved with a monthly installment reminder"
                                             )
                                         }
                                     },

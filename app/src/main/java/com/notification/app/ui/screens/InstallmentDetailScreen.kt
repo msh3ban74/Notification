@@ -182,7 +182,7 @@ private fun PlanCard(item: FinancialItemEntity, plan: com.notification.app.domai
             if (plan.lastPaymentDate > 0) InfoRow(if (isArabic) "آخر دفعة" else "Last payment", df.format(Date(plan.lastPaymentDate)))
             InfoRow(if (isArabic) "الانتهاء المتوقّع" else "Expected finish", df.format(Date(plan.expectedFinishDate)))
             if (plan.isFinished) {
-                Text(if (isArabic) "تم السداد بالكامل ✓" else "Fully paid ✓", color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.Bold)
+                Text(if (isArabic) "تم السداد بالكامل" else "Fully paid", color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.Bold)
             }
         }
     }

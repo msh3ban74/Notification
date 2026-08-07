@@ -204,7 +204,7 @@ fun RemindersScreen(
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.EventAvailable,
                     title = if (isArabic) "لا توجد تذكيرات حالياً" else "No Reminders Found",
-                    subtitle = if (isArabic) "مساحتك صافية — سجّل ما يشغل بالك وسيتولى رفيق تذكيرك في الوقت المناسب" else "All clear — capture what matters and Rafeeq will remind you right on time",
+                    subtitle = if (isArabic) "أضف مهمة أو تذكيرًا وسيصلك تنبيه في موعده" else "Add a task or reminder and you'll be alerted on time",
                     actionLabel = if (isArabic) "أضف مهمة" else "Add Task",
                     onAction = { onCreateTask?.invoke() }
                 )
@@ -411,9 +411,9 @@ private fun shareReminderText(
     dateFormat: SimpleDateFormat
 ) {
     val text = if (isArabic) {
-        "📌 تذكير: ${reminder.title}\n📅 الموعد: ${dateFormat.format(Date(reminder.dueDate))}\n📝 تفاصيل: ${reminder.note}\nأُرسل عبر تطبيق رفيق"
+        "تذكير: ${reminder.title}\nالموعد: ${dateFormat.format(Date(reminder.dueDate))}\nتفاصيل: ${reminder.note}\n— تطبيق رفيق"
     } else {
-        "📌 Reminder: ${reminder.title}\n📅 Due Date: ${dateFormat.format(Date(reminder.dueDate))}\n📝 Note: ${reminder.note}\nSent via Rafeeq"
+        "Reminder: ${reminder.title}\nDue: ${dateFormat.format(Date(reminder.dueDate))}\nNote: ${reminder.note}\n— Rafeeq"
     }
 
     val intent = Intent(Intent.ACTION_SEND).apply {

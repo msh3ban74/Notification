@@ -70,28 +70,28 @@ class MorningBriefReceiver : BroadcastReceiver() {
         val text: String
         if (evening) {
             if (total == 0) {
-                title = if (isArabic) "تصبح على خير 🌙" else "Good night 🌙"
-                text = if (isArabic) "بكرة فاضي لحد دلوقتي — نام مطمّن ✨"
-                else "Tomorrow is clear so far — sleep easy ✨"
+                title = if (isArabic) "ملخص المساء" else "Evening summary"
+                text = if (isArabic) "لا توجد مهام مجدولة غدًا"
+                else "Nothing scheduled for tomorrow"
             } else {
-                title = if (isArabic) "قبل ما تنام 🌙 بكرة عليك $total ${if (total == 1) "حاجة" else "حاجات"}"
-                else "Before you sleep 🌙 $total thing${if (total == 1) "" else "s"} tomorrow"
+                title = if (isArabic) "غدًا: $total ${if (total == 1) "مهمة" else "مهام"}"
+                else "Tomorrow: $total task${if (total == 1) "" else "s"}"
                 text = inWindow.take(3).joinToString("، ") { it.title }
-                    .ifBlank { if (isArabic) "افتح يومك للتفاصيل" else "Open your day for details" }
+                    .ifBlank { if (isArabic) "افتح التطبيق للتفاصيل" else "Open the app for details" }
             }
         } else {
             if (total == 0 && overdue == 0) {
-                title = if (isArabic) "صباح الخير ☀️" else "Good morning ☀️"
-                text = if (isArabic) "مفيش حاجة عليك النهاردة — يوم هادي، استمتع ✨"
-                else "Nothing on you today — enjoy a calm day ✨"
+                title = if (isArabic) "صباح الخير" else "Good morning"
+                text = if (isArabic) "لا توجد مهام مجدولة اليوم"
+                else "Nothing scheduled for today"
             } else {
-                title = if (isArabic) "صباح الخير ☀️ عليك $total ${if (total == 1) "حاجة" else "حاجات"} النهاردة"
-                else "Good morning ☀️ $total thing${if (total == 1) "" else "s"} on you today"
+                title = if (isArabic) "اليوم: $total ${if (total == 1) "مهمة" else "مهام"}"
+                else "Today: $total task${if (total == 1) "" else "s"}"
                 val names = inWindow.take(3).joinToString("، ") { it.title }
                 val overduePart = if (overdue > 0) {
-                    if (isArabic) " • و$overdue متأخرة محتاجة نظرة" else " • plus $overdue overdue"
+                    if (isArabic) " • $overdue متأخرة" else " • $overdue overdue"
                 } else ""
-                text = (if (names.isNotBlank()) names else (if (isArabic) "افتح يومك للتفاصيل" else "Open your day for details")) + overduePart
+                text = (if (names.isNotBlank()) names else (if (isArabic) "افتح التطبيق للتفاصيل" else "Open the app for details")) + overduePart
             }
         }
 
@@ -101,10 +101,10 @@ class MorningBriefReceiver : BroadcastReceiver() {
             nm.createNotificationChannel(
                 NotificationChannel(
                     channelId,
-                    if (isArabic) "رسائل رفيق اليومية" else "Rafeeq daily briefs",
+                    if (isArabic) "الملخص اليومي" else "Daily summary",
                     NotificationManager.IMPORTANCE_DEFAULT
                 ).apply {
-                    description = if (isArabic) "ملخص يومك كل صباح ومساء" else "Your day at a glance, morning and evening"
+                    description = if (isArabic) "ملخص مهامك صباحًا ومساءً" else "Your tasks at a glance, morning and evening"
                 }
             )
         }

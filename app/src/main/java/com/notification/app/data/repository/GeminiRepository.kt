@@ -196,7 +196,7 @@ class GeminiRepository(
         val systemInstruction = GeminiContent(
             parts = listOf(
                 GeminiPart(
-                    text = "You are Rafeeq (رفيق) — the user's warm, personal digital memory. You speak simple, friendly, bilingual (Arabic/English) language like a close friend, never like a business system. Your whole job: remember things FOR the person and remind them on time — their medicine, water, tasks their boss asked for, money a friend promised to return, installments coming up, their gam3iya installment, bills. Use function calls whenever the user asks about or wants to add reminders, debts, gam3iya, money items, habits, or alarms. Never invent data — read it with the tools. Keep answers short and human. Never mention underlying AI model providers or internal names like Gemini. Current time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}."
+                    text = "You are Rafeeq (رفيق) — the user's personal assistant and digital memory. Tone: professional, warm and concise, like a premium product (think a top-tier banking or productivity app) — polite Modern Standard Arabic or clean English, matching the user's language. No slang, no emojis, no exclamation marks, no filler. Your job: remember things FOR the person and remind them on time — medicine, water, work tasks, money owed and lent, upcoming installments, their gam3iya installment, bills. Use function calls whenever the user asks about or wants to add reminders, debts, gam3iya, money items, habits, or alarms. Never invent data — read it with the tools. Keep answers short, structured and direct. Never mention underlying AI model providers or internal names like Gemini. Current time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}."
                 )
             )
         )
@@ -266,7 +266,7 @@ class GeminiRepository(
 
             // No parsable candidate — surface it as a VISIBLE model bubble
             // (returning text without appending it left the chat empty).
-            val fallback = "لم أستطع فهم الرد هذه المرة — جرّب صياغة أخرى 🙏\nI couldn't process that — please try rephrasing."
+            val fallback = "تعذّرت معالجة الرد هذه المرة. أعد صياغة رسالتك وحاول مجددًا.\nCouldn't process that. Please rephrase and try again."
             updatedHistory.add(GeminiContent(role = "model", parts = listOf(GeminiPart(text = fallback))))
             return Pair(fallback, updatedHistory)
         } catch (e: Exception) {
@@ -362,26 +362,26 @@ class GeminiRepository(
         val http = (e as? retrofit2.HttpException)?.code()
         return when {
             e is java.net.UnknownHostException || e is java.net.ConnectException ->
-                if (isArabic) "لا يوجد اتصال بالإنترنت — تأكد من الشبكة وحاول مجددًا 🌐"
-                else "No internet connection — check your network and try again 🌐"
+                if (isArabic) "لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى."
+                else "No internet connection. Check your network and try again."
             e is java.net.SocketTimeoutException || e is java.io.InterruptedIOException ->
-                if (isArabic) "المساعد تأخّر في الرد — جرّب مرة أخرى ⏱️"
-                else "The assistant took too long — please try again ⏱️"
+                if (isArabic) "استغرق الرد وقتًا أطول من المتوقع. حاول مرة أخرى."
+                else "The response took longer than expected. Please try again."
             http == 400 || http == 403 ->
-                if (isArabic) "تعذّر التحقق من خدمة المساعد. حاول لاحقًا 🔑"
-                else "Couldn't authorize the assistant service. Try again later 🔑"
+                if (isArabic) "تعذّر الاتصال بخدمة المساعد. حاول لاحقًا."
+                else "Couldn't connect to the assistant service. Try again later."
             http == 429 ->
-                if (isArabic) "رفيق واخد نفسه ثانية 😅 استنى دقيقة وجرب تاني"
-                else "Rafeeq is catching his breath 😅 give it a minute and retry"
+                if (isArabic) "الخدمة تستقبل طلبات كثيرة حاليًا. حاول بعد دقيقة."
+                else "The service is handling high demand. Try again in a minute."
             http != null && http >= 500 ->
-                if (isArabic) "خادم المساعد غير متاح مؤقتًا — حاول بعد قليل 🛠️"
-                else "The assistant server is temporarily down — try again shortly 🛠️"
+                if (isArabic) "الخدمة غير متاحة مؤقتًا. حاول بعد قليل."
+                else "The service is temporarily unavailable. Try again shortly."
             e is com.squareup.moshi.JsonDataException ->
-                if (isArabic) "وصل رد غير مفهوم — جرّب صياغة السؤال بشكل مختلف 🙏"
-                else "Got an unreadable reply — try rephrasing your question 🙏"
+                if (isArabic) "تعذّرت معالجة الرد. أعد صياغة سؤالك وحاول مجددًا."
+                else "Couldn't process the reply. Rephrase and try again."
             else ->
-                if (isArabic) "تعذّر الوصول للمساعد الآن — تأكد من الاتصال وحاول مجددًا 🙏"
-                else "Couldn't reach the assistant — check your connection and try again 🙏"
+                if (isArabic) "تعذّر الوصول للمساعد. تحقق من الاتصال وحاول مرة أخرى."
+                else "Couldn't reach the assistant. Check your connection and try again."
         }
     }
 
@@ -413,8 +413,8 @@ class GeminiRepository(
                 )
                 // Schedule the alert so an AI-created reminder actually fires.
                 onReminderCreated(id)
-                if (isArabic) "تم إنشاء التذكير \"$title\" وسيصلك تنبيهه في موعده ✅"
-                else "Reminder '$title' created — you'll be alerted on time ✅"
+                if (isArabic) "تم إنشاء التذكير \"$title\"، وسيصلك تنبيه في موعده."
+                else "Reminder '$title' created. You'll be alerted on time."
             }
             "getDebtsAndLedger" -> {
                 val persons = notificationRepository.allPersons.first()
@@ -489,8 +489,8 @@ class GeminiRepository(
                     )
                     val id = notificationRepository.insertGam3iya(gam3iya)
                     onGam3iyaCreated(id)
-                    if (isArabic) "سجّلت جمعية \"$title\" — $months شهر، قسطك ${monthly.toLong()} ج.م، وهفكرك بالقسط كل شهر ✅"
-                    else "Tracked gam3iya '$title' — $months months at ${monthly.toLong()} EGP; I'll remind you monthly ✅"
+                    if (isArabic) "تم تسجيل جمعية \"$title\" — $months شهرًا بقسط ${monthly.toLong()} ج.م، مع تذكير شهري بالقسط."
+                    else "Gam3iya '$title' saved — $months months at ${monthly.toLong()} EGP, with a monthly reminder."
                 }
             }
             // Phase E — read-only views over the financial + habit modules.
@@ -552,8 +552,8 @@ class GeminiRepository(
                         )
                     )
                     val shown = if (monthlyAmount > 0) monthlyAmount else amount
-                    if (isArabic) "أضفت \"$title\" وسيصلك تنبيه عند الاستحقاق${if (shown > 0) " — ${shown.toLong()} $currency" else ""} ✅"
-                    else "Added '$title' — you'll be alerted when it's due${if (shown > 0) " — ${shown.toLong()} $currency" else ""} ✅"
+                    if (isArabic) "تمت إضافة \"$title\"${if (shown > 0) " (${shown.toLong()} $currency)" else ""}، وسيصلك تنبيه عند الاستحقاق."
+                    else "Added '$title'${if (shown > 0) " (${shown.toLong()} $currency)" else ""}. You'll be alerted when it's due."
                 }
             }
             "getHabits" -> {
@@ -577,8 +577,8 @@ class GeminiRepository(
                 } else {
                     val emoji = call.args["emoji"]?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: "✅"
                     notificationRepository.insertHabit(HabitEntity(title = title, emoji = emoji))
-                    if (isArabic) "تمت إضافة عادة \"$title\" — تلاقيها في شاشة العادات وعلى الرئيسية ✅"
-                    else "Habit '$title' created — find it in Habits and on the dashboard ✅"
+                    if (isArabic) "تمت إضافة عادة \"$title\". تجدها في شاشة العادات وعلى الرئيسية."
+                    else "Habit '$title' created. Find it in Habits and on the dashboard."
                 }
             }
             "completeHabitToday" -> {
@@ -592,13 +592,13 @@ class GeminiRepository(
                     val days = notificationRepository.allHabitLogs.first()
                         .filter { it.habitId == habit.id }.map { it.dayStart }.toSet()
                     val streak = HabitCalculator.currentStreak(days)
-                    if (isArabic) "سجّلت إنجاز \"${habit.title}\" النهارده 🔥 سلسلتك الحالية $streak يوم"
-                    else "'${habit.title}' checked off for today 🔥 current streak: $streak days"
+                    if (isArabic) "تم تسجيل إنجاز \"${habit.title}\" اليوم. سلسلتك الحالية: $streak ${if (streak == 1) "يوم" else "أيام"}."
+                    else "'${habit.title}' checked off for today. Current streak: $streak day${if (streak == 1) "" else "s"}."
                 }
             }
             "logWater" -> {
                 onLogWater()
-                if (isArabic) "سجّلت إنك شربت كوب ماء 💧" else "Logged a glass of water 💧"
+                if (isArabic) "تم تسجيل كوب ماء." else "Logged a glass of water."
             }
             "setSmartAlarm" -> {
                 val title = call.args["title"]?.toString() ?: "Smart Alarm"

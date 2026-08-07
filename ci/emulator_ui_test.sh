@@ -117,7 +117,7 @@ sleep 1
 # AI: tap a suggestion pill (network may fail — must not crash)
 tap_text "المساعد"
 sleep 1
-tap_text "عليّا النهاردة"
+tap_text "مهامي اليوم"
 sleep 6
 checkpoint "11-ai-suggestion-sent"
 

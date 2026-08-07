@@ -62,7 +62,7 @@ fun ParticipantGam3iyaForm(
                 title = {
                     Text(
                         if (editing) (if (isArabic) "تعديل جمعيتي" else "Edit my gam3iya")
-                        else (if (isArabic) "جمعية أنا فيها" else "My gam3iya"),
+                        else (if (isArabic) "جمعيتي" else "My gam3iya"),
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -78,14 +78,14 @@ fun ParticipantGam3iyaForm(
             Field(title, { title = it }, if (isArabic) "اسم الجمعية *" else "Gam3iya name *")
             Field(myInstallment, { myInstallment = it }, if (isArabic) "قسطي الشهري (ج.م) *" else "My monthly installment *", KeyboardType.Number)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.weight(1f)) { Field(duration, { duration = it }, if (isArabic) "كام شهر؟" else "How many months?", KeyboardType.Number) }
+                Box(Modifier.weight(1f)) { Field(duration, { duration = it }, if (isArabic) "عدد الشهور" else "Number of months", KeyboardType.Number) }
                 Box(Modifier.weight(1f)) { Field(myTurn, { myTurn = it }, if (isArabic) "دوري رقم" else "My turn #", KeyboardType.Number) }
             }
-            DateField(startDate, { startDate = it }, if (isArabic) "بدأت إمتى؟" else "Started on", context, isArabic)
+            DateField(startDate, { startDate = it }, if (isArabic) "تاريخ البداية" else "Start date", context, isArabic)
             Field(orgName, { orgName = it }, if (isArabic) "المنظّم (اختياري)" else "Organizer (optional)")
             Field(orgPhone, { orgPhone = it }, if (isArabic) "رقم المنظّم (اختياري)" else "Organizer phone (optional)", KeyboardType.Phone)
             Field(note, { note = it }, if (isArabic) "ملاحظة (اختياري)" else "Note (optional)")
-            SwitchRow(if (isArabic) "فكرني بالقسط كل شهر" else "Remind me every month", reminderEnabled) { reminderEnabled = it }
+            SwitchRow(if (isArabic) "تذكير شهري بالقسط" else "Monthly installment reminder", reminderEnabled) { reminderEnabled = it }
 
             Spacer(Modifier.height(8.dp))
             Button(

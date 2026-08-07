@@ -115,7 +115,7 @@ fun AiChatScreen(
                     AlertDialog(
                         onDismissRequest = { confirmClear = false },
                         title = { Text(if (isArabic) "مسح المحادثة؟" else "Clear the chat?") },
-                        text = { Text(if (isArabic) "هيبدأ رفيق صفحة جديدة معاك — بياناتك (تذكيرات، ديون…) مش هتتأثر." else "Rafeeq starts fresh — your data (reminders, debts…) is untouched.") },
+                        text = { Text(if (isArabic) "سيتم مسح سجل المحادثة فقط. بياناتك من تذكيرات وديون وغيرها لن تتأثر." else "Only the chat history will be cleared. Your reminders, debts and other data stay intact.") },
                         confirmButton = {
                             Button(
                                 onClick = { confirmClear = false; onClearChat() },
@@ -273,17 +273,17 @@ private fun AssistantEmptyState(
     isArabic: Boolean,
     onSuggestionClick: (String) -> Unit
 ) {
-    // رفيق الصاحب — أمثلة حقيقية للي بيعمله: يفتكر، يسجل، ويفكرك.
+    // Real examples of what the assistant can do: recall, record, remind.
     val suggestions = if (isArabic) listOf(
-        "إيه اللي عليّا النهاردة؟",
-        "فكرني بالدوا كل يوم ٩ الصبح",
-        "سلّفت صاحبي ٥٠٠ جنيه — سجلهالي",
-        "سجّل جمعيتي وفكرني بقسطها"
+        "ما مهامي اليوم؟",
+        "ذكّرني بالدواء يوميًا في ٩ صباحًا",
+        "سجّل ٥٠٠ جنيه سلفة لصديق",
+        "سجّل جمعيتي وذكّرني بالقسط الشهري"
     ) else listOf(
-        "What's on me today?",
-        "Remind me of my medicine daily at 9",
-        "I lent my friend 500 — track it",
-        "Track my gam3iya and remind me monthly"
+        "What are my tasks today?",
+        "Remind me of my medicine daily at 9 AM",
+        "Track 500 EGP I lent a friend",
+        "Track my gam3iya with a monthly reminder"
     )
 
     Column(
