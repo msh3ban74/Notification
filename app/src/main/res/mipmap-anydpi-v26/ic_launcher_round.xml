@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Rafeeq adaptive icon (round): same layers as ic_launcher.xml. -->
+<!-- Rafeeq adaptive icon: premium white R monogram with amber sparks
+     over a deep indigo→violet gradient (bitmap layers per density). -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_fg_vector" />
+    <background android:drawable="@mipmap/ic_launcher_bg" />
+    <foreground android:drawable="@mipmap/ic_launcher_fg" />
 </adaptive-icon>

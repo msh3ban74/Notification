@@ -18,10 +18,13 @@ private val VividColorScheme = lightColorScheme(
     onPrimary = OnPrimary,
     primaryContainer = Color(0xFFE3E5FF),  // soft indigo wash
     onPrimaryContainer = Color(0xFF272377),
-    secondary = Secondary,                 // Teal
+    secondary = Secondary,                 // Teal (data accents only)
     onSecondary = OnSecondary,
-    secondaryContainer = Color(0xFFD3F3EF),
-    onSecondaryContainer = Color(0xFF0A4A44),
+    // Selection surfaces (bottom-nav pill, selected chips, toggles) stay in
+    // the INDIGO family — one brand color for "selected" everywhere. Teal
+    // remains a data accent, never a control state.
+    secondaryContainer = Color(0xFFE3E5FF),
+    onSecondaryContainer = Color(0xFF272377),
     // Tertiary IS the success family: every "done / paid / streak" state
     // that uses colorScheme.tertiary turns green automatically.
     tertiary = Success,
@@ -58,8 +61,8 @@ fun NotificationTheme(
 ) {
     MaterialTheme(
         colorScheme = VividColorScheme,
-        // Rafeeq premium typography: Cinzel titles + Lexend body (EN),
-        // Cairo everywhere (AR). RTL/LTR handling is unaffected.
+        // Rafeeq premium typography: IBM Plex Sans Arabic (AR) / Lexend (EN).
+        // RTL/LTR handling is unaffected.
         typography = rafeeqTypography(isArabic),
         shapes = Shapes,
         content = content

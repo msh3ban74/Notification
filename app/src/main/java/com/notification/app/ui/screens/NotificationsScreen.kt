@@ -107,8 +107,8 @@ fun NotificationsScreen(
         EmptyState(
             icon = Icons.Default.NotificationsNone,
             title = if (isArabic) "لا توجد إشعارات مجدولة" else "No scheduled notifications",
-            subtitle = if (isArabic) "الهدوء التام — كل تنبيه قادم سيظهر هنا في موعده"
-            else "Schedule your first reminder and its alerts will appear here",
+            subtitle = if (isArabic) "التنبيهات المجدولة ستظهر هنا في موعدها"
+            else "Scheduled alerts will appear here on time",
             actionLabel = if (onCreateFirst != null) {
                 if (isArabic) "أنشئ تذكيرًا" else "Schedule Reminder"
             } else null,

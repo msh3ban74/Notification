@@ -668,7 +668,8 @@ private fun CompanionWidgets(
             visible = waterCount < waterGoal,
             icon = Icons.Default.WaterDrop,
             title = if (isArabic) "شرب المياه" else "Water",
-            primaryLine = "$waterCount / $waterGoal",
+            // RTL-safe: plain "0 / 8" flips visually in Arabic, so spell it out.
+            primaryLine = if (isArabic) "$waterCount من $waterGoal أكواب" else "$waterCount of $waterGoal glasses",
             secondaryLine = if (isArabic) "اضغط لتسجيل كوب" else "Tap to log a glass",
             accent = AccentSky,
             onClick = onWaterClick

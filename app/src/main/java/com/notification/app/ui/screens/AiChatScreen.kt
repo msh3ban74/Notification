@@ -97,18 +97,22 @@ fun AiChatScreen(
                 // زر مسح المحادثة — كان مفقودًا (الـ callback موجود من زمان
                 // لكن بلا زر). مع تأكيد قبل الحذف.
                 var confirmClear by remember { mutableStateOf(false) }
-                androidx.compose.material3.SmallFloatingActionButton(
+                androidx.compose.material3.FilledTonalIconButton(
                     onClick = { confirmClear = true },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.error,
+                    colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(Spacing.sm)
                         .zIndex(2f)
+                        .size(40.dp)
                 ) {
                     Icon(
                         Icons.Default.DeleteSweep,
-                        contentDescription = if (isArabic) "مسح المحادثة" else "Clear chat"
+                        contentDescription = if (isArabic) "مسح المحادثة" else "Clear chat",
+                        modifier = Modifier.size(20.dp)
                     )
                 }
                 if (confirmClear) {
@@ -293,27 +297,26 @@ private fun AssistantEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Gold mark with halo
+        // Brand mark with halo — the same R monogram as the launcher icon.
         Box(contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
-                    .size(104.dp)
-                    .background(MaroonPrimary.copy(alpha = 0.10f), CircleShape)
+                    .size(112.dp)
+                    .background(MaroonPrimary.copy(alpha = 0.08f), CircleShape)
             )
             Box(
                 modifier = Modifier
-                    .size(76.dp)
+                    .size(80.dp)
                     .background(
                         Brush.linearGradient(listOf(MaroonPrimary, MaroonPrimaryDark)),
                         CircleShape
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(com.notification.app.R.drawable.logo_r),
                     contentDescription = null,
-                    tint = OnPrimary,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(44.dp)
                 )
             }
         }

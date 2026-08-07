@@ -648,7 +648,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = if (isArabic) "الإصدار 1.0 • رفيقك الذكي في كل تفاصيل حياتك" else "Version 1.0 • Your intelligent life companion",
+                        text = if (isArabic) "الإصدار 1.0 • مساعدك الشخصي الذكي" else "Version 1.0 • Your intelligent personal assistant",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

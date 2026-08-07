@@ -78,17 +78,31 @@ fun PremiumTopAppBar(
                 .padding(horizontal = AppPadding.screen),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Rafeeq brand mark — the sparkle, matching the launcher icon.
-            Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = "Rafeeq logo",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(AppDimens.iconSizeMedium)
-            )
+            // Rafeeq brand mark — the R monogram tile, matching the launcher.
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary,
+                                androidx.compose.ui.graphics.Color(0xFF7C3AED)
+                            )
+                        ),
+                        androidx.compose.foundation.shape.RoundedCornerShape(9.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(com.notification.app.R.drawable.logo_r),
+                    contentDescription = "Rafeeq logo",
+                    modifier = Modifier.size(19.dp)
+                )
+            }
 
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
@@ -112,9 +126,9 @@ fun PremiumTopAppBar(
             IconButton(onClick = onProfileClick) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(38.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.primaryContainer,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -122,7 +136,7 @@ fun PremiumTopAppBar(
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "الإعدادات / Settings",
-                        tint = MaterialTheme.colorScheme.onPrimary,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(AppDimens.iconSizeMedium)
                     )
                 }

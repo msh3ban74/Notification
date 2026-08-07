@@ -2,6 +2,7 @@ package com.notification.app.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -72,28 +73,28 @@ fun EmptyState(
         visible = 1f
     }
 
+    // No card, no border: a premium empty state floats directly on the
+    // page — layered tonal halo, strong title, quiet subtitle, one CTA.
     Box(
         modifier = modifier
             .fillMaxSize()
             .padding(bottom = bottomInset),
         contentAlignment = Alignment.Center
     ) {
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = AppElevation.low),
-            shape = AppRadius.large,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .padding(AppPadding.screen)
+                .fillMaxWidth(0.86f)
                 .alpha(animatedAlpha)
                 .scale(animatedScale)
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(Spacing.xl)
-            ) {
+            // Two-ring halo behind the icon for depth without any card.
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(AppDimens.avatarSizeMedium * 2 + Spacing.lg)
+                        .background(MaroonPrimary.copy(alpha = 0.06f), CircleShape)
+                )
                 Surface(
                     shape = CircleShape,
                     color = MaroonPrimary.copy(alpha = 0.12f),
@@ -108,33 +109,35 @@ fun EmptyState(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(Spacing.md + Spacing.xs))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = Spacing.sm)
-                )
-                if (actionLabel != null && onAction != null) {
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    Button(
-                        onClick = onAction,
-                        shape = AppRadius.button,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaroonPrimary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Text(actionLabel, style = MaterialTheme.typography.labelLarge)
-                    }
+            }
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = Spacing.sm)
+            )
+            if (actionLabel != null && onAction != null) {
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                Button(
+                    onClick = onAction,
+                    shape = AppRadius.button,
+                    contentPadding = PaddingValues(horizontal = Spacing.xl, vertical = Spacing.sm),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaroonPrimary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Text(actionLabel, style = MaterialTheme.typography.labelLarge)
                 }
             }
         }

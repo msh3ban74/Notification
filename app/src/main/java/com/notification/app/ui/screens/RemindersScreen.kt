@@ -102,14 +102,9 @@ fun RemindersScreen(
                 .padding(horizontal = 16.dp)
         ) {
 
-            // Header Title
-            Text(
-                text = if (isArabic) "التذكيرات والتنبيهات" else "Reminders & Alerts",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
-            )
+            // The global top bar already titles this screen — no duplicated
+            // in-page headline; the search field leads.
+            androidx.compose.foundation.layout.Spacer(Modifier.padding(top = 8.dp))
 
             // Phase D — search + sort + archive controls.
             OutlinedTextField(
