@@ -55,7 +55,7 @@ data class SmartItemType(
             SmartItemType(
                 id = "gam3iya",
                 titleEn = "Gam3iya", titleAr = "جمعية",
-                subtitleEn = "Group savings", subtitleAr = "ادخار جماعي",
+                subtitleEn = "Your circle & turn", subtitleAr = "قسطك ودورك",
                 icon = Icons.Default.Group
             ),
             SmartItemType(
