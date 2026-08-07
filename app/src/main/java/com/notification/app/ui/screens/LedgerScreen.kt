@@ -658,6 +658,11 @@ fun PersonDetailScreen(
             )
         }
         var note by remember(editing) { mutableStateOf(editing?.note ?: "") }
+        var reason by remember(editing) { mutableStateOf(editing?.reason ?: "") }
+        var currency by remember(editing) { mutableStateOf(editing?.currency ?: "EGP") }
+        var dueDate by remember(editing) { mutableStateOf(editing?.dueDate ?: 0L) }
+        var paymentType by remember(editing) { mutableStateOf(editing?.paymentType ?: "") }
+        val txContext = LocalContext.current
         val dismissDialog = {
             showAddTxDialog = false
             editingTx = null
@@ -709,6 +714,20 @@ fun PersonDetailScreen(
                     }
 
                     OutlinedTextField(
+                        value = reason,
+                        onValueChange = { reason = it },
+                        label = { Text(if (isArabic) "السبب (اختياري)" else "Reason (optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    CurrencyDropdown(currency, { currency = it }, isArabic)
+                    DateField(
+                        value = dueDate, onPick = { dueDate = it },
+                        label = if (isArabic) "تاريخ الاستحقاق" else "Due date",
+                        context = txContext, isArabic = isArabic, allowEmpty = true
+                    )
+                    PaymentTypeDropdown(paymentType, { paymentType = it }, isArabic)
+                    OutlinedTextField(
                         value = note,
                         onValueChange = { note = it },
                         label = { Text(if (isArabic) "ملاحظات" else "Note") },
@@ -726,7 +745,11 @@ fun PersonDetailScreen(
                                     editing.copy(
                                         type = selectedType.name,
                                         amount = amount,
-                                        note = note
+                                        note = note,
+                                        reason = reason.trim(),
+                                        currency = currency,
+                                        dueDate = dueDate,
+                                        paymentType = paymentType
                                     )
                                 )
                             } else {
@@ -736,7 +759,11 @@ fun PersonDetailScreen(
                                         type = selectedType.name,
                                         amount = amount,
                                         date = System.currentTimeMillis(),
-                                        note = note
+                                        note = note,
+                                        reason = reason.trim(),
+                                        currency = currency,
+                                        dueDate = dueDate,
+                                        paymentType = paymentType
                                     )
                                 )
                             }
@@ -819,5 +846,34 @@ fun PersonDetailScreen(
             },
             dismissButton = { TextButton(onClick = { showDeletePerson = false }) { Text(if (isArabic) "إلغاء" else "Cancel") } }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PaymentTypeDropdown(value: String, onSelect: (String) -> Unit, isArabic: Boolean) {
+    // Payment nature for a ledger transaction (optional; empty = unspecified).
+    val options = listOf(
+        "" to (if (isArabic) "غير محدد" else "Unspecified"),
+        "PARTIAL" to (if (isArabic) "دفعة جزئية" else "Partial"),
+        "FULL" to (if (isArabic) "سداد كامل" else "Full"),
+        "ADVANCE" to (if (isArabic) "دفعة مقدمة" else "Advance"),
+        "SCHEDULED" to (if (isArabic) "مجدولة" else "Scheduled"),
+        "RECURRING" to (if (isArabic) "متكررة" else "Recurring")
+    )
+    var expanded by remember { mutableStateOf(false) }
+    val current = options.firstOrNull { it.first == value }?.second ?: options.first().second
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = current, onValueChange = {}, readOnly = true,
+            label = { Text(if (isArabic) "نوع الدفع" else "Payment type") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth()
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (key, label) ->
+                DropdownMenuItem(text = { Text(label) }, onClick = { onSelect(key); expanded = false })
+            }
+        }
     }
 }
