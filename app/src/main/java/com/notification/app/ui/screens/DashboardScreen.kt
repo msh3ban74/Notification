@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -222,8 +223,19 @@ fun DashboardScreen(
             userName = userName,
             pendingCount = todayItems.size,
             overdueCount = todayItems.count { it.isOverdue },
+            doneToday = doneToday
+        )
+
+        QuickAddField(isArabic = isArabic, onAskRafeeq = onAskRafeeq)
+
+        DaySummaryTiles(
+            isArabic = isArabic,
             doneToday = doneToday,
-            onAskRafeeq = onAskRafeeq
+            pendingToday = todayItems.size,
+            scheduled = remember(reminders) {
+                reminders.count { !it.isCompleted && it.dueDate >= dayEnd }
+            },
+            memories = remember(workNotes) { workNotes.size }
         )
 
         TodayTimelineCard(
@@ -301,19 +313,17 @@ private fun TodayHero(
     userName: String,
     pendingCount: Int,
     overdueCount: Int,
-    doneToday: Int,
-    onAskRafeeq: (String) -> Unit
+    doneToday: Int
 ) {
     val hour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
     val greeting = when {
-        isArabic && hour < 12 -> "صباح الخير"
-        isArabic -> "مساء الخير"
-        hour < 12 -> "Good morning"
-        hour < 18 -> "Good afternoon"
-        else -> "Good evening"
+        isArabic && hour < 12 -> "صباح الخير،"
+        isArabic -> "مساء الخير،"
+        hour < 12 -> "Good morning,"
+        hour < 18 -> "Good afternoon,"
+        else -> "Good evening,"
     }
     val displayName = userName.takeIf { it.isNotBlank() && it != "User" && it != "Guest User" }
-    val greetingLine = if (displayName != null) "$greeting، $displayName" else greeting
 
     val dateLine = remember(isArabic) {
         SimpleDateFormat(
@@ -335,111 +345,230 @@ private fun TodayHero(
             else "$pendingCount task${if (pendingCount == 1) "" else "s"} today"
     }
 
-    // Quick capture — the fastest path into the smart memory: type it and
-    // Rafeeq files it (reminder, debt, gam3iya…) through the assistant.
-    var quickText by rememberSaveable { mutableStateOf("") }
-    fun sendQuick() {
-        val t = quickText.trim()
-        if (t.isNotEmpty()) { onAskRafeeq(t); quickText = "" }
-    }
-
-    // Hero — the billion-dollar first impression: an electric indigo →
-    // violet gradient card with white type, a frosted quick-capture pill
-    // and a white CTA. Everything else on the page stays calm white cards,
-    // so this ONE hero carries the identity.
+    // Hero — light and airy (product mock): a soft lavender gradient card
+    // with dark indigo type and a quiet wave decoration. No saturated block.
     androidx.compose.material3.Card(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(30.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
         colors = androidx.compose.material3.CardDefaults.cardColors(
             containerColor = androidx.compose.ui.graphics.Color.Transparent
         ),
-        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 8.dp),
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
                     androidx.compose.ui.graphics.Brush.linearGradient(
                         colors = listOf(
-                            com.notification.app.ui.theme.PrimaryDark,
-                            com.notification.app.ui.theme.Primary,
-                            com.notification.app.ui.theme.AccentViolet
+                            androidx.compose.ui.graphics.Color(0xFFF5F4FE),
+                            androidx.compose.ui.graphics.Color(0xFFECE9FD),
+                            androidx.compose.ui.graphics.Color(0xFFE2DDFB)
                         )
                     )
                 )
-                .padding(22.dp)
         ) {
-            Text(
-                greetingLine,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = androidx.compose.ui.graphics.Color.White
-            )
-            Text(
-                dateLine,
-                style = MaterialTheme.typography.bodyMedium,
-                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f)
-            )
-            Text(
-                summary,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (overdueCount > 0) androidx.compose.ui.graphics.Color(0xFFFFD5DE)
-                else androidx.compose.ui.graphics.Color.White
-            )
-            androidx.compose.material3.OutlinedTextField(
-                value = quickText,
-                onValueChange = { quickText = it },
-                placeholder = {
-                    Text(
-                        if (isArabic) "أضف تذكيرًا أو مهمة…" else "Add a reminder or task…",
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f)
-                    )
-                },
-                trailingIcon = {
-                    IconButton(onClick = { sendQuick() }, enabled = quickText.isNotBlank()) {
-                        Icon(
-                            Icons.Default.Send,
-                            contentDescription = if (isArabic) "إرسال" else "Send",
-                            tint = androidx.compose.ui.graphics.Color.White.copy(
-                                alpha = if (quickText.isNotBlank()) 1f else 0.5f
-                            )
+            // Quiet wave lines in the card's lower half.
+            androidx.compose.foundation.Canvas(modifier = Modifier.matchParentSize()) {
+                val w = size.width
+                val h = size.height
+                for (i in 0..3) {
+                    val base = h * (0.68f + i * 0.09f)
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(-w * 0.05f, base)
+                        cubicTo(
+                            w * 0.3f, base - h * 0.18f,
+                            w * 0.6f, base + h * 0.10f,
+                            w * 1.05f, base - h * 0.22f
                         )
                     }
-                },
-                singleLine = true,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = androidx.compose.ui.graphics.Color.White,
-                    unfocusedTextColor = androidx.compose.ui.graphics.Color.White,
-                    cursorColor = androidx.compose.ui.graphics.Color.White,
-                    focusedBorderColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.4f),
-                    focusedContainerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f),
-                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f)
-                ),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Send),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { sendQuick() }),
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)
-            )
-            androidx.compose.material3.Button(
-                onClick = {
-                    onAskRafeeq(if (isArabic) "لخص يومي ونظمه لي" else "Summarize and organize my day")
-                },
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                    containerColor = androidx.compose.ui.graphics.Color.White,
-                    contentColor = com.notification.app.ui.theme.PrimaryDark
-                ),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
+                    drawPath(
+                        path = path,
+                        color = com.notification.app.ui.theme.Primary.copy(alpha = 0.07f),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+                    )
+                }
+            }
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(22.dp)
             ) {
                 Text(
-                    if (isArabic) "ملخص اليوم" else "Today's summary",
-                    fontWeight = FontWeight.Bold
+                    greeting,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = androidx.compose.ui.graphics.Color(0xFF6B7280)
+                )
+                if (displayName != null) {
+                    Text(
+                        displayName,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = androidx.compose.ui.graphics.Color(0xFF1E1B4B)
+                    )
+                }
+                Text(
+                    dateLine,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = androidx.compose.ui.graphics.Color(0xFF9CA3AF)
+                )
+                androidx.compose.foundation.layout.Spacer(Modifier.padding(top = Spacing.xs))
+                Text(
+                    summary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (overdueCount > 0) com.notification.app.ui.theme.Error
+                    else androidx.compose.ui.graphics.Color(0xFF3730A3)
+                )
+                if (pendingCount == 0) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = com.notification.app.ui.theme.Primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            if (isArabic) "استمتع بيومك" else "Enjoy your day",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = com.notification.app.ui.theme.Primary
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** White quick-add pill + round send button (mock) — feeds the assistant. */
+@Composable
+private fun QuickAddField(
+    isArabic: Boolean,
+    onAskRafeeq: (String) -> Unit
+) {
+    var quickText by rememberSaveable { mutableStateOf("") }
+    fun sendQuick() {
+        val t = quickText.trim()
+        if (t.isNotEmpty()) { onAskRafeeq(t); quickText = "" }
+    }
+    androidx.compose.material3.OutlinedTextField(
+        value = quickText,
+        onValueChange = { quickText = it },
+        placeholder = {
+            Text(
+                if (isArabic) "أضف تذكيرًا أو مهمة…" else "Add a reminder or task…",
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = androidx.compose.ui.graphics.Color(0xFF9CA3AF)
+            )
+        },
+        leadingIcon = {
+            androidx.compose.material3.FilledIconButton(
+                onClick = { sendQuick() },
+                enabled = quickText.isNotBlank(),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
+                    containerColor = com.notification.app.ui.theme.Primary,
+                    contentColor = androidx.compose.ui.graphics.Color.White,
+                    disabledContainerColor = com.notification.app.ui.theme.Primary.copy(alpha = 0.35f),
+                    disabledContentColor = androidx.compose.ui.graphics.Color.White
+                ),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    if (quickText.isNotBlank()) Icons.Default.Send else androidx.compose.material.icons.Icons.Default.Add,
+                    contentDescription = if (isArabic) "إرسال" else "Send",
+                    modifier = Modifier.size(18.dp)
                 )
             }
+        },
+        singleLine = true,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+            unfocusedContainerColor = androidx.compose.ui.graphics.Color.White,
+            focusedBorderColor = com.notification.app.ui.theme.Primary.copy(alpha = 0.45f),
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+        ),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Send),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { sendQuick() }),
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+/** «ملخص اليوم» — four light stat tiles (completed / active / scheduled / memories). */
+@Composable
+private fun DaySummaryTiles(
+    isArabic: Boolean,
+    doneToday: Int,
+    pendingToday: Int,
+    scheduled: Int,
+    memories: Int
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        Text(
+            text = if (isArabic) "ملخص اليوم" else "Today at a glance",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            SummaryTile(Icons.Default.CheckCircle, doneToday, if (isArabic) "مكتملة" else "Done", Modifier.weight(1f))
+            SummaryTile(Icons.Default.Alarm, pendingToday, if (isArabic) "جارية" else "Active", Modifier.weight(1f))
+            SummaryTile(Icons.Default.Event, scheduled, if (isArabic) "مجدولة" else "Planned", Modifier.weight(1f))
+            SummaryTile(Icons.Default.AutoAwesome, memories, if (isArabic) "ذكريات" else "Notes", Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun SummaryTile(
+    icon: ImageVector,
+    count: Int,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.material3.Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        color = androidx.compose.ui.graphics.Color.White,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = modifier
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(vertical = Spacing.md)
+        ) {
+            androidx.compose.foundation.layout.Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(
+                        com.notification.app.ui.theme.Primary.copy(alpha = 0.08f),
+                        androidx.compose.foundation.shape.CircleShape
+                    )
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = com.notification.app.ui.theme.Primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(
+                "$count",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = androidx.compose.ui.graphics.Color(0xFF1E1B4B)
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = androidx.compose.ui.graphics.Color(0xFF6B7280),
+                maxLines = 1
+            )
         }
     }
 }
@@ -664,15 +793,11 @@ private fun CompanionWidgets(
             onClick = onNavigateToIslamic
         )
 
-        SmartWidget(
-            visible = waterCount < waterGoal,
-            icon = Icons.Default.WaterDrop,
-            title = if (isArabic) "شرب المياه" else "Water",
-            // RTL-safe: plain "0 / 8" flips visually in Arabic, so spell it out.
-            primaryLine = if (isArabic) "$waterCount من $waterGoal أكواب" else "$waterCount of $waterGoal glasses",
-            secondaryLine = if (isArabic) "اضغط لتسجيل كوب" else "Tap to log a glass",
-            accent = AccentSky,
-            onClick = onWaterClick
+        WaterGlassesCard(
+            isArabic = isArabic,
+            waterCount = waterCount,
+            waterGoal = waterGoal,
+            onWaterClick = onWaterClick
         )
 
         val today = remember { HabitCalculator.dayStartOf() }
@@ -700,6 +825,82 @@ private fun CompanionWidgets(
             accent = AccentViolet,
             onClick = onNavigateToHealthNotes
         )
+    }
+}
+
+/**
+ * Water tracker card (mock): droplet badge, "X / 8", and a row of glasses
+ * that fill as the user taps the card. Hidden once the goal is reached.
+ */
+@Composable
+private fun WaterGlassesCard(
+    isArabic: Boolean,
+    waterCount: Int,
+    waterGoal: Int,
+    onWaterClick: () -> Unit
+) {
+    if (waterCount >= waterGoal) return
+    androidx.compose.material3.Surface(
+        onClick = onWaterClick,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        color = androidx.compose.ui.graphics.Color.White,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier.padding(Spacing.md)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(AccentSky.copy(alpha = 0.12f), androidx.compose.foundation.shape.CircleShape)
+                ) {
+                    Icon(
+                        Icons.Default.WaterDrop,
+                        contentDescription = null,
+                        tint = AccentSky,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Column {
+                    Text(
+                        if (isArabic) "شرب المياه" else "Water",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        // LRM keeps "3 / 8" ordered correctly inside RTL text.
+                        "‎$waterCount / $waterGoal",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = com.notification.app.ui.theme.Primary
+                    )
+                }
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                Text(
+                    if (isArabic) "اضغط لتسجيل كوب" else "Tap to log a glass",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(waterGoal) { i ->
+                    Icon(
+                        Icons.Default.WaterDrop,
+                        contentDescription = null,
+                        tint = if (i < waterCount) AccentSky
+                        else MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
     }
 }
 

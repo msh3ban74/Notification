@@ -305,6 +305,7 @@ fun CreateTaskScreen(
                 value = title,
                 onValueChange = { title = it },
                 label = { Text(if (isArabic) "العنوان" else "Title") },
+                placeholder = { Text(if (isArabic) "ماذا تريد أن تتذكر؟" else "What do you want to remember?") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )

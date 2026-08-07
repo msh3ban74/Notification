@@ -211,7 +211,12 @@ class MainActivity : ComponentActivity() {
                         },
                         bottomBar = {
                             if (showChrome) {
-                                NavigationBar {
+                                // Flat premium nav (mock): white bar, no pill
+                                // indicator — selection is the indigo tint alone.
+                                NavigationBar(
+                                    containerColor = androidx.compose.ui.graphics.Color.White,
+                                    tonalElevation = 0.dp
+                                ) {
                                     bottomBarScreens.forEach { screen ->
                                         NavigationBarItem(
                                             selected = currentRoute == screen.route,
@@ -235,7 +240,14 @@ class MainActivity : ComponentActivity() {
                                                     text = if (isArabic) screen.titleAr else screen.titleEn,
                                                     maxLines = 1
                                                 )
-                                            }
+                                            },
+                                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                                                indicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                                selectedIconColor = com.notification.app.ui.theme.Primary,
+                                                selectedTextColor = com.notification.app.ui.theme.Primary,
+                                                unselectedIconColor = androidx.compose.ui.graphics.Color(0xFF9CA3AF),
+                                                unselectedTextColor = androidx.compose.ui.graphics.Color(0xFF9CA3AF)
+                                            )
                                         )
                                     }
                                 }

@@ -78,27 +78,13 @@ fun PremiumTopAppBar(
                 .padding(horizontal = AppPadding.screen),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Rafeeq brand mark — the R monogram tile, matching the launcher.
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .background(
-                        androidx.compose.ui.graphics.Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary,
-                                androidx.compose.ui.graphics.Color(0xFF7C3AED)
-                            )
-                        ),
-                        androidx.compose.foundation.shape.RoundedCornerShape(9.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(com.notification.app.R.drawable.logo_r),
-                    contentDescription = "Rafeeq logo",
-                    modifier = Modifier.size(19.dp)
-                )
-            }
+            // Rafeeq brand mark — the indigo sparkle (product mock).
+            Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = "Rafeeq logo",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(AppDimens.iconSizeMedium)
+            )
 
             Text(
                 text = title,

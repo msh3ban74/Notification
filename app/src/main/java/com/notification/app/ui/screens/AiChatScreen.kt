@@ -297,26 +297,24 @@ private fun AssistantEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Brand mark with halo — the same R monogram as the launcher icon.
+        // Brand mark — light halo with the indigo sparkle (product mock).
         Box(contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
-                    .size(112.dp)
-                    .background(MaroonPrimary.copy(alpha = 0.08f), CircleShape)
+                    .size(116.dp)
+                    .background(MaroonPrimary.copy(alpha = 0.06f), CircleShape)
             )
             Box(
                 modifier = Modifier
-                    .size(80.dp)
-                    .background(
-                        Brush.linearGradient(listOf(MaroonPrimary, MaroonPrimaryDark)),
-                        CircleShape
-                    ),
+                    .size(84.dp)
+                    .background(MaroonPrimary.copy(alpha = 0.12f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(com.notification.app.R.drawable.logo_r),
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    modifier = Modifier.size(44.dp)
+                    tint = MaroonPrimary,
+                    modifier = Modifier.size(40.dp)
                 )
             }
         }
@@ -350,7 +348,10 @@ private fun AssistantEmptyState(
                 Surface(
                     onClick = { onSuggestionClick(suggestion) },
                     shape = AppRadius.button,
-                    color = MaterialTheme.colorScheme.surfaceVariant
+                    color = androidx.compose.ui.graphics.Color.White,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp, MaterialTheme.colorScheme.outlineVariant
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(
