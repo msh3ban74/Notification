@@ -2,6 +2,8 @@ package com.notification.app.data.repository
 
 import com.notification.app.BuildConfig
 import com.notification.app.data.local.entities.AlarmEntity
+import com.notification.app.data.local.entities.FinancialItemEntity
+import com.notification.app.data.local.entities.Gam3iyaEntity
 import com.notification.app.data.local.entities.HabitEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
@@ -71,11 +73,50 @@ class GeminiRepository(
                     description = "Get full status of the user's savings circles (gam3iya): who collects next and when, who is late, who hasn't paid this month, total paid vs remaining, current month, and each member's turn. Use this for any gam3iya question (next collector, late members, remaining amount, summary).",
                     parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
                 ),
+                GeminiFunctionDeclaration(
+                    name = "createGam3iya",
+                    description = "Create a new savings circle (gam3iya). Use mode MANAGER when the user organizes it (optionally list the member names in turn order); use mode PARTICIPANT when the user only takes part in someone else's circle (give the organizer's name). The monthly installment and member count are enough — the app computes the total and each turn's collection date.",
+                    parameters = mapOf(
+                        "type" to "OBJECT",
+                        "properties" to mapOf(
+                            "title" to mapOf("type" to "STRING", "description" to "Gam3iya name"),
+                            "mode" to mapOf("type" to "STRING", "description" to "MANAGER (I organize) or PARTICIPANT (I only take part). Defaults to MANAGER."),
+                            "monthlyInstallment" to mapOf("type" to "NUMBER", "description" to "Monthly installment amount"),
+                            "membersCount" to mapOf("type" to "NUMBER", "description" to "Number of members / months in the circle"),
+                            "memberNames" to mapOf("type" to "ARRAY", "description" to "MANAGER mode only: member names in turn order (1st collects first)", "items" to mapOf("type" to "STRING")),
+                            "organizerName" to mapOf("type" to "STRING", "description" to "PARTICIPANT mode only: who organizes the circle"),
+                            "myTurnNumber" to mapOf("type" to "NUMBER", "description" to "PARTICIPANT mode only: which month I collect (1-based)"),
+                            "currency" to mapOf("type" to "STRING", "description" to "Currency code, defaults to EGP"),
+                            "note" to mapOf("type" to "STRING", "description" to "Optional note")
+                        ),
+                        "required" to listOf("title", "monthlyInstallment", "membersCount")
+                    )
+                ),
                 // Phase E — the assistant reads ALL modules.
                 GeminiFunctionDeclaration(
                     name = "getFinancialItems",
                     description = "Get all tracked bills, installments and subscriptions with amounts, due dates and paid status.",
                     parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
+                ),
+                GeminiFunctionDeclaration(
+                    name = "addFinancialItem",
+                    description = "Track a new bill, installment or subscription. A due-date reminder is created and scheduled automatically. For an INSTALLMENT give totalPrice, downPayment and monthlyAmount; for a BILL or SUBSCRIPTION give amount. Give the due date as dueInDays from now (e.g. 'due in 10 days' → 10, 'next month' → 30).",
+                    parameters = mapOf(
+                        "type" to "OBJECT",
+                        "properties" to mapOf(
+                            "type" to mapOf("type" to "STRING", "description" to "BILL, INSTALLMENT or SUBSCRIPTION"),
+                            "title" to mapOf("type" to "STRING", "description" to "Company / item / service name"),
+                            "amount" to mapOf("type" to "NUMBER", "description" to "Bill amount or subscription monthly amount"),
+                            "totalPrice" to mapOf("type" to "NUMBER", "description" to "INSTALLMENT: total price"),
+                            "downPayment" to mapOf("type" to "NUMBER", "description" to "INSTALLMENT: down payment already paid"),
+                            "monthlyAmount" to mapOf("type" to "NUMBER", "description" to "INSTALLMENT: monthly payment"),
+                            "dueInDays" to mapOf("type" to "NUMBER", "description" to "Days from now until the next due / renewal date"),
+                            "seller" to mapOf("type" to "STRING", "description" to "Optional seller / store / provider"),
+                            "recurring" to mapOf("type" to "BOOLEAN", "description" to "True for a recurring bill/subscription"),
+                            "currency" to mapOf("type" to "STRING", "description" to "Currency code, defaults to EGP")
+                        ),
+                        "required" to listOf("type", "title")
+                    )
                 ),
                 GeminiFunctionDeclaration(
                     name = "getHabits",
@@ -138,7 +179,8 @@ class GeminiRepository(
         isArabic: Boolean = false,
         onAlarmCreated: suspend (AlarmEntity) -> Unit = {},
         onReminderCreated: suspend (Long) -> Unit = {},
-        onLogWater: suspend () -> Unit = {}
+        onLogWater: suspend () -> Unit = {},
+        onGam3iyaCreated: suspend (Long) -> Unit = {}
     ): Pair<String, List<GeminiContent>> {
         val apiKey = if (!customApiKey.isNullOrBlank()) customApiKey else BuildConfig.GEMINI_API_KEY
         val updatedHistory = history.toMutableList()
@@ -175,7 +217,7 @@ class GeminiRepository(
                     // The tool runs NOW — its effect (alarm set, reminder
                     // added…) is already committed regardless of what the
                     // second round does.
-                    val toolResult = executeTool(fnCall, isArabic, onAlarmCreated, onReminderCreated, onLogWater)
+                    val toolResult = executeTool(fnCall, isArabic, onAlarmCreated, onReminderCreated, onLogWater, onGam3iyaCreated)
 
                     // Provide function response back to model
                     val toolResponseContent = GeminiContent(
@@ -399,7 +441,8 @@ class GeminiRepository(
         isArabic: Boolean,
         onAlarmCreated: suspend (AlarmEntity) -> Unit,
         onReminderCreated: suspend (Long) -> Unit,
-        onLogWater: suspend () -> Unit
+        onLogWater: suspend () -> Unit,
+        onGam3iyaCreated: suspend (Long) -> Unit
     ): Any {
         val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
         return when (call.name) {
@@ -490,6 +533,51 @@ class GeminiRepository(
                     }
                 }
             }
+            "createGam3iya" -> {
+                val title = call.args["title"]?.toString()?.trim().orEmpty()
+                val monthly = (call.args["monthlyInstallment"] as? Number)?.toDouble() ?: 0.0
+                val count = (call.args["membersCount"] as? Number)?.toInt() ?: 0
+                if (title.isBlank() || monthly <= 0 || count <= 0) {
+                    if (isArabic) "أحتاج اسم الجمعية والقسط الشهري وعدد الأعضاء لإنشائها."
+                    else "I need the gam3iya name, monthly installment and member count to create it."
+                } else {
+                    val mode = call.args["mode"]?.toString()?.uppercase()?.takeIf { it == "PARTICIPANT" } ?: "MANAGER"
+                    val currency = call.args["currency"]?.toString()?.takeUnless { it.isNullOrBlank() } ?: "EGP"
+                    val note = call.args["note"]?.toString().orEmpty()
+                    val total = monthly * count
+                    val now = System.currentTimeMillis()
+                    if (mode == "PARTICIPANT") {
+                        val organizer = call.args["organizerName"]?.toString().orEmpty()
+                        val myTurn = (call.args["myTurnNumber"] as? Number)?.toInt() ?: 0
+                        val gam3iya = Gam3iyaEntity(
+                            title = title, totalAmount = total, monthlyInstallment = monthly,
+                            membersCount = count, startDate = now, mode = "PARTICIPANT",
+                            currency = currency, note = note, createdAt = now,
+                            organizerName = organizer, myInstallmentAmount = monthly, myTurnNumber = myTurn
+                        )
+                        val id = notificationRepository.insertGam3iya(gam3iya)
+                        onGam3iyaCreated(id)
+                        if (isArabic) "أنشأت جمعية \"$title\" (مشارِك) — $count شهور، قسط ${monthly.toLong()} $currency ✅"
+                        else "Created gam3iya '$title' (participant) — $count months, ${monthly.toLong()} $currency each ✅"
+                    } else {
+                        @Suppress("UNCHECKED_CAST")
+                        val names = (call.args["memberNames"] as? List<Any?>)?.mapNotNull { it?.toString()?.trim()?.takeIf { n -> n.isNotBlank() } } ?: emptyList()
+                        val gam3iya = Gam3iyaEntity(
+                            title = title, totalAmount = total, monthlyInstallment = monthly,
+                            membersCount = count, startDate = now, mode = "MANAGER",
+                            currency = currency, note = note, createdAt = now
+                        )
+                        val id = if (names.isNotEmpty()) {
+                            notificationRepository.createGam3iyaWithMembers(gam3iya, names.mapIndexed { i, n -> n to (i + 1) })
+                        } else {
+                            notificationRepository.insertGam3iya(gam3iya)
+                        }
+                        onGam3iyaCreated(id)
+                        if (isArabic) "أنشأت جمعية \"$title\" (مدير) — $count أعضاء، قسط ${monthly.toLong()} $currency ✅"
+                        else "Created gam3iya '$title' (manager) — $count members, ${monthly.toLong()} $currency each ✅"
+                    }
+                }
+            }
             // Phase E — read-only views over the financial + habit modules.
             "getFinancialItems" -> {
                 val items = notificationRepository.allFinancialItems.first()
@@ -500,6 +588,57 @@ class GeminiRepository(
                         "${it.title} [${it.type}]: $amount EGP, due ${dateFormat.format(Date(it.dueDate))}, ${if (it.isPaid) "PAID" else "UNPAID"}" +
                             (if (it.remaining > 0) ", remaining ${it.remaining} EGP" else "")
                     }
+                }
+            }
+            "addFinancialItem" -> {
+                val title = call.args["title"]?.toString()?.trim().orEmpty()
+                if (title.isBlank()) {
+                    if (isArabic) "أحتاج اسم الفاتورة أو القسط أو الاشتراك." else "I need a name for the bill, installment or subscription."
+                } else {
+                    val type = when (call.args["type"]?.toString()?.uppercase()) {
+                        "INSTALLMENT" -> "INSTALLMENT"
+                        "SUBSCRIPTION" -> "SUBSCRIPTION"
+                        else -> "BILL"
+                    }
+                    val currency = call.args["currency"]?.toString()?.takeUnless { it.isNullOrBlank() } ?: "EGP"
+                    val amount = (call.args["amount"] as? Number)?.toDouble() ?: 0.0
+                    val totalPrice = (call.args["totalPrice"] as? Number)?.toDouble() ?: 0.0
+                    val downPayment = (call.args["downPayment"] as? Number)?.toDouble() ?: 0.0
+                    val monthlyAmount = (call.args["monthlyAmount"] as? Number)?.toDouble() ?: 0.0
+                    val seller = call.args["seller"]?.toString().orEmpty()
+                    val recurring = (call.args["recurring"] as? Boolean) ?: (type == "SUBSCRIPTION")
+                    val days = (call.args["dueInDays"] as? Number)?.toLong() ?: 30L
+                    val dueDate = System.currentTimeMillis() + days.coerceAtLeast(0) * 24L * 3600_000L
+
+                    // Mirror MainViewModel.financialReminderFor so an AI-created
+                    // money item gets the same scheduled due-date notification.
+                    val noteLabel = when (type) {
+                        "INSTALLMENT" -> if (isArabic) "قسط مستحق" else "Installment due"
+                        "SUBSCRIPTION" -> if (isArabic) "تجديد اشتراك" else "Subscription renewal"
+                        else -> if (isArabic) "فاتورة مستحقة" else "Bill due"
+                    }
+                    val recurrence = if (recurring || type == "INSTALLMENT") "MONTHLY" else "NONE"
+                    val reminderId = notificationRepository.insertReminder(
+                        ReminderEntity(
+                            title = title, note = noteLabel, dueDate = dueDate,
+                            category = "BILL", recurrence = recurrence
+                        )
+                    )
+                    onReminderCreated(reminderId)
+
+                    notificationRepository.insertFinancialItem(
+                        FinancialItemEntity(
+                            type = type, title = title, amount = amount,
+                            totalPrice = totalPrice, downPayment = downPayment,
+                            monthlyAmount = monthlyAmount,
+                            remaining = if (type == "INSTALLMENT") (totalPrice - downPayment).coerceAtLeast(0.0) else 0.0,
+                            dueDate = dueDate, seller = seller, recurring = recurring,
+                            currency = currency, linkedReminderId = reminderId
+                        )
+                    )
+                    val shown = if (monthlyAmount > 0) monthlyAmount else amount
+                    if (isArabic) "أضفت \"$title\" وسيصلك تنبيه عند الاستحقاق${if (shown > 0) " — ${shown.toLong()} $currency" else ""} ✅"
+                    else "Added '$title' — you'll be alerted when it's due${if (shown > 0) " — ${shown.toLong()} $currency" else ""} ✅"
                 }
             }
             "getHabits" -> {

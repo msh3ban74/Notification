@@ -467,6 +467,13 @@ fun PersonDetailScreen(
     var showDeletePerson by remember { mutableStateOf(false) }
     var personMenu by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val exportContext = LocalContext.current
+    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) {
+            val csv = com.notification.app.domain.calculator.DebtsExporter.buildCsv(person, transactions)
+            com.notification.app.domain.calculator.DebtsExporter.writeCsvToUri(exportContext, uri, csv)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -495,6 +502,16 @@ fun PersonDetailScreen(
                             Icon(Icons.Default.MoreVert, contentDescription = if (isArabic) "خيارات" else "Options")
                         }
                         DropdownMenu(expanded = personMenu, onDismissRequest = { personMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(if (isArabic) "تصدير CSV" else "Export CSV") },
+                                onClick = { personMenu = false; csvLauncher.launch(com.notification.app.domain.calculator.DebtsExporter.suggestedCsvName(person)) },
+                                leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (isArabic) "طباعة / PDF" else "Print / PDF") },
+                                onClick = { personMenu = false; com.notification.app.domain.calculator.DebtsExporter.printStatement(exportContext, person, transactions, isArabic) },
+                                leadingIcon = { Icon(Icons.Default.Print, contentDescription = null) }
+                            )
                             if (onUpdatePerson != null) {
                                 DropdownMenuItem(
                                     text = { Text(if (isArabic) "تعديل جهة الاتصال" else "Edit contact") },

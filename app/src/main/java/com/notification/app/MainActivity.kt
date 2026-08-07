@@ -113,6 +113,9 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
 
     // Final Product sprint (Phase C) — the habit engine screen.
     object Habits : Screen("habits", "Habits", "العادات", Icons.Default.Add)
+
+    // Global search across every module.
+    object Search : Screen("search", "Search", "بحث", Icons.Default.Search)
 }
 
 class MainActivity : ComponentActivity() {
@@ -197,7 +200,8 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         if (isArabic) "رفيق" else "Rafeeq"
                                     },
-                                    onProfileClick = { navController.navigate(Screen.Settings.route) }
+                                    onProfileClick = { navController.navigate(Screen.Settings.route) },
+                                    onSearchClick = { navController.navigate(Screen.Search.route) }
                                 )
                             }
                         },
@@ -787,6 +791,25 @@ class MainActivity : ComponentActivity() {
                                     onToggleToday = { habitId, dayStart, done ->
                                         viewModel.setHabitDone(habitId, dayStart, done)
                                     }
+                                )
+                            }
+
+                            // Global search across every module.
+                            composable(Screen.Search.route) {
+                                SearchScreen(
+                                    isArabic = isArabic,
+                                    reminders = reminders,
+                                    persons = persons,
+                                    gam3iyas = gam3iyas,
+                                    financialItems = financialItems,
+                                    habits = habits,
+                                    onBack = { navController.popBackStack() },
+                                    onOpenTask = { navController.navigate(Screen.CreateTask.createRoute(it)) },
+                                    onOpenLedger = { navController.navigate(Screen.Ledger.route) },
+                                    onOpenGam3iya = { navController.navigate(Screen.Gam3iya.route) },
+                                    onOpenInstallment = { navController.navigate(Screen.InstallmentDetail.createRoute(it)) },
+                                    onOpenFinancial = { navController.navigate(Screen.EditFinancial.createRoute(it)) },
+                                    onOpenHabits = { navController.navigate(Screen.Habits.route) }
                                 )
                             }
 

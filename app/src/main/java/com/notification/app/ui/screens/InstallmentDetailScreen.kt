@@ -65,6 +65,12 @@ fun InstallmentDetailScreen(
             viewModel.addFinancialAttachment(item.id, uri.toString(), "RECEIPT", "")
         }
     }
+    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) {
+            val csv = com.notification.app.domain.calculator.InstallmentExporter.buildCsv(item, payments)
+            com.notification.app.domain.calculator.InstallmentExporter.writeCsvToUri(context, uri, csv)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -84,6 +90,12 @@ fun InstallmentDetailScreen(
                             text = { Text(if (item.isArchived) (if (isArabic) "إلغاء الأرشفة" else "Unarchive") else (if (isArabic) "أرشفة" else "Archive")) },
                             onClick = { menuOpen = false; viewModel.updateFinancialItem(item.copy(isArchived = !item.isArchived)) },
                             leadingIcon = { Icon(if (item.isArchived) Icons.Default.Unarchive else Icons.Default.Archive, contentDescription = null) })
+                        DropdownMenuItem(text = { Text(if (isArabic) "تصدير CSV" else "Export CSV") },
+                            onClick = { menuOpen = false; csvLauncher.launch(com.notification.app.domain.calculator.InstallmentExporter.suggestedCsvName(item)) },
+                            leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) })
+                        DropdownMenuItem(text = { Text(if (isArabic) "طباعة / PDF" else "Print / PDF") },
+                            onClick = { menuOpen = false; com.notification.app.domain.calculator.InstallmentExporter.printInstallment(context, item, payments, isArabic) },
+                            leadingIcon = { Icon(Icons.Default.Print, contentDescription = null) })
                         DropdownMenuItem(text = { Text(if (isArabic) "حذف" else "Delete") },
                             onClick = { menuOpen = false; confirmDelete = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) })
                     }

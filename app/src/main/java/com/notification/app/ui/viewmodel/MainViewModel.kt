@@ -954,7 +954,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), it)
                         }
                     },
-                    onLogWater = { incrementWater() }
+                    onLogWater = { incrementWater() },
+                    onGam3iyaCreated = { gam3iyaId ->
+                        repository.getGam3iyaById(gam3iyaId)?.let { syncGam3iyaReminder(it) }
+                    }
                 )
             }
             if (result != null) {
