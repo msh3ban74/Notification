@@ -540,6 +540,8 @@ class MainActivity : ComponentActivity() {
                                     onPickAutoBackupFolder = { viewModel.setAutoBackupFolder(it) },
                                     fallbackAiKey = viewModel.fallbackAiKey.collectAsState().value,
                                     onSetFallbackAiKey = { viewModel.setFallbackAiKey(it) },
+                                    extraGeminiKeys = viewModel.extraGeminiKeys.collectAsState().value,
+                                    onSetExtraGeminiKeys = { viewModel.setExtraGeminiKeys(it) },
                                     onSignOut = {
                                         // Stability sprint — REAL logout:
                                         // Firebase sign-out + persisted session

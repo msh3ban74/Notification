@@ -346,6 +346,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { preferencesRepository.setFallbackAiKey(key) }
     }
 
+    // مفاتيح جيميناي الإضافية — سطر لكل مفتاح، رفيق يدوّر بينها تلقائيًا.
+    val extraGeminiKeys: StateFlow<List<String>> = preferencesRepository.extraGeminiKeysFlow
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    fun setExtraGeminiKeys(raw: String) {
+        viewModelScope.launch { preferencesRepository.setExtraGeminiKeys(raw) }
+    }
+
     init {
         // Debug-only diagnostic of the key pipeline (GitHub Secret -> .env ->
         // BuildConfig). Logs a boolean availability flag ONLY, never the key,
@@ -810,7 +818,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     onGam3iyaCreated = { gam3iyaId ->
                         repository.getGam3iyaById(gam3iyaId)?.let { syncGam3iyaReminder(it) }
                     },
-                    fallbackApiKey = preferencesRepository.fallbackAiKeyFlow.first()
+                    fallbackApiKey = preferencesRepository.fallbackAiKeyFlow.first(),
+                    extraGeminiKeys = preferencesRepository.extraGeminiKeysFlow.first()
                 )
             }
             if (result != null) {

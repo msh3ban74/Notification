@@ -178,9 +178,15 @@ class GeminiRepository(
         onGam3iyaCreated: suspend (Long) -> Unit = {},
         // مفتاح المزود الاحتياطي (اختياري من الإعدادات): يشتغل تلقائيًا لما
         // جيميناي يخلص خالص، فرفيق يرد بدل ما يعتذر.
-        fallbackApiKey: String? = null
+        fallbackApiKey: String? = null,
+        // مفاتيح جيميناي إضافية من الإعدادات — كل مفتاح حصة مجانية مستقلة،
+        // ورفيق ينقل بينها تلقائيًا لما مفتاح يخلص.
+        extraGeminiKeys: List<String> = emptyList()
     ): Pair<String, List<GeminiContent>> {
-        val apiKey = if (!customApiKey.isNullOrBlank()) customApiKey else BuildConfig.GEMINI_API_KEY
+        val apiKeys = buildList {
+            add(if (!customApiKey.isNullOrBlank()) customApiKey else BuildConfig.GEMINI_API_KEY)
+            addAll(extraGeminiKeys)
+        }
         val updatedHistory = history.toMutableList()
 
         // Append user message
@@ -203,7 +209,7 @@ class GeminiRepository(
                 systemInstruction = systemInstruction
             )
 
-            val response = generateWithRetry(apiKey, request)
+            val response = generateWithRetry(apiKeys, request)
             val candidateContent = response.candidates?.firstOrNull()?.content
 
             if (candidateContent != null) {
@@ -241,7 +247,7 @@ class GeminiRepository(
                             tools = toolsDefinition,
                             systemInstruction = systemInstruction
                         )
-                        val followUpResponse = generateWithRetry(apiKey, followUpRequest)
+                        val followUpResponse = generateWithRetry(apiKeys, followUpRequest)
                         followUpResponse.candidates?.firstOrNull()?.content?.parts
                             ?.firstOrNull { !it.text.isNullOrBlank() }?.text
                             ?: toolResult.toString()
@@ -326,31 +332,29 @@ class GeminiRepository(
      * user noticing. Permanent errors (bad key, quota, 4xx) throw
      * immediately so the mapped message shows at once.
      */
-    private suspend fun generateWithRetry(apiKey: String, request: GeminiRequest): GeminiResponse {
+    /**
+     * تدوير المفاتيح — quota exhaustion never silences Rafeeq:
+     *  Round 1: the newest flash model on EVERY key (built-in + the extra
+     *           keys the user added in Settings) — each key is its own
+     *           free-quota bucket, so the next key answers when one is dry.
+     *  Round 2: the lite model (a separate quota bucket again) on every key.
+     * A key that fails for any reason just yields to the next one; only
+     * when the whole ladder is exhausted does the error surface (and the
+     * caller may still fall back to the second provider).
+     */
+    private suspend fun generateWithRetry(apiKeys: List<String>, request: GeminiRequest): GeminiResponse {
         var lastError: Exception? = null
-        repeat(2) { attempt ->
-            try {
-                return RetrofitClient.geminiService.generateContent(GeminiApiService.PRIMARY_MODEL, apiKey, request)
-            } catch (e: Exception) {
-                lastError = e
-                val code = (e as? retrofit2.HttpException)?.code() ?: 0
-                val transient = e is java.net.SocketTimeoutException ||
-                    e is java.io.InterruptedIOException ||
-                    code >= 500 || code == 429
-                if (!transient) throw e
-                if (attempt == 0) kotlinx.coroutines.delay(if (code == 429) 1500 else 800)
+        val keys = apiKeys.filter { it.isNotBlank() }.distinct().ifEmpty { listOf("") }
+        for (model in listOf(GeminiApiService.PRIMARY_MODEL, GeminiApiService.LITE_MODEL)) {
+            for (key in keys) {
+                try {
+                    return RetrofitClient.geminiService.generateContent(model, key, request)
+                } catch (e: Exception) {
+                    lastError = e
+                }
             }
-        }
-        // Rate-limited (or down) twice in a row → the lite model lives in a
-        // SEPARATE quota bucket, so the user still gets an answer instead
-        // of "the service is busy".
-        val code = (lastError as? retrofit2.HttpException)?.code() ?: 0
-        if (code == 429 || code >= 500) {
-            try {
-                return RetrofitClient.geminiService.generateContent(GeminiApiService.LITE_MODEL, apiKey, request)
-            } catch (e: Exception) {
-                throw e
-            }
+            // Brief pause between model rounds — a burst 429 often clears.
+            kotlinx.coroutines.delay(600)
         }
         throw lastError ?: IllegalStateException("unreachable")
     }

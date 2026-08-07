@@ -63,7 +63,10 @@ fun SettingsScreen(
     // العقل الاحتياطي — optional key for a second AI provider used
     // automatically when the primary free quota runs out.
     fallbackAiKey: String = "",
-    onSetFallbackAiKey: (String) -> Unit = {}
+    onSetFallbackAiKey: (String) -> Unit = {},
+    // مفاتيح جيميناي إضافية (سطر لكل مفتاح) — تدوير تلقائي بين الحصص.
+    extraGeminiKeys: List<String> = emptyList(),
+    onSetExtraGeminiKeys: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -128,6 +131,51 @@ fun SettingsScreen(
                     modifier = Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Text(
+                        text = if (isArabic) "مفاتيح جيميناي إضافية 🔑" else "Extra Gemini keys 🔑",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isArabic)
+                            "كل مفتاح له حصة مجانية مستقلة — رفيق ينقل بينها تلقائيًا أول ما مفتاح يخلص. هات مفاتيح مجانية من aistudio.google.com واكتب كل مفتاح في سطر:"
+                        else
+                            "Each key has its own free quota — Rafeeq rotates automatically when one runs dry. Get free keys at aistudio.google.com, one per line:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    var extraDraft by remember(extraGeminiKeys) { mutableStateOf(extraGeminiKeys.joinToString("\n")) }
+                    OutlinedTextField(
+                        value = extraDraft,
+                        onValueChange = { extraDraft = it },
+                        label = { Text(if (isArabic) "مفاتيح إضافية (سطر لكل مفتاح)" else "Extra keys (one per line)") },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (extraGeminiKeys.isNotEmpty()) {
+                            Text(
+                                text = if (isArabic) "${extraGeminiKeys.size} مفتاح مفعّل ✓" else "${extraGeminiKeys.size} key(s) active ✓",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Spacer(Modifier.width(4.dp))
+                        }
+                        Button(
+                            enabled = extraDraft.trim() != extraGeminiKeys.joinToString("\n"),
+                            onClick = { onSetExtraGeminiKeys(extraDraft) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
+                        ) { Text(if (isArabic) "حفظ" else "Save") }
+                    }
+
+                    HorizontalDivider()
+
                     Text(
                         text = if (isArabic) "عقل احتياطي لرفيق 🧠" else "A backup brain for Rafeeq 🧠",
                         style = MaterialTheme.typography.titleMedium,
