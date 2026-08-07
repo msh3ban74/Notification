@@ -531,6 +531,27 @@ fun PersonDetailScreen(
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(top = 4.dp)
                     )
+
+                    // «فكّره بلطف» — one tap opens WhatsApp with a friendly,
+                    // pre-written nudge. A companion helps you ask without
+                    // the awkwardness.
+                    val nudgeNumber = person.whatsapp.ifBlank { person.phoneNumber }
+                        .filter { it.isDigit() || it == '+' }.removePrefix("+")
+                    if (summary.status == LedgerStatus.THEY_OWE_ME && nudgeNumber.isNotBlank()) {
+                        val nudgeContext = LocalContext.current
+                        TextButton(onClick = {
+                            val msg = if (isArabic)
+                                "أهلًا ${person.name} 🌟 تذكير ودّي بخصوص ${summary.netAmount.toLong()} ج.م اللي بينّا — لما تقدر 🙏"
+                            else
+                                "Hey ${person.name} 🌟 a friendly reminder about the ${summary.netAmount.toLong()} EGP between us — whenever you can 🙏"
+                            val url = "https://wa.me/$nudgeNumber?text=" + java.net.URLEncoder.encode(msg, "UTF-8")
+                            try {
+                                nudgeContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            } catch (_: Exception) { }
+                        }) {
+                            Text(if (isArabic) "فكّره بلطف على واتساب 💬" else "Nudge kindly on WhatsApp 💬")
+                        }
+                    }
                 }
             }
 

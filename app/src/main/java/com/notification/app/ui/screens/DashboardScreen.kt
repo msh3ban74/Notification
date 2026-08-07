@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.CircularProgressIndicator
@@ -352,6 +353,14 @@ private fun TodayHero(
             else "$pendingCount thing${if (pendingCount == 1) "" else "s"} on you today"
     }
 
+    // Quick capture — the fastest path into the smart memory: type it and
+    // Rafeeq files it (reminder, debt, gam3iya…) through the assistant.
+    var quickText by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
+    fun sendQuick() {
+        val t = quickText.trim()
+        if (t.isNotEmpty()) { onAskRafeeq(t); quickText = "" }
+    }
+
     PremiumCard(style = PremiumCardStyle.Hero) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
             Text(greetingLine, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
@@ -362,12 +371,37 @@ private fun TodayHero(
                 fontWeight = FontWeight.SemiBold,
                 color = if (overdueCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
             )
+            androidx.compose.material3.OutlinedTextField(
+                value = quickText,
+                onValueChange = { quickText = it },
+                placeholder = {
+                    Text(
+                        if (isArabic) "قول لرفيق يفتكرلك حاجة…" else "Tell Rafeeq to remember something…",
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                },
+                trailingIcon = {
+                    IconButton(onClick = { sendQuick() }, enabled = quickText.isNotBlank()) {
+                        Icon(
+                            Icons.Default.Send,
+                            contentDescription = if (isArabic) "إرسال" else "Send",
+                            tint = if (quickText.isNotBlank()) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                singleLine = true,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Send),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { sendQuick() }),
+                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)
+            )
             PremiumButton(
-                text = if (isArabic) "اسأل رفيق ✨" else "Ask Rafeeq ✨",
+                text = if (isArabic) "لخصلي يومي ✨" else "Summarize my day ✨",
                 onClick = {
                     onAskRafeeq(if (isArabic) "لخص يومي ونظمه لي" else "Summarize and organize my day")
                 },
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

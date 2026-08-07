@@ -9,6 +9,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
@@ -65,16 +66,26 @@ data class GeminiCandidate(
 
 interface GeminiApiService {
     // Pinned model names keep dying (1.5-flash retired; 2.5-flash closed
-    // to new API keys — both verified via the AI Smoke Test workflow).
-    // "gemini-flash-latest" is Google's rolling alias for the newest
-    // flash model, so this can never 404 again. Verified 200 OK with
-    // this project's key. No generationConfig: newer models reject the
-    // old thinkingBudget knob (400 INVALID_ARGUMENT).
-    @POST("v1beta/models/gemini-flash-latest:generateContent")
+    // to new API keys — both verified via the AI Smoke Test workflow), so
+    // the model is a parameter around Google's rolling aliases:
+    //  • PRIMARY_MODEL  — newest flash (best quality for chat)
+    //  • LITE_MODEL     — flash-lite: a SEPARATE, much larger free-tier
+    //    quota bucket. Used for dashboard suggestions and as the automatic
+    //    fallback when the primary model answers 429 (rate limit), so the
+    //    assistant answers instead of showing "the service is busy".
+    // No generationConfig: newer models reject the old thinkingBudget
+    // knob (400 INVALID_ARGUMENT).
+    @POST("v1beta/models/{model}:generateContent")
     suspend fun generateContent(
+        @Path("model") model: String,
         @Query("key") apiKey: String,
         @Body request: GeminiRequest
     ): GeminiResponse
+
+    companion object {
+        const val PRIMARY_MODEL = "gemini-flash-latest"
+        const val LITE_MODEL = "gemini-flash-lite-latest"
+    }
 }
 
 object RetrofitClient {

@@ -240,7 +240,7 @@ class GeminiRepository(
                             tools = toolsDefinition,
                             systemInstruction = systemInstruction
                         )
-                        val followUpResponse = RetrofitClient.geminiService.generateContent(apiKey, followUpRequest)
+                        val followUpResponse = generateWithRetry(apiKey, followUpRequest)
                         followUpResponse.candidates?.firstOrNull()?.content?.parts
                             ?.firstOrNull { !it.text.isNullOrBlank() }?.text
                             ?: toolResult.toString()
@@ -286,14 +286,26 @@ class GeminiRepository(
         var lastError: Exception? = null
         repeat(2) { attempt ->
             try {
-                return RetrofitClient.geminiService.generateContent(apiKey, request)
+                return RetrofitClient.geminiService.generateContent(GeminiApiService.PRIMARY_MODEL, apiKey, request)
             } catch (e: Exception) {
                 lastError = e
+                val code = (e as? retrofit2.HttpException)?.code() ?: 0
                 val transient = e is java.net.SocketTimeoutException ||
                     e is java.io.InterruptedIOException ||
-                    ((e as? retrofit2.HttpException)?.code() ?: 0) >= 500
-                if (!transient || attempt == 1) throw e
-                kotlinx.coroutines.delay(800)
+                    code >= 500 || code == 429
+                if (!transient) throw e
+                if (attempt == 0) kotlinx.coroutines.delay(if (code == 429) 1500 else 800)
+            }
+        }
+        // Rate-limited (or down) twice in a row → the lite model lives in a
+        // SEPARATE quota bucket, so the user still gets an answer instead
+        // of "the service is busy".
+        val code = (lastError as? retrofit2.HttpException)?.code() ?: 0
+        if (code == 429 || code >= 500) {
+            try {
+                return RetrofitClient.geminiService.generateContent(GeminiApiService.LITE_MODEL, apiKey, request)
+            } catch (e: Exception) {
+                throw e
             }
         }
         throw lastError ?: IllegalStateException("unreachable")
@@ -312,8 +324,8 @@ class GeminiRepository(
                 if (isArabic) "تعذّر التحقق من خدمة المساعد. حاول لاحقًا 🔑"
                 else "Couldn't authorize the assistant service. Try again later 🔑"
             http == 429 ->
-                if (isArabic) "الخدمة مشغولة الآن (تجاوز الحد) — انتظر دقيقة وحاول مجددًا ⏳"
-                else "The service is busy right now (rate limit) — wait a minute and retry ⏳"
+                if (isArabic) "رفيق واخد نفسه ثانية 😅 استنى دقيقة وجرب تاني"
+                else "Rafeeq is catching his breath 😅 give it a minute and retry"
             http != null && http >= 500 ->
                 if (isArabic) "خادم المساعد غير متاح مؤقتًا — حاول بعد قليل 🛠️"
                 else "The assistant server is temporarily down — try again shortly 🛠️"
@@ -414,7 +426,9 @@ class GeminiRepository(
             val request = GeminiRequest(
                 contents = listOf(GeminiContent(role = "user", parts = listOf(GeminiPart(text = prompt))))
             )
-            val response = RetrofitClient.geminiService.generateContent(apiKey, request)
+            // Suggestions always ride the LITE model: a cheap task on a
+            // separate quota bucket, so it never rate-limits the chat.
+            val response = RetrofitClient.geminiService.generateContent(GeminiApiService.LITE_MODEL, apiKey, request)
             val raw = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: return emptyList()
 
             // Tolerate accidental code fences / prose around the array.

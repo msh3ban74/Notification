@@ -364,7 +364,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         /** How long cached AI suggestions stay fresh before a silent re-fetch. */
-        const val AI_SUGGESTIONS_TTL_MS: Long = 15 * 60 * 1000L
+        // 60 min: suggestions are ambient, and every fetch spends free-tier
+        // quota the CHAT needs more (the repeated "service busy" bug).
+        const val AI_SUGGESTIONS_TTL_MS: Long = 60 * 60 * 1000L
 
         /** Hard ceiling for a single AI generation before a friendly cancel.
          *  30s covers a tool round-trip plus one transient retry; the OkHttp
@@ -385,6 +387,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         updatePrayerTimes()
         loadChat()
+        // رسالة رفيق الصباحية — idempotent daily 8:00 brief.
+        AlarmManagerScheduler.scheduleMorningBrief(getApplication())
     }
 
     fun updatePrayerTimes() {

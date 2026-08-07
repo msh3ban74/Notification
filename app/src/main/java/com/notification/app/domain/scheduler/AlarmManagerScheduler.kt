@@ -113,6 +113,31 @@ object AlarmManagerScheduler {
         scheduleExactOrFallback(alarmManager, triggerAt, pendingIntent)
     }
 
+    /**
+     * رسالة رفيق الصباحية — arms (or re-arms) the daily 8:00 brief. Uses a
+     * fixed request code, so calling it any number of times keeps exactly
+     * ONE pending brief. Cheap and idempotent: called on app start, after
+     * boot, and by the brief itself to schedule tomorrow.
+     */
+    fun scheduleMorningBrief(context: Context, hour: Int = 8) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, com.notification.app.receiver.MorningBriefReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_MORNING_BRIEF"
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, 777001, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val next = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }.timeInMillis
+        scheduleExactOrFallback(alarmManager, next, pendingIntent)
+    }
+
     fun scheduleReminderAlarm(context: Context, reminder: ReminderEntity) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AlarmReceiver::class.java).apply {
