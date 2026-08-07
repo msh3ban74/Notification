@@ -146,7 +146,7 @@ fun LedgerScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = if (isArabic) "دفتر الديون والمعاملات" else "Debt & Loans Ledger",
+                    text = if (isArabic) "الديون" else "Debts",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,

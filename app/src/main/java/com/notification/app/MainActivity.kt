@@ -45,7 +45,7 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     // not shown in Bottom Navigation. (The old Home surface + its duplicate
     // Reminders route were removed — Dashboard is the home surface and the
     // Tasks route hosts the live reminders screen.)
-    object Ledger : Screen("ledger", "Ledger", "دفتر الديون", Icons.Default.AccountBalanceWallet)
+    object Ledger : Screen("ledger", "Debts", "الديون", Icons.Default.AccountBalanceWallet)
     object Gam3iya : Screen("gam3iya", "Gam3iya", "الجمعيات", Icons.Default.Group)
     object Islamic : Screen("islamic", "Islamic", "إسلاميات", Icons.Default.Mosque)
     object HealthNotes : Screen("health_notes", "Health/Notes", "الصحة", Icons.Default.WaterDrop)
