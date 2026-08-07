@@ -144,7 +144,7 @@ fun DashboardScreen(
     val personNames = remember(persons) { persons.associateBy({ it.id }, { it.name }) }
 
     // ── «عليك النهاردة» — one merged, chronological timeline ────────────
-    val todayItems = remember(reminders, alarms, transactions, isArabic) {
+    val todayItems = remember(reminders, alarms, transactions, personNames, isArabic) {
         buildList {
             // Overdue first: anything the user let slip is what the
             // companion should surface loudest.
