@@ -41,6 +41,9 @@ android {
     val geminiKey2 = System.getenv("GEMINI_API_KEY_2")
       ?: localProperties.getProperty("GEMINI_API_KEY_2") ?: ""
     buildConfigField("String", "GEMINI_API_KEY_2", "\"$geminiKey2\"")
+    val geminiKey3 = System.getenv("GEMINI_API_KEY_3")
+      ?: localProperties.getProperty("GEMINI_API_KEY_3") ?: ""
+    buildConfigField("String", "GEMINI_API_KEY_3", "\"$geminiKey3\"")
     val groqKey = System.getenv("GROQ_API_KEY")
       ?: localProperties.getProperty("GROQ_API_KEY") ?: ""
     buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")

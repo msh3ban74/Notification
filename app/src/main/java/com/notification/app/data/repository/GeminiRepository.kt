@@ -178,11 +178,12 @@ class GeminiRepository(
         onGam3iyaCreated: suspend (Long) -> Unit = {},
     ): Pair<String, List<GeminiContent>> {
         // كل المفاتيح تعيش في GitHub Secrets → BuildConfig — لا تُعرض أبدًا
-        // في واجهة التطبيق ولا تُسجَّل في اللوج. GEMINI_API_KEY_2 حصة مجانية
+        // في واجهة التطبيق ولا تُسجَّل في اللوج. GEMINI_API_KEY_2/3 حصص مجانية
         // إضافية يتدوَّر عليها تلقائيًا، وGROQ_API_KEY هو العقل الاحتياطي.
         val apiKeys = buildList {
             add(if (!customApiKey.isNullOrBlank()) customApiKey else BuildConfig.GEMINI_API_KEY)
             add(BuildConfig.GEMINI_API_KEY_2)
+            add(BuildConfig.GEMINI_API_KEY_3)
         }
         val fallbackApiKey = BuildConfig.GROQ_API_KEY
         val updatedHistory = history.toMutableList()

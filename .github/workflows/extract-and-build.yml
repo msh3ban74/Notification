@@ -85,6 +85,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: ./gradlew assembleRelease
 
