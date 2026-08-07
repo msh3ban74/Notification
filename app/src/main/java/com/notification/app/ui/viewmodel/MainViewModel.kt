@@ -924,9 +924,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val result = withTimeoutOrNull(30_000L) { backupRepository.restoreLatest() }
             _restoreState.value = when (result) {
-                is com.notification.app.data.repository.BackupRepository.BackupResult.Success ->
+                is com.notification.app.data.repository.BackupRepository.BackupResult.Success -> {
+                    // Restore wiped + rewrote every table, so all alarm/reminder
+                    // registrations are stale — re-arm them from the fresh data.
+                    rescheduleEverythingAfterRestore()
                     if (language.value == "ar") "success:تمت استعادة ${result.count} عنصر"
                     else "success:${result.count} items restored"
+                }
                 is com.notification.app.data.repository.BackupRepository.BackupResult.Failure ->
                     "error: ${result.message}"
                 null ->
@@ -937,10 +941,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Called right after a successful sign-in to pull any existing cloud backup down. */
+    /**
+     * Called right after a successful sign-in — on a NEW phone this is what
+     * makes all your data appear: it pulls the cloud mirror down (replacing
+     * local) and re-arms every alarm/reminder from the restored data.
+     */
     fun restoreFromBackup() {
         viewModelScope.launch {
-            backupRepository.restoreLatest()
+            val result = backupRepository.restoreLatest()
+            if (result is com.notification.app.data.repository.BackupRepository.BackupResult.Success) {
+                rescheduleEverythingAfterRestore()
+            }
         }
     }
 

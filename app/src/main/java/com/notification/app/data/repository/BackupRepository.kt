@@ -110,6 +110,35 @@ class BackupRepository(
                 }
                 batch.commit().await()
             }
+
+            // MIRROR: delete any cloud doc that no longer exists locally, so
+            // the backup is an exact copy of the device — not an append-only
+            // pile. This is what makes "I deleted a paid installment" stick
+            // after a restore on another phone.
+            val allCollections = listOf(
+                "reminders", "persons", "ledger_transactions", "ledger_attachments",
+                "gam3iyas", "gam3iya_members", "gam3iya_payments", "gam3iya_attachments",
+                "alarms", "work_notes", "financial_items", "financial_payments",
+                "financial_attachments", "habits", "habit_logs"
+            )
+            val localIdsByCollection = ops.groupBy({ it.collection }, { it.docId })
+                .mapValues { it.value.toSet() }
+            val staleDeletes = mutableListOf<com.google.firebase.firestore.DocumentReference>()
+            allCollections.forEach { coll ->
+                val localIds = localIdsByCollection[coll] ?: emptySet()
+                val cloudDocs = userDocRef.collection(coll).get().await().documents
+                cloudDocs.forEach { doc ->
+                    if (doc.id !in localIds) {
+                        staleDeletes += userDocRef.collection(coll).document(doc.id)
+                    }
+                }
+            }
+            staleDeletes.chunked(400).forEach { chunk ->
+                val batch = firestore.batch()
+                chunk.forEach { ref -> batch.delete(ref) }
+                batch.commit().await()
+            }
+
             firestore.batch().apply {
                 set(userDocRef, mapOf(
                     "lastBackupAt" to System.currentTimeMillis(),
@@ -135,6 +164,22 @@ class BackupRepository(
             "تعذّر تجهيز حساب النسخ — تأكد من الاتصال وحاول مجددًا / Couldn't prepare the backup account — check your connection."
         )
         return try {
+            // Guard FIRST: if this account never backed up, do NOT wipe local
+            // data — that would be catastrophic data loss. Only a real cloud
+            // backup earns the right to replace the device.
+            val cloud = userDocRef.get().await()
+            if (!cloud.exists() || (cloud.getLong("recordCount") ?: 0L) == 0L) {
+                return BackupResult.Failure(
+                    "EMPTY — no cloud backup found for this account yet."
+                )
+            }
+
+            // REPLACE, not merge: wipe every local table first so anything the
+            // user deleted before their last backup (e.g. a finished
+            // installment) can NOT reappear after restoring on another phone.
+            // The cloud mirror is the single source of truth.
+            db.clearAllTables()
+
             var count = 0
             userDocRef.collection("reminders").get().await().documents
                 .mapNotNull { it.toReminder() }
