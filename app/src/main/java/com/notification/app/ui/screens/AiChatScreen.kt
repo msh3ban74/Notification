@@ -277,17 +277,18 @@ private fun AssistantEmptyState(
     isArabic: Boolean,
     onSuggestionClick: (String) -> Unit
 ) {
-    // Real examples of what the assistant can do: recall, record, remind.
+    // The four guided flows: each pill opens a short step-by-step
+    // conversation where Rafeeq collects the details then saves + reminds.
     val suggestions = if (isArabic) listOf(
         "ما مهامي اليوم؟",
-        "ذكّرني بالدواء يوميًا في ٩ صباحًا",
-        "سجّل ٥٠٠ جنيه سلفة لصديق",
-        "سجّل جمعيتي وذكّرني بالقسط الشهري"
+        "ذكّرني بدواء",
+        "سجّل دينًا",
+        "سجّل مهمة"
     ) else listOf(
         "What are my tasks today?",
-        "Remind me of my medicine daily at 9 AM",
-        "Track 500 EGP I lent a friend",
-        "Track my gam3iya with a monthly reminder"
+        "Remind me of a medicine",
+        "Record a debt",
+        "Record a task"
     )
 
     Column(

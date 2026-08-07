@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import com.notification.app.R
 import com.notification.app.service.AlarmService
 import com.notification.app.ui.screens.AlarmRingingActivity
+import kotlinx.coroutines.launch
 
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -30,6 +31,39 @@ class AlarmReceiver : BroadcastReceiver() {
         // Weekly repeat — arm the next occurrence before anything else, so a
         // crash mid-ring can't stop the series. No-op for one-shot alarms.
         com.notification.app.domain.scheduler.AlarmManagerScheduler.scheduleNextRepeat(context, intent)
+
+        // Recurring REMINDERS (DAILY/WEEKLY/MONTHLY/YEARLY — e.g. daily
+        // medicines) re-arm themselves: advance dueDate one period past now,
+        // persist, and schedule the next fire. Without this they rang once.
+        val recurringReminderId = intent.getLongExtra("EXTRA_REMINDER_ID", -1L)
+        if (recurringReminderId > 0) {
+            val pending = goAsync()
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    val db = com.notification.app.data.local.AppDatabase.getDatabase(context)
+                    val r = db.reminderDao().getReminderById(recurringReminderId)
+                    if (r != null && r.recurrence != "NONE" && r.recurrence.isNotBlank()) {
+                        val cal = java.util.Calendar.getInstance().apply { timeInMillis = r.dueDate }
+                        val now = System.currentTimeMillis()
+                        do {
+                            when (r.recurrence) {
+                                "WEEKLY" -> cal.add(java.util.Calendar.WEEK_OF_YEAR, 1)
+                                "MONTHLY" -> cal.add(java.util.Calendar.MONTH, 1)
+                                "YEARLY" -> cal.add(java.util.Calendar.YEAR, 1)
+                                else -> cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                            }
+                        } while (cal.timeInMillis <= now)
+                        val next = r.copy(dueDate = cal.timeInMillis, isCompleted = false)
+                        db.reminderDao().updateReminder(next)
+                        com.notification.app.domain.scheduler.AlarmManagerScheduler
+                            .scheduleReminderAlarm(context, next)
+                    }
+                } catch (_: Exception) {
+                } finally {
+                    pending.finish()
+                }
+            }
+        }
 
         // Start Foreground Alarm Service for looping audio/vibration
         val serviceIntent = Intent(context, AlarmService::class.java).apply {

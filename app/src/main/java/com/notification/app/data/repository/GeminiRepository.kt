@@ -42,7 +42,8 @@ class GeminiRepository(
                             "minutesFromNow" to mapOf("type" to "NUMBER", "description" to "Minutes from now (for relative times)"),
                             "hour" to mapOf("type" to "NUMBER", "description" to "Clock hour 0-23 (device local time)"),
                             "minute" to mapOf("type" to "NUMBER", "description" to "Clock minute 0-59 (defaults to 0)"),
-                            "category" to mapOf("type" to "STRING", "description" to "Category: MONEY, APPOINTMENT, BIRTHDAY, BILL, TUTORING, MEDICINE, WORK, EVENT, PERSONAL, or CUSTOM")
+                            "category" to mapOf("type" to "STRING", "description" to "Category: MONEY, APPOINTMENT, BIRTHDAY, BILL, TUTORING, MEDICINE, WORK, EVENT, PERSONAL, or CUSTOM"),
+                            "recurrence" to mapOf("type" to "STRING", "description" to "Repeat: NONE (default), DAILY, WEEKLY, MONTHLY or YEARLY. Use DAILY for medicines taken every day.")
                         ),
                         "required" to listOf("title")
                     )
@@ -54,14 +55,16 @@ class GeminiRepository(
                 ),
                 GeminiFunctionDeclaration(
                     name = "addLedgerTransaction",
-                    description = "Add a debt or loan transaction for a person.",
+                    description = "Record a personal debt or loan with a person. When dueInDays is given, " +
+                        "the app also creates a due-date reminder automatically so the user is alerted on time.",
                     parameters = mapOf(
                         "type" to "OBJECT",
                         "properties" to mapOf(
                             "personName" to mapOf("type" to "STRING", "description" to "Name of the person"),
-                            "transactionType" to mapOf("type" to "STRING", "description" to "Type: GAVE_THEM (I lent money), THEY_GAVE_BACK (they repaid), THEY_GAVE_ME (I borrowed money), I_GAVE_BACK (I repaid)"),
+                            "transactionType" to mapOf("type" to "STRING", "description" to "Type: GAVE_THEM (I lent money / money owed TO me), THEY_GAVE_BACK (they repaid), THEY_GAVE_ME (I borrowed / money owed BY me), I_GAVE_BACK (I repaid)"),
                             "amount" to mapOf("type" to "NUMBER", "description" to "Transaction amount in EGP"),
-                            "note" to mapOf("type" to "STRING", "description" to "Optional note")
+                            "dueInDays" to mapOf("type" to "NUMBER", "description" to "Days from now until the repayment date (optional; creates an automatic reminder)"),
+                            "note" to mapOf("type" to "STRING", "description" to "Optional note / reason")
                         ),
                         "required" to listOf("personName", "transactionType", "amount")
                     )
@@ -196,7 +199,21 @@ class GeminiRepository(
         val systemInstruction = GeminiContent(
             parts = listOf(
                 GeminiPart(
-                    text = "You are Rafeeq (رفيق) — the user's personal assistant and digital memory. Tone: professional, warm and concise, like a premium product (think a top-tier banking or productivity app) — polite Modern Standard Arabic or clean English, matching the user's language. No slang, no emojis, no exclamation marks, no filler. Your job: remember things FOR the person and remind them on time — medicine, water, work tasks, money owed and lent, upcoming installments, their gam3iya installment, bills. Use function calls whenever the user asks about or wants to add reminders, debts, gam3iya, money items, habits, or alarms. Never invent data — read it with the tools. Keep answers short, structured and direct. Never mention underlying AI model providers or internal names like Gemini. Current time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}."
+                    text = """You are Rafeeq (رفيق) — the in-app assistant of a personal memory app. The app's whole purpose: the user tells you things to remember (medicines, tasks, personal debts with people, bills/installments, a gam3iya they take part in, habits, water, alarms) and the app reminds them at the right time. Everything you save with a tool becomes a REAL scheduled notification on the device.
+
+TONE: professional, warm, concise — polite Arabic or clean English matching the user's language. No slang, no emojis, no filler. Never mention AI providers or internal names like Gemini.
+
+HOW YOU WORK — guided conversations. When the user wants to record something and details are missing, ask for the missing details ONLY, briefly (one short message, at most two questions). Never invent a value the user didn't say. Once you have everything, CALL THE TOOL immediately — never claim something was saved without a tool call — then confirm in one short sentence using the tool's result.
+
+THE CORE FLOWS:
+1. MEDICINE ("ذكرني بدواء"): collect (a) medicine name, (b) how many times per day, (c) the time of each dose. Then call addReminder once PER dose time: title "دواء: <name>", category MEDICINE, recurrence DAILY, hour/minute of that dose. Confirm all doses in one line.
+2. DEBT ("سجل دين"): collect (a) direction — is the money owed TO the user (لك: أنت سلّفت) or BY the user (عليك: أنت اقترضت)? (b) the person's name, (c) the amount, (d) when it will be repaid. Then call addLedgerTransaction: GAVE_THEM when the money is owed to the user, THEY_GAVE_ME when the user owes it; pass dueInDays computed from the repayment date the user gave (relative to now). The app auto-creates the repayment reminder. Confirm with the date.
+3. TASK ("سجل مهمة"): collect (a) what the task is, (b) when it is due (and whether it repeats). Then call addReminder with a fitting category (WORK, APPOINTMENT, PERSONAL…) and hour/minute or minutesFromNow. Confirm.
+4. "ما مهامي اليوم" / what's due: call getReminders and answer with a short list of only what is due today plus anything overdue.
+
+Other abilities when asked: bills/installments/subscriptions (addFinancialItem/getFinancialItems), gam3iya status (getGam3iyaInfo/createGam3iya), habits (addHabit/completeHabitToday/getHabits), water (logWater), alarms (setSmartAlarm). Answer questions about the user's data ONLY from tool reads — never guess.
+
+TIME RULES: never compute epoch timestamps yourself; always pass minutesFromNow OR hour+minute and let the device resolve them. Current device time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}."""
                 )
             )
         )
@@ -407,14 +424,24 @@ class GeminiRepository(
                 // never from a model-computed epoch (which drifts by hours).
                 val due = resolveTriggerTime(call.args, defaultOffsetMs = 3600000)
                 val cat = call.args["category"]?.toString() ?: "CUSTOM"
+                val recurrence = call.args["recurrence"]?.toString()
+                    ?.uppercase()?.takeIf { it in setOf("DAILY", "WEEKLY", "MONTHLY", "YEARLY") }
+                    ?: "NONE"
 
                 val id = notificationRepository.insertReminder(
-                    ReminderEntity(title = title, note = note, dueDate = due, category = cat)
+                    ReminderEntity(title = title, note = note, dueDate = due, category = cat, recurrence = recurrence)
                 )
                 // Schedule the alert so an AI-created reminder actually fires.
                 onReminderCreated(id)
-                if (isArabic) "تم إنشاء التذكير \"$title\"، وسيصلك تنبيه في موعده."
-                else "Reminder '$title' created. You'll be alerted on time."
+                val repeatLabel = when (recurrence) {
+                    "DAILY" -> if (isArabic) " ويتكرر يوميًا" else ", repeating daily"
+                    "WEEKLY" -> if (isArabic) " ويتكرر أسبوعيًا" else ", repeating weekly"
+                    "MONTHLY" -> if (isArabic) " ويتكرر شهريًا" else ", repeating monthly"
+                    "YEARLY" -> if (isArabic) " ويتكرر سنويًا" else ", repeating yearly"
+                    else -> ""
+                }
+                if (isArabic) "تم إنشاء التذكير \"$title\" في ${dateFormat.format(Date(due))}$repeatLabel."
+                else "Reminder '$title' created for ${dateFormat.format(Date(due))}$repeatLabel."
             }
             "getDebtsAndLedger" -> {
                 val persons = notificationRepository.allPersons.first()
@@ -432,6 +459,7 @@ class GeminiRepository(
                 val type = call.args["transactionType"]?.toString() ?: "GAVE_THEM"
                 val amount = (call.args["amount"] as? Number)?.toDouble() ?: 0.0
                 val note = call.args["note"]?.toString() ?: ""
+                val dueInDays = (call.args["dueInDays"] as? Number)?.toDouble() ?: 0.0
 
                 val persons = notificationRepository.allPersons.first()
                 var person = persons.firstOrNull { it.name.equals(name, ignoreCase = true) }
@@ -440,16 +468,47 @@ class GeminiRepository(
                     person = PersonEntity(id = personId, name = name)
                 }
 
+                // A promised repayment date becomes a real scheduled reminder
+                // (same pipeline as tasks), linked to the transaction.
+                var dueDate = 0L
+                var reminderId: Long? = null
+                if (dueInDays > 0) {
+                    dueDate = System.currentTimeMillis() + (dueInDays * 24 * 60 * 60 * 1000).toLong()
+                    val iOwe = type == "THEY_GAVE_ME"
+                    reminderId = notificationRepository.insertReminder(
+                        ReminderEntity(
+                            title = if (isArabic) {
+                                if (iOwe) "سداد ${amount.toLong()} ج.م لـ${person.name}"
+                                else "تحصيل ${amount.toLong()} ج.م من ${person.name}"
+                            } else {
+                                if (iOwe) "Repay ${amount.toLong()} EGP to ${person.name}"
+                                else "Collect ${amount.toLong()} EGP from ${person.name}"
+                            },
+                            note = note,
+                            dueDate = dueDate,
+                            category = "MONEY"
+                        )
+                    )
+                    onReminderCreated(reminderId)
+                }
+
                 notificationRepository.insertLedgerTransaction(
                     LedgerTransactionEntity(
                         personId = person.id,
                         type = type,
                         amount = amount,
                         date = System.currentTimeMillis(),
-                        note = note
+                        note = note,
+                        dueDate = dueDate,
+                        linkedReminderId = reminderId
                     )
                 )
-                "Ledger transaction recorded for ${person.name}: $amount EGP ($type)."
+                val duePart = if (dueDate > 0) {
+                    if (isArabic) " مع تذكير بالسداد في ${dateFormat.format(Date(dueDate))}"
+                    else " with a repayment reminder on ${dateFormat.format(Date(dueDate))}"
+                } else ""
+                if (isArabic) "تم تسجيل ${amount.toLong()} ج.م باسم ${person.name}$duePart."
+                else "Recorded ${amount.toLong()} EGP with ${person.name}$duePart."
             }
             "getGam3iyaInfo" -> {
                 val gam3iyas = notificationRepository.allGam3iyas.first()
