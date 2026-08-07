@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Rafeeq adaptive icon: the golden "R" monogram artwork (bitmap
-     foreground per density) over the brand's rich-black background. -->
+<!-- Rafeeq adaptive icon: the white sparkle vector over Rafeeq Indigo. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background" />
-    <foreground android:drawable="@mipmap/ic_launcher_fg" />
+    <foreground android:drawable="@drawable/ic_launcher_fg_vector" />
 </adaptive-icon>

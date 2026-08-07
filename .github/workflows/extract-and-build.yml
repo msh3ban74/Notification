@@ -69,6 +69,8 @@ jobs:
       - name: Write .env from secrets
         run: |
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+          echo "GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}" >> .env
+          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env
 
       - name: Write local.properties from secrets
         run: |

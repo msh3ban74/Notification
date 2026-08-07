@@ -1,5 +1,6 @@
 package com.notification.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -342,15 +343,50 @@ private fun TodayHero(
         if (t.isNotEmpty()) { onAskRafeeq(t); quickText = "" }
     }
 
-    PremiumCard(style = PremiumCardStyle.Hero) {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-            Text(greetingLine, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-            Text(dateLine, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // Hero — the billion-dollar first impression: an electric indigo →
+    // violet gradient card with white type, a frosted quick-capture pill
+    // and a white CTA. Everything else on the page stays calm white cards,
+    // so this ONE hero carries the identity.
+    androidx.compose.material3.Card(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(30.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = androidx.compose.ui.graphics.Color.Transparent
+        ),
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = listOf(
+                            com.notification.app.ui.theme.PrimaryDark,
+                            com.notification.app.ui.theme.Primary,
+                            com.notification.app.ui.theme.AccentViolet
+                        )
+                    )
+                )
+                .padding(22.dp)
+        ) {
+            Text(
+                greetingLine,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = androidx.compose.ui.graphics.Color.White
+            )
+            Text(
+                dateLine,
+                style = MaterialTheme.typography.bodyMedium,
+                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f)
+            )
             Text(
                 summary,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = if (overdueCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                color = if (overdueCount > 0) androidx.compose.ui.graphics.Color(0xFFFFD5DE)
+                else androidx.compose.ui.graphics.Color.White
             )
             androidx.compose.material3.OutlinedTextField(
                 value = quickText,
@@ -358,7 +394,8 @@ private fun TodayHero(
                 placeholder = {
                     Text(
                         if (isArabic) "قول لرفيق يفتكرلك حاجة…" else "Tell Rafeeq to remember something…",
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f)
                     )
                 },
                 trailingIcon = {
@@ -366,24 +403,43 @@ private fun TodayHero(
                         Icon(
                             Icons.Default.Send,
                             contentDescription = if (isArabic) "إرسال" else "Send",
-                            tint = if (quickText.isNotBlank()) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = androidx.compose.ui.graphics.Color.White.copy(
+                                alpha = if (quickText.isNotBlank()) 1f else 0.5f
+                            )
                         )
                     }
                 },
                 singleLine = true,
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = androidx.compose.ui.graphics.Color.White,
+                    unfocusedTextColor = androidx.compose.ui.graphics.Color.White,
+                    cursorColor = androidx.compose.ui.graphics.Color.White,
+                    focusedBorderColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.4f),
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f),
+                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f)
+                ),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Send),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { sendQuick() }),
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs)
             )
-            PremiumButton(
-                text = if (isArabic) "لخصلي يومي ✨" else "Summarize my day ✨",
+            androidx.compose.material3.Button(
                 onClick = {
                     onAskRafeeq(if (isArabic) "لخص يومي ونظمه لي" else "Summarize and organize my day")
                 },
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = androidx.compose.ui.graphics.Color.White,
+                    contentColor = com.notification.app.ui.theme.PrimaryDark
+                ),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
-            )
+            ) {
+                Text(
+                    if (isArabic) "لخصلي يومي ✨" else "Summarize my day ✨",
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

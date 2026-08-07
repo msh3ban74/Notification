@@ -338,21 +338,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val waterCount: StateFlow<Int> = preferencesRepository.waterCountFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    // العقل الاحتياطي — the user's optional second-provider key.
-    val fallbackAiKey: StateFlow<String> = preferencesRepository.fallbackAiKeyFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, "")
-
-    fun setFallbackAiKey(key: String) {
-        viewModelScope.launch { preferencesRepository.setFallbackAiKey(key) }
-    }
-
-    // مفاتيح جيميناي الإضافية — سطر لكل مفتاح، رفيق يدوّر بينها تلقائيًا.
-    val extraGeminiKeys: StateFlow<List<String>> = preferencesRepository.extraGeminiKeysFlow
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
-    fun setExtraGeminiKeys(raw: String) {
-        viewModelScope.launch { preferencesRepository.setExtraGeminiKeys(raw) }
-    }
 
     init {
         // Debug-only diagnostic of the key pipeline (GitHub Secret -> .env ->
@@ -817,9 +802,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     onLogWater = { incrementWater() },
                     onGam3iyaCreated = { gam3iyaId ->
                         repository.getGam3iyaById(gam3iyaId)?.let { syncGam3iyaReminder(it) }
-                    },
-                    fallbackApiKey = preferencesRepository.fallbackAiKeyFlow.first(),
-                    extraGeminiKeys = preferencesRepository.extraGeminiKeysFlow.first()
+                    }
                 )
             }
             if (result != null) {

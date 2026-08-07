@@ -47,10 +47,12 @@ jobs:
       # configures the project — so these files MUST exist first.
       - name: Write .env from secrets
         run: |
+          # All AI keys live ONLY in GitHub Secrets -> BuildConfig; they are
+          # never shown in the app UI. Missing secrets become empty strings.
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
-          if [ ! -f ".env.example" ]; then
-            echo "GEMINI_API_KEY=" > .env.example
-          fi
+          echo "GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}" >> .env
+          echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env
+          printf "GEMINI_API_KEY=\nGEMINI_API_KEY_2=\nGROQ_API_KEY=\n" > .env.example
 
       - name: Write local.properties from secrets
         run: |

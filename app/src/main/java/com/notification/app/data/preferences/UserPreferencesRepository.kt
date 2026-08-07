@@ -18,8 +18,6 @@ class UserPreferencesRepository(private val context: Context) {
         val USER_EMAIL = stringPreferencesKey("user_email")
         val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
         val GEMINI_KEY = stringPreferencesKey("gemini_api_key")
-        val EXTRA_GEMINI_KEYS = stringPreferencesKey("extra_gemini_keys") // newline-separated
-        val FALLBACK_AI_KEY = stringPreferencesKey("fallback_ai_key")
         val WATER_INTERVAL = intPreferencesKey("water_interval_hours")
         val PRAYER_FAJR = booleanPreferencesKey("prayer_fajr")
         val PRAYER_DHUHR = booleanPreferencesKey("prayer_dhuhr")
@@ -109,19 +107,6 @@ class UserPreferencesRepository(private val context: Context) {
         prefs[PreferenceKeys.GEMINI_KEY] ?: ""
     }
 
-    // مفاتيح جيميناي إضافية — one key per line; each is an independent
-    // free-quota bucket Rafeeq rotates through automatically.
-    val extraGeminiKeysFlow: Flow<List<String>> = context.dataStore.data.map { prefs ->
-        (prefs[PreferenceKeys.EXTRA_GEMINI_KEYS] ?: "")
-            .lines().map { it.trim() }.filter { it.isNotBlank() }
-    }
-
-    // المزود الاحتياطي — key for the OpenAI-compatible backup brain (Groq),
-    // used automatically when Gemini's quota is fully exhausted.
-    val fallbackAiKeyFlow: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[PreferenceKeys.FALLBACK_AI_KEY] ?: ""
-    }
-
     val waterIntervalFlow: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[PreferenceKeys.WATER_INTERVAL] ?: 2
     }
@@ -166,14 +151,6 @@ class UserPreferencesRepository(private val context: Context) {
 
     suspend fun setGeminiApiKey(key: String) {
         context.dataStore.edit { prefs -> prefs[PreferenceKeys.GEMINI_KEY] = key }
-    }
-
-    suspend fun setFallbackAiKey(key: String) {
-        context.dataStore.edit { prefs -> prefs[PreferenceKeys.FALLBACK_AI_KEY] = key.trim() }
-    }
-
-    suspend fun setExtraGeminiKeys(raw: String) {
-        context.dataStore.edit { prefs -> prefs[PreferenceKeys.EXTRA_GEMINI_KEYS] = raw.trim() }
     }
 
     suspend fun setWaterInterval(hours: Int) {

@@ -176,17 +176,15 @@ class GeminiRepository(
         onReminderCreated: suspend (Long) -> Unit = {},
         onLogWater: suspend () -> Unit = {},
         onGam3iyaCreated: suspend (Long) -> Unit = {},
-        // مفتاح المزود الاحتياطي (اختياري من الإعدادات): يشتغل تلقائيًا لما
-        // جيميناي يخلص خالص، فرفيق يرد بدل ما يعتذر.
-        fallbackApiKey: String? = null,
-        // مفاتيح جيميناي إضافية من الإعدادات — كل مفتاح حصة مجانية مستقلة،
-        // ورفيق ينقل بينها تلقائيًا لما مفتاح يخلص.
-        extraGeminiKeys: List<String> = emptyList()
     ): Pair<String, List<GeminiContent>> {
+        // كل المفاتيح تعيش في GitHub Secrets → BuildConfig — لا تُعرض أبدًا
+        // في واجهة التطبيق ولا تُسجَّل في اللوج. GEMINI_API_KEY_2 حصة مجانية
+        // إضافية يتدوَّر عليها تلقائيًا، وGROQ_API_KEY هو العقل الاحتياطي.
         val apiKeys = buildList {
             add(if (!customApiKey.isNullOrBlank()) customApiKey else BuildConfig.GEMINI_API_KEY)
-            addAll(extraGeminiKeys)
+            add(BuildConfig.GEMINI_API_KEY_2)
         }
+        val fallbackApiKey = BuildConfig.GROQ_API_KEY
         val updatedHistory = history.toMutableList()
 
         // Append user message

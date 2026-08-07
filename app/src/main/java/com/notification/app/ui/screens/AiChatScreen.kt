@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -92,6 +94,39 @@ fun AiChatScreen(
                     onSuggestionClick = onSendMessage
                 )
             } else {
+                // زر مسح المحادثة — كان مفقودًا (الـ callback موجود من زمان
+                // لكن بلا زر). مع تأكيد قبل الحذف.
+                var confirmClear by remember { mutableStateOf(false) }
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = { confirmClear = true },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(Spacing.sm)
+                        .zIndex(2f)
+                ) {
+                    Icon(
+                        Icons.Default.DeleteSweep,
+                        contentDescription = if (isArabic) "مسح المحادثة" else "Clear chat"
+                    )
+                }
+                if (confirmClear) {
+                    AlertDialog(
+                        onDismissRequest = { confirmClear = false },
+                        title = { Text(if (isArabic) "مسح المحادثة؟" else "Clear the chat?") },
+                        text = { Text(if (isArabic) "هيبدأ رفيق صفحة جديدة معاك — بياناتك (تذكيرات، ديون…) مش هتتأثر." else "Rafeeq starts fresh — your data (reminders, debts…) is untouched.") },
+                        confirmButton = {
+                            Button(
+                                onClick = { confirmClear = false; onClearChat() },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) { Text(if (isArabic) "مسح" else "Clear") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { confirmClear = false }) { Text(if (isArabic) "إلغاء" else "Cancel") }
+                        }
+                    )
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -238,16 +273,17 @@ private fun AssistantEmptyState(
     isArabic: Boolean,
     onSuggestionClick: (String) -> Unit
 ) {
+    // رفيق الصاحب — أمثلة حقيقية للي بيعمله: يفتكر، يسجل، ويفكرك.
     val suggestions = if (isArabic) listOf(
-        "ما هي مهامي اليوم؟",
-        "هل لدي فواتير مستحقة؟",
-        "أخبرني عن ديوني",
-        "اضبط منبهًا بكرة ٦ الصبح"
+        "إيه اللي عليّا النهاردة؟",
+        "فكرني بالدوا كل يوم ٩ الصبح",
+        "سلّفت صاحبي ٥٠٠ جنيه — سجلهالي",
+        "سجّل جمعيتي وفكرني بقسطها"
     ) else listOf(
-        "What are my tasks today?",
-        "Do I have bills due?",
-        "Tell me about my debts",
-        "Set an alarm for 6 AM tomorrow"
+        "What's on me today?",
+        "Remind me of my medicine daily at 9",
+        "I lent my friend 500 — track it",
+        "Track my gam3iya and remind me monthly"
     )
 
     Column(

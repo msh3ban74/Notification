@@ -31,11 +31,27 @@ class BackupRepository(
         data class Failure(val message: String) : BackupResult()
     }
 
-    private fun userDoc() = auth.currentUser?.uid?.let { uid -> firestore.collection("users").document(uid) }
+    /**
+     * BUG FIX (النسخ الاحتياطي مش شغال): users who tapped "تخطي" at login
+     * had no Firebase user, so every backup died with "Not signed in".
+     * Now Rafeeq signs in ANONYMOUSLY on demand — the backup still lands
+     * under a stable per-device uid, and upgrading to Google sign-in later
+     * keeps working as before.
+     */
+    private suspend fun userDoc() = run {
+        val uid = auth.currentUser?.uid ?: try {
+            auth.signInAnonymously().await().user?.uid
+        } catch (e: Exception) {
+            null
+        }
+        uid?.let { firestore.collection("users").document(it) }
+    }
 
-    /** Uploads the full local database to Firestore for the current signed-in user. */
+    /** Uploads the full local database to Firestore for the current user. */
     suspend fun backupNow(): BackupResult {
-        val userDocRef = userDoc() ?: return BackupResult.Failure("Not signed in.")
+        val userDocRef = userDoc() ?: return BackupResult.Failure(
+            "تعذّر تجهيز حساب النسخ — تأكد من الاتصال وحاول مجددًا / Couldn't prepare the backup account — check your connection."
+        )
         return try {
             data class Op(val collection: String, val docId: String, val data: Map<String, Any?>)
 
@@ -115,7 +131,9 @@ class BackupRepository(
      * restore" rather than a misleading success.
      */
     suspend fun restoreLatest(): BackupResult {
-        val userDocRef = userDoc() ?: return BackupResult.Failure("Not signed in.")
+        val userDocRef = userDoc() ?: return BackupResult.Failure(
+            "تعذّر تجهيز حساب النسخ — تأكد من الاتصال وحاول مجددًا / Couldn't prepare the backup account — check your connection."
+        )
         return try {
             var count = 0
             userDocRef.collection("reminders").get().await().documents

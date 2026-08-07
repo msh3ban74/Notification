@@ -538,10 +538,6 @@ class MainActivity : ComponentActivity() {
                                     onSetAutoBackupCharging = { viewModel.setAutoBackupCharging(it) },
                                     onSetAutoBackupWifi = { viewModel.setAutoBackupWifi(it) },
                                     onPickAutoBackupFolder = { viewModel.setAutoBackupFolder(it) },
-                                    fallbackAiKey = viewModel.fallbackAiKey.collectAsState().value,
-                                    onSetFallbackAiKey = { viewModel.setFallbackAiKey(it) },
-                                    extraGeminiKeys = viewModel.extraGeminiKeys.collectAsState().value,
-                                    onSetExtraGeminiKeys = { viewModel.setExtraGeminiKeys(it) },
                                     onSignOut = {
                                         // Stability sprint — REAL logout:
                                         // Firebase sign-out + persisted session
