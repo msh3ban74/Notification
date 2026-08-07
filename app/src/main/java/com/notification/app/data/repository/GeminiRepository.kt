@@ -70,26 +70,23 @@ class GeminiRepository(
                 ),
                 GeminiFunctionDeclaration(
                     name = "getGam3iyaInfo",
-                    description = "Get full status of the user's savings circles (gam3iya): who collects next and when, who is late, who hasn't paid this month, total paid vs remaining, current month, and each member's turn. Use this for any gam3iya question (next collector, late members, remaining amount, summary).",
+                    description = "Get the status of the gam3iya (savings circle) the user takes part in: their monthly installment, how many they paid of how many, their turn number, and when they collect. Use this for any gam3iya question.",
                     parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
                 ),
                 GeminiFunctionDeclaration(
                     name = "createGam3iya",
-                    description = "Create a new savings circle (gam3iya). Use mode MANAGER when the user organizes it (optionally list the member names in turn order); use mode PARTICIPANT when the user only takes part in someone else's circle (give the organizer's name). The monthly installment and member count are enough — the app computes the total and each turn's collection date.",
+                    description = "Track a gam3iya (savings circle) the user takes part in. Rafeeq will remind them of every monthly installment and of their collection turn. Needs: name, monthly installment, and how many months; turn number and organizer name are optional.",
                     parameters = mapOf(
                         "type" to "OBJECT",
                         "properties" to mapOf(
                             "title" to mapOf("type" to "STRING", "description" to "Gam3iya name"),
-                            "mode" to mapOf("type" to "STRING", "description" to "MANAGER (I organize) or PARTICIPANT (I only take part). Defaults to MANAGER."),
-                            "monthlyInstallment" to mapOf("type" to "NUMBER", "description" to "Monthly installment amount"),
-                            "membersCount" to mapOf("type" to "NUMBER", "description" to "Number of members / months in the circle"),
-                            "memberNames" to mapOf("type" to "ARRAY", "description" to "MANAGER mode only: member names in turn order (1st collects first)", "items" to mapOf("type" to "STRING")),
-                            "organizerName" to mapOf("type" to "STRING", "description" to "PARTICIPANT mode only: who organizes the circle"),
-                            "myTurnNumber" to mapOf("type" to "NUMBER", "description" to "PARTICIPANT mode only: which month I collect (1-based)"),
-                            "currency" to mapOf("type" to "STRING", "description" to "Currency code, defaults to EGP"),
+                            "monthlyInstallment" to mapOf("type" to "NUMBER", "description" to "The user's monthly installment amount"),
+                            "months" to mapOf("type" to "NUMBER", "description" to "How many months the circle runs"),
+                            "myTurnNumber" to mapOf("type" to "NUMBER", "description" to "Which month the user collects (1-based, optional)"),
+                            "organizerName" to mapOf("type" to "STRING", "description" to "Who organizes the circle (optional)"),
                             "note" to mapOf("type" to "STRING", "description" to "Optional note")
                         ),
-                        "required" to listOf("title", "monthlyInstallment", "membersCount")
+                        "required" to listOf("title", "monthlyInstallment", "months")
                     )
                 ),
                 // Phase E — the assistant reads ALL modules.
@@ -193,7 +190,7 @@ class GeminiRepository(
         val systemInstruction = GeminiContent(
             parts = listOf(
                 GeminiPart(
-                    text = "You are Rafeeq Smart Assistant (مساعد رفيق الذكي), a smart, executive, bilingual (Arabic/English) assistant for managing reminders, per-person debts/ledgers, gam3iyas, bills/installments/subscriptions, habits, prayer times, work notes, and setting alarms. Never mention underlying AI model providers or internal names like Gemini in responses. Use function calls whenever the user asks about or wants to manage reminders, ledger entries, gam3iya details, money items, habits, or alarms. Never invent data — read it with the tools. Current time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}."
+                    text = "You are Rafeeq (رفيق) — the user's warm, personal digital memory. You speak simple, friendly, bilingual (Arabic/English) language like a close friend, never like a business system. Your whole job: remember things FOR the person and remind them on time — their medicine, water, tasks their boss asked for, money a friend promised to return, installments coming up, their gam3iya installment, bills. Use function calls whenever the user asks about or wants to add reminders, debts, gam3iya, money items, habits, or alarms. Never invent data — read it with the tools. Keep answers short and human. Never mention underlying AI model providers or internal names like Gemini. Current time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}."
                 )
             )
         )
@@ -397,9 +394,10 @@ class GeminiRepository(
 
         val language = if (isArabic) "Arabic" else "English"
         val prompt = """
-            You are Rafeeq, the user's premium personal life assistant.
-            Based ONLY on the user data below, write the 3 most useful,
-            concise, actionable suggestions for the user's day in $language.
+            You are Rafeeq, the user's warm personal companion — their
+            smart digital memory. Based ONLY on the user data below, write
+            the 3 most useful, concise, caring suggestions for the user's
+            day in $language, like a close friend reminding them.
             Never invent data that is not present. Vary the topics.
 
             For each suggestion choose exactly one action from:
@@ -504,31 +502,18 @@ class GeminiRepository(
             }
             "getGam3iyaInfo" -> {
                 val gam3iyas = notificationRepository.allGam3iyas.first()
-                if (gam3iyas.isEmpty()) "No active gam3iyas."
+                if (gam3iyas.isEmpty()) "The user doesn't track any gam3iya yet."
                 else {
                     gam3iyas.map { g ->
-                        val members = if (g.mode == "PARTICIPANT") emptyList()
-                        else notificationRepository.getMembersForGam3iya(g.id).first()
-                        val payments = notificationRepository.getPaymentsForGam3iya(g.id).first()
-                        val st = Gam3iyaCalculator.computeStatus(g, members, payments)
+                        val st = Gam3iyaCalculator.computeStatus(g, emptyList())
                         val cur = g.currency
                         val sb = StringBuilder()
-                        sb.append("Gam3iya '${g.title}' [${g.mode}, ${g.status}]: monthly ${g.monthlyInstallment} $cur, ")
-                        sb.append("month ${st.currentMonthIndex}/${st.durationMonths}, ${st.remainingMonths} months remaining. ")
-                        sb.append("Total paid ${st.totalPaid} $cur, remaining ${st.remainingAmount} $cur. ")
-                        if (g.mode == "PARTICIPANT") {
-                            sb.append("Organizer ${g.organizerName.ifBlank { "?" }} (${g.organizerPhone.ifBlank { "no phone" }}). ")
-                            sb.append("My turn ${g.myTurnNumber}, paid ${g.myPaidInstallments} installments. ")
-                            if (st.nextCollectionDate > 0) sb.append("My collection on ${dateFormat.format(Date(st.nextCollectionDate))}. ")
-                        } else {
-                            st.nextCollector?.let { sb.append("Next to collect: ${it.memberName} on ${dateFormat.format(Date(st.nextCollectionDate))}. ") }
-                            val late = st.lateMembers.map { it.memberName }
-                            if (late.isNotEmpty()) sb.append("LATE members: ${late.joinToString(", ")}. ")
-                            val unpaid = members.filter { !it.isInstallmentPaidThisMonth && !it.isPayoutReceived }.map { it.memberName }
-                            if (unpaid.isNotEmpty()) sb.append("Not paid this month: ${unpaid.joinToString(", ")}. ")
-                            val turns = members.sortedBy { it.turnMonth }.map { "${it.memberName} (turn ${it.turnMonth}: ${dateFormat.format(Date(it.payoutDate))}${if (it.isPayoutReceived) ", collected" else ""})" }
-                            if (turns.isNotEmpty()) sb.append("Turns: ${turns.joinToString(", ")}.")
-                        }
+                        sb.append("Gam3iya '${g.title}': my installment ${if (g.myInstallmentAmount > 0) g.myInstallmentAmount else g.monthlyInstallment} $cur, ")
+                        sb.append("paid ${g.myPaidInstallments} of ${st.durationMonths} installments. ")
+                        if (g.myTurnNumber > 0) sb.append("My turn is #${g.myTurnNumber}. ")
+                        if (g.organizerName.isNotBlank()) sb.append("Organizer: ${g.organizerName}. ")
+                        if (st.nextCollectionDate > 0) sb.append("My collection on ${dateFormat.format(Date(st.nextCollectionDate))}. ")
+                        if (st.isFinished) sb.append("FINISHED.")
                         sb.toString()
                     }
                 }
@@ -536,46 +521,25 @@ class GeminiRepository(
             "createGam3iya" -> {
                 val title = call.args["title"]?.toString()?.trim().orEmpty()
                 val monthly = (call.args["monthlyInstallment"] as? Number)?.toDouble() ?: 0.0
-                val count = (call.args["membersCount"] as? Number)?.toInt() ?: 0
-                if (title.isBlank() || monthly <= 0 || count <= 0) {
-                    if (isArabic) "أحتاج اسم الجمعية والقسط الشهري وعدد الأعضاء لإنشائها."
-                    else "I need the gam3iya name, monthly installment and member count to create it."
+                val months = (call.args["months"] as? Number)?.toInt() ?: 0
+                if (title.isBlank() || monthly <= 0 || months <= 0) {
+                    if (isArabic) "أحتاج اسم الجمعية وقسطك الشهري وعدد الشهور علشان أسجلها لك."
+                    else "I need the gam3iya name, your monthly installment and the number of months."
                 } else {
-                    val mode = call.args["mode"]?.toString()?.uppercase()?.takeIf { it == "PARTICIPANT" } ?: "MANAGER"
-                    val currency = call.args["currency"]?.toString()?.takeUnless { it.isNullOrBlank() } ?: "EGP"
+                    val organizer = call.args["organizerName"]?.toString().orEmpty()
+                    val myTurn = (call.args["myTurnNumber"] as? Number)?.toInt() ?: 0
                     val note = call.args["note"]?.toString().orEmpty()
-                    val total = monthly * count
                     val now = System.currentTimeMillis()
-                    if (mode == "PARTICIPANT") {
-                        val organizer = call.args["organizerName"]?.toString().orEmpty()
-                        val myTurn = (call.args["myTurnNumber"] as? Number)?.toInt() ?: 0
-                        val gam3iya = Gam3iyaEntity(
-                            title = title, totalAmount = total, monthlyInstallment = monthly,
-                            membersCount = count, startDate = now, mode = "PARTICIPANT",
-                            currency = currency, note = note, createdAt = now,
-                            organizerName = organizer, myInstallmentAmount = monthly, myTurnNumber = myTurn
-                        )
-                        val id = notificationRepository.insertGam3iya(gam3iya)
-                        onGam3iyaCreated(id)
-                        if (isArabic) "أنشأت جمعية \"$title\" (مشارِك) — $count شهور، قسط ${monthly.toLong()} $currency ✅"
-                        else "Created gam3iya '$title' (participant) — $count months, ${monthly.toLong()} $currency each ✅"
-                    } else {
-                        @Suppress("UNCHECKED_CAST")
-                        val names = (call.args["memberNames"] as? List<Any?>)?.mapNotNull { it?.toString()?.trim()?.takeIf { n -> n.isNotBlank() } } ?: emptyList()
-                        val gam3iya = Gam3iyaEntity(
-                            title = title, totalAmount = total, monthlyInstallment = monthly,
-                            membersCount = count, startDate = now, mode = "MANAGER",
-                            currency = currency, note = note, createdAt = now
-                        )
-                        val id = if (names.isNotEmpty()) {
-                            notificationRepository.createGam3iyaWithMembers(gam3iya, names.mapIndexed { i, n -> n to (i + 1) })
-                        } else {
-                            notificationRepository.insertGam3iya(gam3iya)
-                        }
-                        onGam3iyaCreated(id)
-                        if (isArabic) "أنشأت جمعية \"$title\" (مدير) — $count أعضاء، قسط ${monthly.toLong()} $currency ✅"
-                        else "Created gam3iya '$title' (manager) — $count members, ${monthly.toLong()} $currency each ✅"
-                    }
+                    val gam3iya = Gam3iyaEntity(
+                        title = title, totalAmount = monthly * months, monthlyInstallment = monthly,
+                        membersCount = 0, startDate = now, mode = "PARTICIPANT",
+                        durationMonths = months, note = note, createdAt = now,
+                        organizerName = organizer, myInstallmentAmount = monthly, myTurnNumber = myTurn
+                    )
+                    val id = notificationRepository.insertGam3iya(gam3iya)
+                    onGam3iyaCreated(id)
+                    if (isArabic) "سجّلت جمعية \"$title\" — $months شهر، قسطك ${monthly.toLong()} ج.م، وهفكرك بالقسط كل شهر ✅"
+                    else "Tracked gam3iya '$title' — $months months at ${monthly.toLong()} EGP; I'll remind you monthly ✅"
                 }
             }
             // Phase E — read-only views over the financial + habit modules.

@@ -82,24 +82,23 @@ fun SearchScreen(
     }
     val personHits = remember(q, persons) {
         if (q.isEmpty()) emptyList() else persons
-            .filter { !it.isArchived && (it.name.hit() || it.company.hit() || it.phoneNumber.hit() || it.notes.hit() || it.tags.hit()) }
+            .filter { !it.isArchived && (it.name.hit() || it.phoneNumber.hit() || it.notes.hit()) }
             .map { p ->
                 SearchHit(Icons.Default.AccountBalanceWallet, p.name,
-                    p.company.ifBlank { if (isArabic) "جهة اتصال (ديون)" else "Contact (debts)" }) { onOpenLedger() }
+                    if (isArabic) "الديون" else "Debts") { onOpenLedger() }
             }
     }
     val gam3iyaHits = remember(q, gam3iyas) {
         if (q.isEmpty()) emptyList() else gam3iyas
-            .filter { it.title.hit() || it.organizerName.hit() || it.note.hit() || it.description.hit() }
+            .filter { it.title.hit() || it.organizerName.hit() || it.note.hit() }
             .map { g ->
                 SearchHit(Icons.Default.Groups, g.title,
-                    if (g.mode == "PARTICIPANT") (if (isArabic) "جمعية (مشارِك)" else "Gam3iya (participant)")
-                    else (if (isArabic) "جمعية (مدير)" else "Gam3iya (manager)")) { onOpenGam3iya() }
+                    if (isArabic) "جمعيتي" else "My gam3iya") { onOpenGam3iya() }
             }
     }
     val financialHits = remember(q, financialItems) {
         if (q.isEmpty()) emptyList() else financialItems
-            .filter { !it.isArchived && (it.title.hit() || it.seller.hit() || it.brand.hit() || it.store.hit() || it.note.hit()) }
+            .filter { !it.isArchived && (it.title.hit() || it.seller.hit() || it.note.hit()) }
             .map { f ->
                 val icon = when (f.type) {
                     "INSTALLMENT" -> Icons.Default.CreditCard

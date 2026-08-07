@@ -78,10 +78,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val allGam3iyas: StateFlow<List<Gam3iyaEntity>> = repository.allGam3iyas
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    // Sprint 6 — Executive Dashboard: upcoming gam3iya payouts widget.
-    val allGam3iyaMembers: StateFlow<List<Gam3iyaMemberEntity>> = repository.allGam3iyaMembers
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
     val allAlarms: StateFlow<List<AlarmEntity>> = repository.allAlarms
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
@@ -540,15 +536,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Sprint 5 — edit flow for debts: updates an existing ledger transaction in place. */
+    /**
+     * Edit flow for debts. The promised-date reminder stays in sync:
+     * changing the date reschedules it, clearing the date cancels it, and
+     * adding a date to an old transaction creates one.
+     */
     fun updateLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
-            repository.updateLedgerTransaction(tx)
+            val now = System.currentTimeMillis()
+            var toStore = tx.copy(updatedAt = now)
+            val linked = tx.linkedReminderId?.let { repository.getReminderById(it) }
+            when {
+                linked != null && tx.dueDate > now -> {
+                    val updated = linked.copy(dueDate = tx.dueDate, note = tx.note)
+                    repository.updateReminder(updated)
+                    AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), updated)
+                }
+                linked != null -> {
+                    AlarmManagerScheduler.cancelReminderAlarm(getApplication(), linked.id)
+                    repository.deleteReminder(linked)
+                    toStore = toStore.copy(linkedReminderId = null)
+                }
+                tx.dueDate > now -> {
+                    val person = repository.getPersonById(tx.personId)
+                    val title = if (ar()) "استحقاق دين: ${person?.name ?: ""}" else "Debt due: ${person?.name ?: ""}"
+                    val reminderId = insertAndScheduleReminder(
+                        ReminderEntity(
+                            title = title, note = tx.note, dueDate = tx.dueDate,
+                            category = ReminderCategory.MONEY.name
+                        )
+                    )
+                    toStore = toStore.copy(linkedReminderId = reminderId)
+                }
+            }
+            repository.updateLedgerTransaction(toStore)
         }
     }
 
     fun deleteLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
+            // Never leave a ghost reminder behind a deleted debt.
+            tx.linkedReminderId?.let { linkedId ->
+                repository.getReminderById(linkedId)?.let { reminder ->
+                    AlarmManagerScheduler.cancelReminderAlarm(getApplication(), reminder.id)
+                    repository.deleteReminder(reminder)
+                }
+            }
             repository.deleteLedgerTransaction(tx)
         }
     }
@@ -607,58 +640,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Gam3iya Actions
-    fun getMembersForGam3iya(id: Long): Flow<List<Gam3iyaMemberEntity>> = repository.getMembersForGam3iya(id)
-
-    fun createGam3iya(
-        title: String,
-        totalAmount: Double,
-        monthlyInstallment: Double,
-        memberNamesWithTurns: List<Pair<String, Int>>,
-        startDate: Long
-    ) {
-        viewModelScope.launch {
-            val gam3iya = Gam3iyaEntity(
-                title = title,
-                totalAmount = totalAmount,
-                monthlyInstallment = monthlyInstallment,
-                membersCount = memberNamesWithTurns.size,
-                startDate = startDate,
-                createdAt = System.currentTimeMillis()
-            )
-            repository.createGam3iyaWithMembers(gam3iya, memberNamesWithTurns)
-        }
-    }
-
-    // ── Sprint 4 — professional Gam3iya management ─────────────────────
-    val allGam3iyaPayments: StateFlow<List<Gam3iyaPaymentEntity>> =
-        repository.allGam3iyaPayments.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-    val allGam3iyaAttachments: StateFlow<List<Gam3iyaAttachmentEntity>> =
-        repository.allGam3iyaAttachments.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
-    fun getPaymentsForGam3iya(id: Long): Flow<List<Gam3iyaPaymentEntity>> =
-        repository.getPaymentsForGam3iya(id)
-    fun getAttachmentsForGam3iya(id: Long): Flow<List<Gam3iyaAttachmentEntity>> =
-        repository.getAttachmentsForGam3iya(id)
-
-    /** Create a MANAGER-mode gam3iya with a fully-detailed member list.
-     *  Returns nothing; the list flow updates reactively. */
-    fun createManagerGam3iya(gam3iya: Gam3iyaEntity, members: List<Gam3iyaMemberEntity>) {
-        viewModelScope.launch {
-            val base = gam3iya.copy(
-                mode = "MANAGER",
-                membersCount = members.size,
-                createdAt = if (gam3iya.createdAt == 0L) System.currentTimeMillis() else gam3iya.createdAt
-            )
-            val id = repository.insertGam3iya(base)
-            members.forEach { m ->
-                val payout = if (m.payoutDate > 0) m.payoutDate
-                else Gam3iyaCalculator.calculateMemberPayoutDate(base.startDate, m.turnMonth)
-                repository.insertGam3iyaMember(m.copy(gam3iyaId = id, payoutDate = payout))
-            }
-            syncGam3iyaReminder(base.copy(id = id, membersCount = members.size))
-        }
-    }
+    // ── رفيق — جمعيتي (مشترك فقط): تسجيل، تعديل، "دفعت قسط الشهر"،
+    // وتذكير شهري تلقائي. وضع "مدير الجمعية" اتشال نهائيًا من التطبيق.
 
     /** Create a PARTICIPANT-mode gam3iya (I only take part). */
     fun createParticipantGam3iya(gam3iya: Gam3iyaEntity) {
@@ -688,74 +671,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setGam3iyaStatus(gam3iya: Gam3iyaEntity, status: String) {
-        viewModelScope.launch {
-            val updated = gam3iya.copy(status = status)
-            repository.updateGam3iya(updated)
-            syncGam3iyaReminder(updated)
-        }
-    }
-
-    fun addGam3iyaMember(gam3iyaId: Long, member: Gam3iyaMemberEntity) {
-        viewModelScope.launch {
-            val payout = if (member.payoutDate > 0) member.payoutDate else {
-                val g = repository.getGam3iyaById(gam3iyaId)
-                if (g != null) Gam3iyaCalculator.calculateMemberPayoutDate(g.startDate, member.turnMonth) else 0L
-            }
-            repository.insertGam3iyaMember(member.copy(gam3iyaId = gam3iyaId, payoutDate = payout))
-        }
-    }
-
-    fun updateGam3iyaMember(member: Gam3iyaMemberEntity) {
-        viewModelScope.launch { repository.updateGam3iyaMember(member) }
-    }
-
-    fun deleteGam3iyaMember(member: Gam3iyaMemberEntity) {
-        viewModelScope.launch { repository.deleteGam3iyaMember(member) }
-    }
-
-    /** Mark this member's installment paid/unpaid for the current month and
-     *  log a payment record when marking paid. */
-    fun markMemberInstallmentPaid(gam3iya: Gam3iyaEntity, member: Gam3iyaMemberEntity, paid: Boolean) {
-        viewModelScope.launch {
-            repository.updateGam3iyaMember(member.copy(isInstallmentPaidThisMonth = paid, isLate = if (paid) false else member.isLate))
-            if (paid) {
-                val amount = if (member.installmentAmount > 0) member.installmentAmount else gam3iya.monthlyInstallment
-                repository.insertGam3iyaPayment(
-                    Gam3iyaPaymentEntity(
-                        gam3iyaId = gam3iya.id, memberId = member.id,
-                        monthIndex = Gam3iyaCalculator.computeStatus(gam3iya, emptyList()).currentMonthIndex,
-                        amount = amount, date = System.currentTimeMillis(), type = "INSTALLMENT"
-                    )
-                )
-            }
-        }
-    }
-
-    /** Mark this member as having collected (received) their payout. */
-    fun markMemberCollected(gam3iya: Gam3iyaEntity, member: Gam3iyaMemberEntity, collected: Boolean) {
-        viewModelScope.launch {
-            repository.updateGam3iyaMember(member.copy(isPayoutReceived = collected))
-            if (collected) {
-                val amount = if (gam3iya.totalAmount > 0) gam3iya.totalAmount else gam3iya.monthlyInstallment * member.turnMonth
-                repository.insertGam3iyaPayment(
-                    Gam3iyaPaymentEntity(
-                        gam3iyaId = gam3iya.id, memberId = member.id,
-                        monthIndex = member.turnMonth, amount = amount,
-                        date = System.currentTimeMillis(), type = "COLLECTION"
-                    )
-                )
-            }
-            // Collecting advances the next collector → reschedule the reminder.
-            syncGam3iyaReminder(gam3iya)
-        }
-    }
-
-    fun toggleMemberLate(member: Gam3iyaMemberEntity, late: Boolean) {
-        viewModelScope.launch { repository.updateGam3iyaMember(member.copy(isLate = late)) }
-    }
-
-    /** PARTICIPANT mode — record that I paid one more installment. */
+    /** "دفعت قسط الشهر ✓" — record that I paid one more installment. */
     fun participantRecordPayment(gam3iya: Gam3iyaEntity) {
         viewModelScope.launch {
             val amount = if (gam3iya.myInstallmentAmount > 0) gam3iya.myInstallmentAmount else gam3iya.monthlyInstallment
@@ -773,62 +689,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun deleteGam3iyaPayment(payment: Gam3iyaPaymentEntity) {
-        viewModelScope.launch { repository.deleteGam3iyaPayment(payment) }
-    }
-
-    fun addGam3iyaAttachment(gam3iyaId: Long, memberId: Long, uri: String, kind: String, label: String) {
-        viewModelScope.launch {
-            repository.insertGam3iyaAttachment(
-                Gam3iyaAttachmentEntity(
-                    gam3iyaId = gam3iyaId, memberId = memberId, uri = uri,
-                    kind = kind, label = label, createdAt = System.currentTimeMillis()
-                )
-            )
-        }
-    }
-
-    fun deleteGam3iyaAttachment(a: Gam3iyaAttachmentEntity) {
-        viewModelScope.launch { repository.deleteGam3iyaAttachment(a) }
-    }
-
-    // ── Sprint 4 (phase 5) — notifications/alarms for a gam3iya ────────
-    // A single rolling "next event" reminder per gam3iya, upserted with a
-    // stable id derived from the gam3iya id (no schema change, no
-    // duplicates). It fires before + on the next collection (manager) or
-    // the next installment/collection (participant), reusing the app's one
-    // reminder+alarm pipeline.
+    // A single rolling "next installment" reminder per gam3iya, upserted
+    // with a stable id derived from the gam3iya id (no schema change, no
+    // duplicates), riding the app's one reminder+alarm pipeline.
     private fun gam3iyaReminderId(gam3iyaId: Long): Long = 900_000_000L + gam3iyaId
 
-    /** (Re)compute and (re)schedule the next-event reminder for a gam3iya. */
+    /** (Re)compute and (re)schedule the next-installment reminder. */
     private suspend fun syncGam3iyaReminder(gam3iya: Gam3iyaEntity) {
         val rid = gam3iyaReminderId(gam3iya.id)
         val app = getApplication<android.app.Application>()
         val now = System.currentTimeMillis()
 
-        // Cancel path: reminders off, archived, or completed.
-        if (!gam3iya.reminderEnabled || gam3iya.status != "ACTIVE") {
+        val status = Gam3iyaCalculator.computeStatus(gam3iya, emptyList())
+
+        // Cancel path: reminders off, archived/completed, or fully paid.
+        if (!gam3iya.reminderEnabled || gam3iya.status != "ACTIVE" || status.isFinished) {
             AlarmManagerScheduler.cancelReminderAlarm(app, rid)
             repository.deleteReminderById(rid)
             return
         }
 
-        val members = if (gam3iya.mode == "PARTICIPANT") emptyList()
-        else repository.getMembersForGam3iya(gam3iya.id).first()
-        val status = Gam3iyaCalculator.computeStatus(gam3iya, members)
-
-        val (date, label) = if (gam3iya.mode == "PARTICIPANT") {
-            val d = if (gam3iya.myCollectionDate > now) gam3iya.myCollectionDate
-            else Gam3iyaCalculator.calculateMemberPayoutDate(gam3iya.startDate, gam3iya.myPaidInstallments + 1)
-            d to (if (ar()) "قسط جمعية: ${gam3iya.title}" else "Gam3iya installment: ${gam3iya.title}")
-        } else {
-            val nc = status.nextCollector
-            (status.nextCollectionDate) to (
-                if (nc != null) (if (ar()) "قبض جمعية: ${nc.memberName}" else "Gam3iya payout: ${nc.memberName}")
-                else (if (ar()) "جمعية: ${gam3iya.title}" else "Gam3iya: ${gam3iya.title}")
-                )
-        }
-
+        val date = if (gam3iya.myCollectionDate > now) gam3iya.myCollectionDate
+        else Gam3iyaCalculator.calculateMemberPayoutDate(gam3iya.startDate, gam3iya.myPaidInstallments + 1)
         if (date <= now) {
             AlarmManagerScheduler.cancelReminderAlarm(app, rid)
             repository.deleteReminderById(rid)
@@ -837,19 +719,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val reminder = ReminderEntity(
             id = rid,
-            title = label,
-            note = if (ar()) "تذكير تلقائي من الجمعية" else "Automatic gam3iya reminder",
+            title = if (ar()) "قسط جمعية: ${gam3iya.title}" else "Gam3iya installment: ${gam3iya.title}",
+            note = if (ar()) "تذكير تلقائي من رفيق" else "Automatic Rafeeq reminder",
             dueDate = date,
             category = ReminderCategory.MONEY.name,
             preAlerts = if (gam3iya.reminderDaysBefore >= 1) "ONE_DAY,ONE_HOUR" else "ONE_HOUR"
         )
         repository.insertReminder(reminder) // REPLACE upsert on the stable id
         AlarmManagerScheduler.scheduleReminderAlarm(app, reminder)
-    }
-
-    /** Public trigger used by create/edit/mark flows. */
-    fun refreshGam3iyaReminder(gam3iya: Gam3iyaEntity) {
-        viewModelScope.launch { syncGam3iyaReminder(gam3iya) }
     }
 
     // Alarm Actions

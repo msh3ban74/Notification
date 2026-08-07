@@ -265,20 +265,16 @@ fun LedgerScreen(
     }
 
     if (showAddPersonDialog) {
+        // رحلة "دين جديد" تبدأ من هنا: مين الشخص؟ اسمه ورقمه وكفاية —
+        // ده تطبيق أفراد، مش دفتر عملاء شركة.
         var name by remember { mutableStateOf("") }
         var phone by remember { mutableStateOf("") }
         var whatsapp by remember { mutableStateOf("") }
-        var email by remember { mutableStateOf("") }
-        var address by remember { mutableStateOf("") }
-        var category by remember { mutableStateOf("") }
-        var company by remember { mutableStateOf("") }
-        var nationalId by remember { mutableStateOf("") }
         var notes by remember { mutableStateOf("") }
-        var tags by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showAddPersonDialog = false },
-            title = { Text(if (isArabic) "جهة اتصال جديدة" else "New Contact") },
+            title = { Text(if (isArabic) "شخص جديد" else "New person") },
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -291,47 +287,17 @@ fun LedgerScreen(
                     )
                     OutlinedTextField(
                         value = phone, onValueChange = { phone = it },
-                        label = { Text(if (isArabic) "رقم الهاتف" else "Phone") },
+                        label = { Text(if (isArabic) "رقم الهاتف (اختياري)" else "Phone (optional)") },
                         singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = whatsapp, onValueChange = { whatsapp = it },
-                        label = { Text(if (isArabic) "واتساب" else "WhatsApp") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = email, onValueChange = { email = it },
-                        label = { Text(if (isArabic) "البريد الإلكتروني" else "Email") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = address, onValueChange = { address = it },
-                        label = { Text(if (isArabic) "العنوان" else "Address") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = category, onValueChange = { category = it },
-                        label = { Text(if (isArabic) "التصنيف (عائلة، أصدقاء، عملاء…)" else "Category (family, friends, clients…)") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = company, onValueChange = { company = it },
-                        label = { Text(if (isArabic) "الشركة (اختياري)" else "Company (optional)") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = nationalId, onValueChange = { nationalId = it },
-                        label = { Text(if (isArabic) "الرقم القومي (اختياري)" else "National ID (optional)") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = tags, onValueChange = { tags = it },
-                        label = { Text(if (isArabic) "وسوم (بفاصلة)" else "Tags (comma-separated)") },
+                        label = { Text(if (isArabic) "واتساب (اختياري)" else "WhatsApp (optional)") },
                         singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = notes, onValueChange = { notes = it },
-                        label = { Text(if (isArabic) "ملاحظات (اختياري)" else "Notes (optional)") },
+                        label = { Text(if (isArabic) "ملاحظة (اختياري)" else "Note (optional)") },
                         singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -343,10 +309,7 @@ fun LedgerScreen(
                         onAddPersonFull(
                             PersonEntity(
                                 name = name.trim(), phoneNumber = phone.trim(),
-                                whatsapp = whatsapp.trim(), email = email.trim(),
-                                address = address.trim(), category = category.trim(),
-                                company = company.trim(), nationalId = nationalId.trim(),
-                                notes = notes.trim(), tags = tags.trim()
+                                whatsapp = whatsapp.trim(), notes = notes.trim()
                             )
                         )
                         showAddPersonDialog = false
@@ -372,9 +335,11 @@ fun PersonLedgerSummaryCard(
     isArabic: Boolean,
     onClick: () -> Unit
 ) {
+    // QA fix: the Arabic copy here was reversed (showed "he demands from
+    // you" for money owed TO you). Correct: THEY_OWE_ME = «لك عنده».
     val statusText = when (summary.status) {
-        LedgerStatus.THEY_OWE_ME -> if (isArabic) "يطالبك بـ ${summary.netAmount} ج.م" else "They owe you ${summary.netAmount} EGP"
-        LedgerStatus.I_OWE_THEM -> if (isArabic) "تطالبه بـ ${summary.netAmount} ج.م" else "You owe them ${summary.netAmount} EGP"
+        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${summary.netAmount} ج.م" else "They owe you ${summary.netAmount} EGP"
+        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${summary.netAmount} ج.م" else "You owe them ${summary.netAmount} EGP"
         LedgerStatus.SETTLED -> if (isArabic) "مسدد بالكامل (خالص)" else "Settled / Even"
     }
 
@@ -467,14 +432,6 @@ fun PersonDetailScreen(
     var showDeletePerson by remember { mutableStateOf(false) }
     var personMenu by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-    val exportContext = LocalContext.current
-    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null) {
-            val csv = com.notification.app.domain.calculator.DebtsExporter.buildCsv(person, transactions)
-            com.notification.app.domain.calculator.DebtsExporter.writeCsvToUri(exportContext, uri, csv)
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -502,16 +459,6 @@ fun PersonDetailScreen(
                             Icon(Icons.Default.MoreVert, contentDescription = if (isArabic) "خيارات" else "Options")
                         }
                         DropdownMenu(expanded = personMenu, onDismissRequest = { personMenu = false }) {
-                            DropdownMenuItem(
-                                text = { Text(if (isArabic) "تصدير CSV" else "Export CSV") },
-                                onClick = { personMenu = false; csvLauncher.launch(com.notification.app.domain.calculator.DebtsExporter.suggestedCsvName(person)) },
-                                leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(if (isArabic) "طباعة / PDF" else "Print / PDF") },
-                                onClick = { personMenu = false; com.notification.app.domain.calculator.DebtsExporter.printStatement(exportContext, person, transactions, isArabic) },
-                                leadingIcon = { Icon(Icons.Default.Print, contentDescription = null) }
-                            )
                             if (onUpdatePerson != null) {
                                 DropdownMenuItem(
                                     text = { Text(if (isArabic) "تعديل جهة الاتصال" else "Edit contact") },
@@ -731,10 +678,7 @@ fun PersonDetailScreen(
             )
         }
         var note by remember(editing) { mutableStateOf(editing?.note ?: "") }
-        var reason by remember(editing) { mutableStateOf(editing?.reason ?: "") }
-        var currency by remember(editing) { mutableStateOf(editing?.currency ?: "EGP") }
         var dueDate by remember(editing) { mutableStateOf(editing?.dueDate ?: 0L) }
-        var paymentType by remember(editing) { mutableStateOf(editing?.paymentType ?: "") }
         val txContext = LocalContext.current
         val dismissDialog = {
             showAddTxDialog = false
@@ -786,24 +730,17 @@ fun PersonDetailScreen(
                         }
                     }
 
-                    OutlinedTextField(
-                        value = reason,
-                        onValueChange = { reason = it },
-                        label = { Text(if (isArabic) "السبب (اختياري)" else "Reason (optional)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    CurrencyDropdown(currency, { currency = it }, isArabic)
+                    // "قالي هيرجعهالك يوم الأحد" → حدد اليوم ورفيق يفكرك
+                    // تلقائيًا (تذكير مجدول يتعمل مع الحفظ).
                     DateField(
                         value = dueDate, onPick = { dueDate = it },
-                        label = if (isArabic) "تاريخ الاستحقاق" else "Due date",
+                        label = if (isArabic) "هيتسدد إمتى؟ (يفكرك رفيق)" else "When is it due? (Rafeeq reminds you)",
                         context = txContext, isArabic = isArabic, allowEmpty = true
                     )
-                    PaymentTypeDropdown(paymentType, { paymentType = it }, isArabic)
                     OutlinedTextField(
                         value = note,
                         onValueChange = { note = it },
-                        label = { Text(if (isArabic) "ملاحظات" else "Note") },
+                        label = { Text(if (isArabic) "ملاحظة (السبب مثلًا)" else "Note (e.g. the reason)") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -819,10 +756,7 @@ fun PersonDetailScreen(
                                         type = selectedType.name,
                                         amount = amount,
                                         note = note,
-                                        reason = reason.trim(),
-                                        currency = currency,
-                                        dueDate = dueDate,
-                                        paymentType = paymentType
+                                        dueDate = dueDate
                                     )
                                 )
                             } else {
@@ -833,10 +767,7 @@ fun PersonDetailScreen(
                                         amount = amount,
                                         date = System.currentTimeMillis(),
                                         note = note,
-                                        reason = reason.trim(),
-                                        currency = currency,
-                                        dueDate = dueDate,
-                                        paymentType = paymentType
+                                        dueDate = dueDate
                                     )
                                 )
                             }
@@ -860,16 +791,10 @@ fun PersonDetailScreen(
         var eName by remember { mutableStateOf(person.name) }
         var ePhone by remember { mutableStateOf(person.phoneNumber) }
         var eWhatsapp by remember { mutableStateOf(person.whatsapp) }
-        var eEmail by remember { mutableStateOf(person.email) }
-        var eAddress by remember { mutableStateOf(person.address) }
-        var eCategory by remember { mutableStateOf(person.category) }
-        var eCompany by remember { mutableStateOf(person.company) }
-        var eNationalId by remember { mutableStateOf(person.nationalId) }
-        var eTags by remember { mutableStateOf(person.tags) }
         var eNotes by remember { mutableStateOf(person.notes) }
         AlertDialog(
             onDismissRequest = { showEditPerson = false },
-            title = { Text(if (isArabic) "تعديل جهة الاتصال" else "Edit contact") },
+            title = { Text(if (isArabic) "تعديل الشخص" else "Edit person") },
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -878,13 +803,7 @@ fun PersonDetailScreen(
                     OutlinedTextField(eName, { eName = it }, label = { Text(if (isArabic) "الاسم" else "Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(ePhone, { ePhone = it }, label = { Text(if (isArabic) "رقم الهاتف" else "Phone") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(eWhatsapp, { eWhatsapp = it }, label = { Text(if (isArabic) "واتساب" else "WhatsApp") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(eEmail, { eEmail = it }, label = { Text(if (isArabic) "البريد الإلكتروني" else "Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(eAddress, { eAddress = it }, label = { Text(if (isArabic) "العنوان" else "Address") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(eCategory, { eCategory = it }, label = { Text(if (isArabic) "التصنيف" else "Category") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(eCompany, { eCompany = it }, label = { Text(if (isArabic) "الشركة" else "Company") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(eNationalId, { eNationalId = it }, label = { Text(if (isArabic) "الرقم القومي" else "National ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(eTags, { eTags = it }, label = { Text(if (isArabic) "وسوم (بفاصلة)" else "Tags (comma-separated)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(eNotes, { eNotes = it }, label = { Text(if (isArabic) "ملاحظات" else "Notes") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eNotes, { eNotes = it }, label = { Text(if (isArabic) "ملاحظة" else "Note") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -893,10 +812,8 @@ fun PersonDetailScreen(
                     onClick = {
                         onUpdatePerson(
                             person.copy(
-                                name = eName.trim(), phoneNumber = ePhone.trim(), whatsapp = eWhatsapp.trim(),
-                                email = eEmail.trim(), address = eAddress.trim(), category = eCategory.trim(),
-                                company = eCompany.trim(), nationalId = eNationalId.trim(),
-                                tags = eTags.trim(), notes = eNotes.trim()
+                                name = eName.trim(), phoneNumber = ePhone.trim(),
+                                whatsapp = eWhatsapp.trim(), notes = eNotes.trim()
                             )
                         )
                         showEditPerson = false
@@ -922,31 +839,3 @@ fun PersonDetailScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PaymentTypeDropdown(value: String, onSelect: (String) -> Unit, isArabic: Boolean) {
-    // Payment nature for a ledger transaction (optional; empty = unspecified).
-    val options = listOf(
-        "" to (if (isArabic) "غير محدد" else "Unspecified"),
-        "PARTIAL" to (if (isArabic) "دفعة جزئية" else "Partial"),
-        "FULL" to (if (isArabic) "سداد كامل" else "Full"),
-        "ADVANCE" to (if (isArabic) "دفعة مقدمة" else "Advance"),
-        "SCHEDULED" to (if (isArabic) "مجدولة" else "Scheduled"),
-        "RECURRING" to (if (isArabic) "متكررة" else "Recurring")
-    )
-    var expanded by remember { mutableStateOf(false) }
-    val current = options.firstOrNull { it.first == value }?.second ?: options.first().second
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = current, onValueChange = {}, readOnly = true,
-            label = { Text(if (isArabic) "نوع الدفع" else "Payment type") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor().fillMaxWidth()
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (key, label) ->
-                DropdownMenuItem(text = { Text(label) }, onClick = { onSelect(key); expanded = false })
-            }
-        }
-    }
-}

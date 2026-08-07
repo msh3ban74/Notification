@@ -36,7 +36,7 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     object Splash : Screen("splash", "Splash", "البداية", Icons.Default.Notifications)
 
     // Sprint 1 — the four primary Bottom Navigation destinations.
-    object Dashboard : Screen("dashboard", "Dashboard", "الرئيسية", Icons.Default.Dashboard)
+    object Dashboard : Screen("dashboard", "My Day", "يومك", Icons.Default.Dashboard)
     object AiChat : Screen("ai_chat", "AI Assistant", "المساعد الذكي", Icons.Default.AutoAwesome)
     object Tasks : Screen("tasks", "Tasks", "المهام", Icons.Default.Assignment)
     object Notifications : Screen("notifications", "Notifications", "الإشعارات", Icons.Default.NotificationsActive)
@@ -77,9 +77,8 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
         fun createRoute(itemId: String) = "create_smart/$itemId"
     }
 
-    // Sprint 5 — Smart Gam3iya: reuses the existing Gam3iya implementation
-    // (viewModel.createGam3iya → createGam3iyaWithMembers).
-    object CreateGam3iya : Screen("create_gam3iya", "New Gam3iya", "جمعية جديدة", Icons.Default.Add)
+    // جمعية أنا فيها — participant-only tracking form.
+    object CreateGam3iya : Screen("create_gam3iya", "My Gam3iya", "جمعيتي", Icons.Default.Add)
 
     // Stability sprint — Smart Alarm: reuses the existing AlarmEntity +
     // addAlarm + AlarmManagerScheduler pipeline.
@@ -139,7 +138,6 @@ class MainActivity : ComponentActivity() {
             val persons by viewModel.allPersons.collectAsState()
             val transactions by viewModel.allTransactions.collectAsState()
             val gam3iyas by viewModel.allGam3iyas.collectAsState()
-            val gam3iyaMembers by viewModel.allGam3iyaMembers.collectAsState()
             val alarms by viewModel.allAlarms.collectAsState()
             val financialItems by viewModel.allFinancialItems.collectAsState()
             val habits by viewModel.allHabits.collectAsState()
@@ -326,9 +324,9 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable(Screen.Dashboard.route) {
-                                // Sprint 3/4: the Dashboard now shows REAL
-                                // summaries read from the existing Room flows
-                                // already collected above — no fake data.
+                                // «يومك» — one chronological answer to
+                                // "إيه اللي عليّا؟", read from the existing
+                                // Room flows already collected above.
                                 DashboardScreen(
                                     isArabic = isArabic,
                                     userName = userName,
@@ -337,13 +335,13 @@ class MainActivity : ComponentActivity() {
                                     persons = persons,
                                     transactions = transactions,
                                     alarms = alarms,
-                                    gam3iyaMembers = gam3iyaMembers,
                                     prayerTimes = prayerTimes,
                                     workNotes = workNotes,
                                     waterCount = waterCount,
                                     financialItems = financialItems,
                                     aiSuggestions = aiSuggestions,
                                     aiSuggestionsLoading = aiSuggestionsLoading,
+                                    onToggleReminderDone = { viewModel.toggleReminderCompleted(it) },
                                     onRefreshSuggestions = {
                                         viewModel.refreshAiSuggestions(isArabic = isArabic)
                                     },
@@ -655,11 +653,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            // Sprint 5 — Smart Gam3iya. Saving goes through the
-                            // EXISTING creation pipeline (viewModel.createGam3iya
-                            // → createGam3iyaWithMembers + Gam3iyaCalculator),
-                            // then returns to the Dashboard.
-                            // Stability sprint — Smart Alarm. Saving goes
+                            // Smart Alarm. Saving goes
                             // through the EXISTING alarm pipeline
                             // (viewModel.addAlarm → AlarmManagerScheduler),
                             // then returns to the Dashboard with a confirmation.
@@ -813,15 +807,18 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            // رفيق شخصي: تسجيل الجمعية اللي المستخدم مشترك
+                            // فيها (وضع "مدير الجمعية" اتشال نهائيًا).
                             composable(Screen.CreateGam3iya.route) {
-                                CreateGam3iyaScreen(
+                                ParticipantGam3iyaForm(
+                                    viewModel = viewModel,
                                     isArabic = isArabic,
-                                    onSave = { title, total, installment, members, startDate ->
-                                        viewModel.createGam3iya(title, total, installment, members, startDate)
+                                    existing = null,
+                                    onDone = {
                                         navController.popBackStack(Screen.Dashboard.route, inclusive = false)
                                         scope.launch {
                                             snackbarHostState.showSnackbar(
-                                                if (isArabic) "تم إنشاء الجمعية بنجاح" else "Gam3iya created successfully."
+                                                if (isArabic) "اتسجلت جمعيتك — هفكرك بالقسط كل شهر ✓" else "Gam3iya saved — I'll remind you monthly ✓"
                                             )
                                         }
                                     },

@@ -65,13 +65,6 @@ fun InstallmentDetailScreen(
             viewModel.addFinancialAttachment(item.id, uri.toString(), "RECEIPT", "")
         }
     }
-    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null) {
-            val csv = com.notification.app.domain.calculator.InstallmentExporter.buildCsv(item, payments)
-            com.notification.app.domain.calculator.InstallmentExporter.writeCsvToUri(context, uri, csv)
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -90,12 +83,6 @@ fun InstallmentDetailScreen(
                             text = { Text(if (item.isArchived) (if (isArabic) "إلغاء الأرشفة" else "Unarchive") else (if (isArabic) "أرشفة" else "Archive")) },
                             onClick = { menuOpen = false; viewModel.updateFinancialItem(item.copy(isArchived = !item.isArchived)) },
                             leadingIcon = { Icon(if (item.isArchived) Icons.Default.Unarchive else Icons.Default.Archive, contentDescription = null) })
-                        DropdownMenuItem(text = { Text(if (isArabic) "تصدير CSV" else "Export CSV") },
-                            onClick = { menuOpen = false; csvLauncher.launch(com.notification.app.domain.calculator.InstallmentExporter.suggestedCsvName(item)) },
-                            leadingIcon = { Icon(Icons.Default.TableChart, contentDescription = null) })
-                        DropdownMenuItem(text = { Text(if (isArabic) "طباعة / PDF" else "Print / PDF") },
-                            onClick = { menuOpen = false; com.notification.app.domain.calculator.InstallmentExporter.printInstallment(context, item, payments, isArabic) },
-                            leadingIcon = { Icon(Icons.Default.Print, contentDescription = null) })
                         DropdownMenuItem(text = { Text(if (isArabic) "حذف" else "Delete") },
                             onClick = { menuOpen = false; confirmDelete = true }, leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) })
                     }
@@ -119,12 +106,6 @@ fun InstallmentDetailScreen(
             contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp)
         ) {
             item { PlanCard(item, plan, isArabic, df) }
-
-            if (item.brand.isNotBlank() || item.store.isNotBlank() || item.storePhone.isNotBlank() ||
-                item.storeWhatsapp.isNotBlank() || item.warranty.isNotBlank() || item.purchaseDate > 0
-            ) {
-                item { ProfileCard(item, isArabic, df, context) }
-            }
 
             item {
                 Text(if (isArabic) "سجل الدفعات" else "Payment history",
@@ -197,7 +178,6 @@ private fun PlanCard(item: FinancialItemEntity, plan: com.notification.app.domai
             InfoRow(if (isArabic) "المتبقّي" else "Remaining installments", plan.remainingInstallments.toString())
             InfoRow(if (isArabic) "إجمالي المدفوع" else "Total paid", fmtMoney(plan.totalPaid, item.currency))
             InfoRow(if (isArabic) "المبلغ المتبقّي" else "Remaining amount", fmtMoney(plan.remainingAmount, item.currency))
-            if (item.interestAmount > 0) InfoRow(if (isArabic) "الفائدة المدفوعة" else "Interest paid", fmtMoney(plan.interestPaid, item.currency))
             if (!plan.isFinished && plan.nextPaymentDate > 0) InfoRow(if (isArabic) "الدفعة القادمة" else "Next payment", df.format(Date(plan.nextPaymentDate)))
             if (plan.lastPaymentDate > 0) InfoRow(if (isArabic) "آخر دفعة" else "Last payment", df.format(Date(plan.lastPaymentDate)))
             InfoRow(if (isArabic) "الانتهاء المتوقّع" else "Expected finish", df.format(Date(plan.expectedFinishDate)))
@@ -213,39 +193,6 @@ private fun InfoRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, color = MaterialTheme.colorScheme.onSecondaryContainer)
         Text(value, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-    }
-}
-
-@Composable
-private fun ProfileCard(item: FinancialItemEntity, isArabic: Boolean, df: SimpleDateFormat, context: android.content.Context) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(if (isArabic) "تفاصيل المنتج" else "Product details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            if (item.brand.isNotBlank()) PlainRow(if (isArabic) "الماركة" else "Brand", item.brand)
-            if (item.store.isNotBlank()) PlainRow(if (isArabic) "المتجر" else "Store", item.store)
-            if (item.category.isNotBlank()) PlainRow(if (isArabic) "التصنيف" else "Category", item.category)
-            if (item.purchaseDate > 0) PlainRow(if (isArabic) "تاريخ الشراء" else "Purchased", df.format(Date(item.purchaseDate)))
-            if (item.warranty.isNotBlank()) PlainRow(if (isArabic) "الضمان" else "Warranty", item.warranty)
-            if (item.storePhone.isNotBlank() || item.storeWhatsapp.isNotBlank()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
-                    if (item.storePhone.isNotBlank()) AssistChip(onClick = {
-                        try { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${item.storePhone.trim()}"))) } catch (_: Exception) {}
-                    }, label = { Text(if (isArabic) "اتصال" else "Call") }, leadingIcon = { Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp)) })
-                    if (item.storeWhatsapp.isNotBlank()) AssistChip(onClick = {
-                        val n = item.storeWhatsapp.filter { it.isDigit() || it == '+' }.removePrefix("+")
-                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$n"))) } catch (_: Exception) {}
-                    }, label = { Text("WhatsApp") }, leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp)) })
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlainRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontWeight = FontWeight.SemiBold)
     }
 }
 
