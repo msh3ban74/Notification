@@ -144,15 +144,6 @@ fun CreateDebtScreen(
                         personDropdownExpanded = true
                     },
                     label = { Text(if (isArabic) "الشخص" else "Person") },
-                    supportingText = {
-                        Text(
-                            text = if (selectedPerson != null) {
-                                if (isArabic) "شخص موجود في دفتر الديون" else "Existing ledger contact"
-                            } else {
-                                if (isArabic) "اكتب اسمًا جديدًا أو اختر من القائمة" else "Type a new name or pick from the list"
-                            }
-                        )
-                    },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = personDropdownExpanded)
                     },

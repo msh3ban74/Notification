@@ -788,7 +788,7 @@ private fun CompanionWidgets(
             secondaryLine = when {
                 doneToday >= habits.size ->
                     if (isArabic) "اكتمل هدف اليوم" else "Daily goal complete"
-                else -> if (isArabic) "اضغط لتسجيل إنجازك" else "Tap to check in"
+                else -> if (isArabic) "سجّل إنجاز اليوم" else "Check in for today"
             },
             accent = AccentAmber,
             onClick = onNavigateToHabits
@@ -861,7 +861,7 @@ private fun WaterGlassesCard(
                 }
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                 Text(
-                    if (isArabic) "اضغط لتسجيل كوب" else "Tap to log a glass",
+                    if (isArabic) "سجّل كوبًا" else "Log a glass",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -840,8 +840,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         aiJob?.cancel()
         aiJob = null
         appendModel(
-            if (language.value == "ar") "أوقفت الرد. اضغط \"إعادة\" وقت ما تحب."
-            else "Stopped. Tap \"Regenerate\" whenever you like."
+            if (language.value == "ar") "تم إيقاف الرد."
+            else "Response stopped."
         )
     }
 

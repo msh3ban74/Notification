@@ -158,8 +158,8 @@ fun SearchScreen(
                 q.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            if (isArabic) "اكتب للبحث في المهام والديون والجمعيات والمالية والعادات"
-                            else "Type to search tasks, debts, gam3iyas, money and habits",
+                            if (isArabic) "البحث يشمل المهام والديون والجمعيات والمالية والعادات"
+                            else "Search covers tasks, debts, gam3iyas, money and habits",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

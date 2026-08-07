@@ -91,7 +91,7 @@ fun CreateFinancialScreen(
 
     val titleLabel = when (type) {
         FinancialType.BILL -> if (isArabic) "الجهة / الشركة" else "Company"
-        FinancialType.INSTALLMENT -> if (isArabic) "اسم المنتج" else "Item name"
+        FinancialType.INSTALLMENT -> if (isArabic) "السلعة" else "Item"
         FinancialType.SUBSCRIPTION -> if (isArabic) "اسم الخدمة" else "Service name"
     }
     val screenTitle = when (type) {
@@ -128,32 +128,6 @@ fun CreateFinancialScreen(
                 .padding(top = Spacing.sm, bottom = Spacing.xl),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
-            if (type == FinancialType.INSTALLMENT) {
-                // القسط ده عبارة عن إيه؟ — اختيار سريع يملأ الاسم.
-                Text(
-                    text = if (isArabic) "القسط ده عبارة عن إيه؟" else "What is this installment for?",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                )
-                val quickKinds = if (isArabic)
-                    listOf("موبايل", "ثلاجة", "غسالة", "أثاث", "عربية")
-                else listOf("Phone", "Fridge", "Washer", "Furniture", "Car")
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                ) {
-                    quickKinds.forEach { kind ->
-                        androidx.compose.material3.FilterChip(
-                            selected = title == kind,
-                            onClick = { title = kind },
-                            label = { Text(kind) }
-                        )
-                    }
-                }
-            }
-
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -189,8 +163,8 @@ fun CreateFinancialScreen(
                     ) {
                         Column(modifier = Modifier.padding(Spacing.md)) {
                             Text(
-                                text = if (isArabic) "الباقي عليك: ${liveRemaining.toLong()} ج.م"
-                                else "Remaining: ${liveRemaining.toLong()} EGP",
+                                text = if (isArabic) "المتبقي بعد المقدّم: ${liveRemaining.toLong()} ج.م"
+                                else "Remaining after down payment: ${liveRemaining.toLong()} EGP",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -198,8 +172,8 @@ fun CreateFinancialScreen(
                             if (liveMonthly > 0 && liveRemaining > 0) {
                                 val count = kotlin.math.ceil(liveRemaining / liveMonthly).toInt()
                                 Text(
-                                    text = if (isArabic) "يعني تقريبًا $count ${if (count == 1) "قسط" else "أقساط"} شهرية"
-                                    else "≈ $count monthly installment${if (count == 1) "" else "s"}",
+                                    text = if (isArabic) "عدد الأقساط المتوقع: $count"
+                                    else "Expected installments: $count",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

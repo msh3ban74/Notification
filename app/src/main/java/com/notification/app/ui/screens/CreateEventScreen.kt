@@ -153,8 +153,7 @@ fun CreateEventScreen(
                 OutlinedTextField(
                     value = host,
                     onValueChange = { host = it },
-                    label = { Text(if (isArabic) "صاحب المناسبة" else "Whose occasion?") },
-                    placeholder = { Text(if (isArabic) "مثل: أحمد" else "e.g. Ahmed") },
+                    label = { Text(if (isArabic) "صاحب المناسبة" else "Host") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
