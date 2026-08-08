@@ -91,7 +91,7 @@ fun RemindersScreen(
                 contentColor = OnPrimary,
                 shape = CircleShape
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Reminder")
+                Icon(imageVector = Icons.Default.Add, contentDescription = if (isArabic) "إضافة تذكير" else "Add reminder")
             }
         }
     ) { padding ->
@@ -360,7 +360,7 @@ fun DetailedReminderCard(
                         IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit",
+                                contentDescription = if (isArabic) "تعديل" else "Edit",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -371,7 +371,7 @@ fun DetailedReminderCard(
                         IconButton(onClick = onDuplicate, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 imageVector = Icons.Default.ContentCopy,
-                                contentDescription = "Duplicate",
+                                contentDescription = if (isArabic) "تكرار" else "Duplicate",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -380,7 +380,7 @@ fun DetailedReminderCard(
                     IconButton(onClick = onShare, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Share,
-                            contentDescription = "Share",
+                            contentDescription = if (isArabic) "مشاركة" else "Share",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
@@ -400,7 +400,7 @@ fun DetailedReminderCard(
                     IconButton(onClick = { confirmDelete = true }, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete",
+                            contentDescription = if (isArabic) "حذف" else "Delete",
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(20.dp)
                         )

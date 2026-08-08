@@ -1,5 +1,6 @@
 package com.notification.app.data.repository
 
+import androidx.room.withTransaction
 import com.notification.app.data.local.AppDatabase
 import com.notification.app.data.local.entities.*
 import com.notification.app.domain.calculator.Gam3iyaCalculator
@@ -43,7 +44,9 @@ class NotificationRepository(private val db: AppDatabase) {
 
     // ── Sprint 5 — person edit + cascade delete + attachments ─────────
     suspend fun updatePerson(person: PersonEntity) = db.personLedgerDao().updatePerson(person)
-    suspend fun deletePersonCascade(person: PersonEntity) {
+    suspend fun deletePersonCascade(person: PersonEntity) = db.withTransaction {
+        // Atomic: a crash mid-delete can never leave a person's transactions
+        // or attachments orphaned (or vice-versa).
         db.personLedgerDao().deleteTransactionsForPerson(person.id)
         db.personLedgerDao().deleteLedgerAttachmentsForPerson(person.id)
         db.personLedgerDao().deletePerson(person)
@@ -70,7 +73,9 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun createGam3iyaWithMembers(
         gam3iya: Gam3iyaEntity,
         memberNamesWithTurns: List<Pair<String, Int>>
-    ): Long {
+    ): Long = db.withTransaction {
+        // Atomic: the gam3iya and its members are inserted together, so a
+        // crash can't leave a memberless gam3iya.
         val gam3iyaId = db.gam3iyaDao().insertGam3iya(gam3iya)
         val members = memberNamesWithTurns.map { (name, turn) ->
             val payoutDate = Gam3iyaCalculator.calculateMemberPayoutDate(gam3iya.startDate, turn)
@@ -82,14 +87,15 @@ class NotificationRepository(private val db: AppDatabase) {
             )
         }
         db.gam3iyaDao().insertMembers(members)
-        return gam3iyaId
+        gam3iyaId
     }
 
     suspend fun updateGam3iyaMember(member: Gam3iyaMemberEntity) =
         db.gam3iyaDao().updateMember(member)
 
-    suspend fun deleteGam3iya(gam3iya: Gam3iyaEntity) {
-        // Cascade — the tables have no FK, so clear children explicitly.
+    suspend fun deleteGam3iya(gam3iya: Gam3iyaEntity) = db.withTransaction {
+        // Cascade — the tables have no FK, so clear children explicitly, and
+        // atomically so a crash can't half-delete a gam3iya.
         db.gam3iyaDao().deleteMembersForGam3iya(gam3iya.id)
         db.gam3iyaDao().deletePaymentsForGam3iya(gam3iya.id)
         db.gam3iyaDao().deleteAttachmentsForGam3iya(gam3iya.id)

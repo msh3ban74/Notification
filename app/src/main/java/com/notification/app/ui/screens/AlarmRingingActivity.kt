@@ -221,7 +221,7 @@ fun AlarmRingingScreen(
                 ) {
                     Icon(
                         imageVector = iconForCategory(category),
-                        contentDescription = "Ringing Icon",
+                        contentDescription = null,
                         tint = MaroonPrimary,
                         modifier = Modifier.size(56.dp)
                     )
@@ -286,7 +286,7 @@ fun AlarmRingingScreen(
                         .height(56.dp)
                         .padding(end = 8.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Snooze, contentDescription = "Snooze")
+                    Icon(imageVector = Icons.Default.Snooze, contentDescription = if (isArabic) "غفوة" else "Snooze")
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (isArabic) "غفوة $snoozeMinutes د" else "Snooze $snoozeMinutes m",
@@ -306,7 +306,7 @@ fun AlarmRingingScreen(
                         .height(56.dp)
                         .padding(start = 8.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Check, contentDescription = "Dismiss")
+                    Icon(imageVector = Icons.Default.Check, contentDescription = if (isArabic) "إيقاف" else "Dismiss")
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = if (isArabic) "تم" else "Done", fontWeight = FontWeight.Bold)
                 }

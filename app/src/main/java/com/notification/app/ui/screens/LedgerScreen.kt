@@ -154,7 +154,7 @@ fun LedgerScreen(
                 contentColor = OnPrimary,
                 shape = CircleShape
             ) {
-                Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Add Person")
+                Icon(imageVector = Icons.Default.PersonAdd, contentDescription = if (isArabic) "إضافة شخص" else "Add person")
             }
         }
     ) { padding ->
@@ -424,7 +424,7 @@ fun PersonLedgerSummaryCard(
 
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "View Details",
+                contentDescription = if (isArabic) "عرض التفاصيل" else "View details",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -472,7 +472,7 @@ fun PersonDetailScreen(
                 title = { Text(person.name, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = if (isArabic) "رجوع" else "Back")
                     }
                 },
                 actions = {
@@ -523,7 +523,7 @@ fun PersonDetailScreen(
                 containerColor = MaroonPrimary,
                 contentColor = OnPrimary
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Transaction")
+                Icon(imageVector = Icons.Default.Add, contentDescription = if (isArabic) "إضافة معاملة" else "Add transaction")
             }
         }
     ) { padding ->
@@ -744,7 +744,7 @@ fun PersonDetailScreen(
                                         IconButton(onClick = { editingTx = tx }) {
                                             Icon(
                                                 imageVector = Icons.Default.Edit,
-                                                contentDescription = "Edit",
+                                                contentDescription = if (isArabic) "تعديل" else "Edit",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }

@@ -44,7 +44,7 @@ fun HealthWorkNotesScreen(
                 contentColor = OnPrimary,
                 shape = CircleShape
             ) {
-                Icon(imageVector = Icons.Default.NoteAdd, contentDescription = "Add Work Note")
+                Icon(imageVector = Icons.Default.NoteAdd, contentDescription = if (isArabic) "إضافة ملاحظة" else "Add note")
             }
         }
     ) { padding ->
