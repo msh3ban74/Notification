@@ -41,10 +41,8 @@ class UserPreferencesRepository(private val context: Context) {
         // silently mirrors every data change to the cloud.
         val AUTO_CLOUD_BACKUP = booleanPreferencesKey("auto_cloud_backup_enabled")
         val AUTO_BACKUP_LAST = longPreferencesKey("auto_backup_last_at")
-        // Adhkar / nafl daily reminders — each a persisted ON/OFF switch that
-        // schedules (or cancels) a gentle daily notification.
-        val ADHKAR_MORNING = booleanPreferencesKey("adhkar_morning_enabled")
-        val ADHKAR_EVENING = booleanPreferencesKey("adhkar_evening_enabled")
+        // Adhkar / nafl daily reminders. ADHKAR_MORNING / ADHKAR_EVENING are
+        // declared above; add only the two new ones here.
         val ADHKAR_QIYAM = booleanPreferencesKey("adhkar_qiyam_enabled")
         val ADHKAR_DUHA = booleanPreferencesKey("adhkar_duha_enabled")
     }
