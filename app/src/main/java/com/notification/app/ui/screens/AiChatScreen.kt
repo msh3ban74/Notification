@@ -281,15 +281,15 @@ private fun AssistantEmptyState(
     // The four guided flows: each pill opens a short step-by-step
     // conversation where Rafeeq collects the details then saves + reminds.
     val suggestions = if (isArabic) listOf(
-        "ما مهامي اليوم؟",
-        "ذكّرني بدواء",
-        "سجّل دينًا",
-        "سجّل مهمة"
+        "ماذا لديّ اليوم؟",
+        "ذكّرني بمهمة غدًا",
+        "احفظ معلومة أريد تذكّرها",
+        "نبّهني بعد ساعة"
     ) else listOf(
-        "What are my tasks today?",
-        "Remind me of a medicine",
-        "Record a debt",
-        "Record a task"
+        "What do I have today?",
+        "Remind me of a task tomorrow",
+        "Remember something for me",
+        "Alert me in an hour"
     )
 
     Box(modifier = Modifier.fillMaxSize()) {

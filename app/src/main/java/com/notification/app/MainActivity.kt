@@ -194,9 +194,10 @@ class MainActivity : ComponentActivity() {
                     // primary destinations. Settings is intentionally
                     // excluded — it's reachable only from the Top App Bar's
                     // profile button.
+                    // Chat-first: Rafeeq (the assistant) leads the navigation.
                     val bottomBarScreens = listOf(
-                        Screen.Dashboard,
                         Screen.AiChat,
+                        Screen.Dashboard,
                         Screen.Tasks,
                         Screen.Notifications
                     )
@@ -317,8 +318,10 @@ class MainActivity : ComponentActivity() {
                                 SplashScreen(
                                     isArabic = isArabic,
                                     onSplashFinished = {
-                                        // Sprint 1: Dashboard is now the default landing screen.
-                                        val destination = if (isLoggedIn) Screen.Dashboard.route else Screen.Auth.route
+                                        // Chat-first: Rafeeq (the assistant) is the home. The
+                                        // user lands in conversation, like a general AI, not a
+                                        // dashboard of modules.
+                                        val destination = if (isLoggedIn) Screen.AiChat.route else Screen.Auth.route
                                         navController.navigate(destination) {
                                             popUpTo(Screen.Splash.route) { inclusive = true }
                                         }
@@ -582,12 +585,12 @@ class MainActivity : ComponentActivity() {
                                     onSignInSuccess = { name, email ->
                                         viewModel.setUserAuth(name, email, true)
                                         viewModel.restoreFromBackup()
-                                        navController.navigate(Screen.Dashboard.route) {
+                                        navController.navigate(Screen.AiChat.route) {
                                             popUpTo(Screen.Auth.route) { inclusive = true }
                                         }
                                     },
                                     onSkip = {
-                                        navController.navigate(Screen.Dashboard.route) {
+                                        navController.navigate(Screen.AiChat.route) {
                                             popUpTo(Screen.Auth.route) { inclusive = true }
                                         }
                                     },
