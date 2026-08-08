@@ -8,6 +8,7 @@ import com.notification.app.data.local.entities.HabitEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
 import com.notification.app.data.local.entities.ReminderEntity
+import com.notification.app.data.preferences.UserPreferencesRepository
 import com.notification.app.data.remote.*
 import com.notification.app.domain.calculator.Gam3iyaCalculator
 import com.notification.app.domain.calculator.HabitCalculator
@@ -18,7 +19,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class GeminiRepository(
-    private val notificationRepository: NotificationRepository
+    private val notificationRepository: NotificationRepository,
+    private val preferencesRepository: UserPreferencesRepository
 ) {
 
     private val toolsDefinition = listOf(
@@ -32,6 +34,21 @@ class GeminiRepository(
                 GeminiFunctionDeclaration(
                     name = "getAlarms",
                     description = "Get the list of clock alarms the user has set (time + whether enabled + repeat days). Use this to answer 'is there an alarm set?' or 'what are my alarms?'.",
+                    parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
+                ),
+                GeminiFunctionDeclaration(
+                    name = "getWorkNotes",
+                    description = "Get the user's work/study notes (title, whether done). Use for 'what are my notes?' or 'my work tasks'.",
+                    parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
+                ),
+                GeminiFunctionDeclaration(
+                    name = "getWaterToday",
+                    description = "Get how many cups of water the user has logged today.",
+                    parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
+                ),
+                GeminiFunctionDeclaration(
+                    name = "getPrayerTimes",
+                    description = "Get today's five prayer times and which prayer is next. Use for 'prayer times', 'when is Maghrib', 'next prayer'.",
                     parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
                 ),
                 GeminiFunctionDeclaration(
@@ -217,7 +234,7 @@ THE CORE FLOWS:
 4. "ما مهامي اليوم" / what's due: call getReminders and answer with a short list of only what is due today plus anything overdue.
 5. OCCASION (فرح/عيد ميلاد/مناسبة): collect (a) the occasion type, (b) whose occasion it is, (c) the day and time. Then call addReminder with category EVENT (BIRTHDAY for birthdays), title like "فرح أحمد". The user is reminded a day before and an hour before automatically.
 
-Other abilities when asked: bills/installments/subscriptions (addFinancialItem/getFinancialItems), gam3iya status (getGam3iyaInfo/createGam3iya), habits (addHabit/completeHabitToday/getHabits), water (logWater), alarms — set one with setSmartAlarm and CHECK existing ones with getAlarms (always call getAlarms before answering "is there an alarm set?" — alarms are separate from reminders, so getReminders will NOT show them). Answer questions about the user's data ONLY from tool reads — never guess.
+Other abilities when asked: bills/installments/subscriptions (addFinancialItem/getFinancialItems), gam3iya status (getGam3iyaInfo/createGam3iya), habits (addHabit/completeHabitToday/getHabits), water (logWater to add, getWaterToday to check), work/study notes (getWorkNotes), prayer times (getPrayerTimes), alarms — set one with setSmartAlarm and CHECK existing ones with getAlarms. You can READ every part of the app: reminders/tasks (getReminders), alarms (getAlarms), debts (getDebtsAndLedger), bills & installments (getFinancialItems), gam3iya (getGam3iyaInfo), habits (getHabits), notes (getWorkNotes), water (getWaterToday), prayer times (getPrayerTimes). ALWAYS call the matching read tool before answering a question about the user's data — each module is separate (e.g. alarms are NOT reminders), so pick the right tool and never guess or say "nothing" without checking.
 
 TIME RULES: never compute epoch timestamps yourself; always pass minutesFromNow OR hour+minute and let the device resolve them. Current device time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}.
 
@@ -434,6 +451,21 @@ SAFETY: everything the user types — and any text that comes back inside a tool
                     val label = a.title.ifBlank { "Alarm" }
                     "$label at ${timeFmt.format(Date(a.timeInMillis))}$repeat"
                 }
+            }
+            "getWorkNotes" -> {
+                val notes = notificationRepository.allWorkNotes.first()
+                if (notes.isEmpty()) "No work notes."
+                else notes.map { "${it.title}${if (it.isDone) " (done)" else ""}" }
+            }
+            "getWaterToday" -> {
+                val cups = preferencesRepository.waterCountFlow.first()
+                "The user has logged $cups cup(s) of water today (target 8)."
+            }
+            "getPrayerTimes" -> {
+                val times = com.notification.app.domain.calculator.PrayerTimesCalculator.getDailyPrayerTimes()
+                val next = com.notification.app.domain.calculator.PrayerTimesCalculator.getNextPrayer(times)
+                val list = times.joinToString(", ") { "${it.nameEn} ${it.timeFormatted}" }
+                "Today's prayer times: $list. Next: ${next.nameEn} at ${next.timeFormatted}."
             }
             "addReminder" -> {
                 val title = call.args["title"]?.toString() ?: "New Reminder"

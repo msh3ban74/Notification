@@ -32,7 +32,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     val repository = NotificationRepository(db)
     val preferencesRepository = UserPreferencesRepository(application)
-    private val geminiRepository = GeminiRepository(repository)
+    private val geminiRepository = GeminiRepository(repository, preferencesRepository)
 
     // User Preferences State
     val language: StateFlow<String> = preferencesRepository.languageFlow
