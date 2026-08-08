@@ -139,11 +139,18 @@ fun AlarmRingingScreen(
             kotlinx.coroutines.delay(1000)
         }
     }
-    val timeFormat = androidx.compose.runtime.remember {
-        java.text.SimpleDateFormat("hh:mm", java.util.Locale.getDefault())
+    // Honour the phone's 24-hour setting: a device on 24h shows "20:05" with
+    // no AM/PM, a 12h device shows "08:05 م". Digits follow the app language.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val is24Hour = androidx.compose.runtime.remember {
+        android.text.format.DateFormat.is24HourFormat(ctx)
     }
-    val ampmFormat = androidx.compose.runtime.remember {
-        java.text.SimpleDateFormat("a", java.util.Locale.getDefault())
+    val clockLocale = if (isArabic) java.util.Locale("ar") else java.util.Locale.ENGLISH
+    val timeFormat = androidx.compose.runtime.remember(is24Hour) {
+        java.text.SimpleDateFormat(if (is24Hour) "HH:mm" else "hh:mm", clockLocale)
+    }
+    val ampmFormat = androidx.compose.runtime.remember(is24Hour) {
+        if (is24Hour) null else java.text.SimpleDateFormat("a", clockLocale)
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -185,13 +192,15 @@ fun AlarmRingingScreen(
                         ),
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = ampmFormat.format(java.util.Date(nowMillis.value)),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(bottom = 14.dp)
-                    )
+                    if (ampmFormat != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = ampmFormat.format(java.util.Date(nowMillis.value)),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(bottom = 14.dp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
