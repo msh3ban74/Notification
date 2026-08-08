@@ -80,10 +80,19 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           # Extra AI keys reach BuildConfig via System.getenv() in
           # build.gradle.kts — never through .env, so an unset secret
-          # safely compiles to "".
+          # safely compiles to "". To add a new key later, just create the
+          # matching GitHub Secret (already wired below) and re-run a build.
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5: ${{ secrets.GEMINI_API_KEY_5 }}
+          # One secret holding a comma-separated list → unlimited keys.
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
+          # Future providers — set these secrets when you add them.
+          CLAUDE_API_KEYS: ${{ secrets.CLAUDE_API_KEYS }}
+          OPENAI_API_KEYS: ${{ secrets.OPENAI_API_KEYS }}
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Remove keystore file
