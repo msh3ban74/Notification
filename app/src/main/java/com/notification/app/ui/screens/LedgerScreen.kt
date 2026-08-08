@@ -30,6 +30,7 @@ import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
 import kotlinx.coroutines.flow.Flow
 import com.notification.app.domain.calculator.LedgerCalculator
+import com.notification.app.domain.calculator.MoneyFormat
 import com.notification.app.domain.calculator.LedgerStatus
 import com.notification.app.domain.calculator.LedgerSummary
 import com.notification.app.domain.model.LedgerTransactionType
@@ -362,8 +363,8 @@ fun PersonLedgerSummaryCard(
     // QA fix: the Arabic copy here was reversed (showed "he demands from
     // you" for money owed TO you). Correct: THEY_OWE_ME = «لك عنده».
     val statusText = when (summary.status) {
-        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${summary.netAmount} ج.م" else "They owe you ${summary.netAmount} EGP"
-        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${summary.netAmount} ج.م" else "You owe them ${summary.netAmount} EGP"
+        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${MoneyFormat.format(summary.netAmount)} ج.م" else "They owe you ${MoneyFormat.format(summary.netAmount)} EGP"
+        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${MoneyFormat.format(summary.netAmount)} ج.م" else "You owe them ${MoneyFormat.format(summary.netAmount)} EGP"
         LedgerStatus.SETTLED -> if (isArabic) "مسدد بالكامل (خالص)" else "Settled / Even"
     }
 
@@ -552,8 +553,8 @@ fun PersonDetailScreen(
                     )
 
                     val netString = when (summary.status) {
-                        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${summary.netAmount} ج.م" else "Owed to you: ${summary.netAmount} EGP"
-                        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${summary.netAmount} ج.م" else "You owe: ${summary.netAmount} EGP"
+                        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${MoneyFormat.format(summary.netAmount)} ج.م" else "Owed to you: ${MoneyFormat.format(summary.netAmount)} EGP"
+                        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${MoneyFormat.format(summary.netAmount)} ج.م" else "You owe: ${MoneyFormat.format(summary.netAmount)} EGP"
                         LedgerStatus.SETTLED -> if (isArabic) "الحساب مسدد بالكامل" else "Fully settled"
                     }
 
@@ -733,7 +734,7 @@ fun PersonDetailScreen(
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "${tx.amount} EGP",
+                                        text = "${MoneyFormat.format(tx.amount)} ${if (isArabic) "ج.م" else "EGP"}",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = if (txType.isGivingToThem) Success else Error

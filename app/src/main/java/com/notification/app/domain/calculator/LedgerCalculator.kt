@@ -49,7 +49,9 @@ object LedgerCalculator {
         }
 
         return LedgerSummary(
-            netAmount = abs(netAmount),
+            // Round to the piastre so accumulated Double error never leaks a
+            // trailing "…0000002" into a balance the user reads.
+            netAmount = Math.round(abs(netAmount) * 100.0) / 100.0,
             status = status,
             totalLent = totalLent,
             totalBorrowed = totalBorrowed,
