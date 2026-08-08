@@ -1,5 +1,6 @@
 package com.notification.app.data.repository
 
+import androidx.room.withTransaction
 import com.notification.app.data.local.AppDatabase
 import com.notification.app.data.local.entities.*
 import com.notification.app.domain.calculator.Gam3iyaCalculator
@@ -18,6 +19,7 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun insertReminder(reminder: ReminderEntity): Long = db.reminderDao().insertReminder(reminder)
     suspend fun updateReminder(reminder: ReminderEntity) = db.reminderDao().updateReminder(reminder)
     suspend fun deleteReminder(reminder: ReminderEntity) = db.reminderDao().deleteReminder(reminder)
+    suspend fun deleteReminderById(id: Long) = db.reminderDao().deleteReminderById(id)
     suspend fun getReminderById(id: Long): ReminderEntity? = db.reminderDao().getReminderById(id)
 
     // Ledger & Person
@@ -40,6 +42,23 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun deleteLedgerTransaction(tx: LedgerTransactionEntity) =
         db.personLedgerDao().deleteTransaction(tx)
 
+    // ── Sprint 5 — person edit + cascade delete + attachments ─────────
+    suspend fun updatePerson(person: PersonEntity) = db.personLedgerDao().updatePerson(person)
+    suspend fun deletePersonCascade(person: PersonEntity) = db.withTransaction {
+        // Atomic: a crash mid-delete can never leave a person's transactions
+        // or attachments orphaned (or vice-versa).
+        db.personLedgerDao().deleteTransactionsForPerson(person.id)
+        db.personLedgerDao().deleteLedgerAttachmentsForPerson(person.id)
+        db.personLedgerDao().deletePerson(person)
+    }
+    val allLedgerAttachments: Flow<List<LedgerAttachmentEntity>> = db.personLedgerDao().getAllLedgerAttachments()
+    fun getAttachmentsForPerson(personId: Long): Flow<List<LedgerAttachmentEntity>> =
+        db.personLedgerDao().getAttachmentsForPerson(personId)
+    suspend fun insertLedgerAttachment(a: LedgerAttachmentEntity): Long =
+        db.personLedgerDao().insertLedgerAttachment(a)
+    suspend fun deleteLedgerAttachment(a: LedgerAttachmentEntity) =
+        db.personLedgerDao().deleteLedgerAttachment(a)
+
     // Gam3iya
     val allGam3iyas: Flow<List<Gam3iyaEntity>> = db.gam3iyaDao().getAllGam3iyas()
 
@@ -54,7 +73,9 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun createGam3iyaWithMembers(
         gam3iya: Gam3iyaEntity,
         memberNamesWithTurns: List<Pair<String, Int>>
-    ): Long {
+    ): Long = db.withTransaction {
+        // Atomic: the gam3iya and its members are inserted together, so a
+        // crash can't leave a memberless gam3iya.
         val gam3iyaId = db.gam3iyaDao().insertGam3iya(gam3iya)
         val members = memberNamesWithTurns.map { (name, turn) ->
             val payoutDate = Gam3iyaCalculator.calculateMemberPayoutDate(gam3iya.startDate, turn)
@@ -66,13 +87,42 @@ class NotificationRepository(private val db: AppDatabase) {
             )
         }
         db.gam3iyaDao().insertMembers(members)
-        return gam3iyaId
+        gam3iyaId
     }
 
     suspend fun updateGam3iyaMember(member: Gam3iyaMemberEntity) =
         db.gam3iyaDao().updateMember(member)
 
-    suspend fun deleteGam3iya(gam3iya: Gam3iyaEntity) = db.gam3iyaDao().deleteGam3iya(gam3iya)
+    suspend fun deleteGam3iya(gam3iya: Gam3iyaEntity) = db.withTransaction {
+        // Cascade — the tables have no FK, so clear children explicitly, and
+        // atomically so a crash can't half-delete a gam3iya.
+        db.gam3iyaDao().deleteMembersForGam3iya(gam3iya.id)
+        db.gam3iyaDao().deletePaymentsForGam3iya(gam3iya.id)
+        db.gam3iyaDao().deleteAttachmentsForGam3iya(gam3iya.id)
+        db.gam3iyaDao().deleteGam3iya(gam3iya)
+    }
+
+    // ── Sprint 4 — professional Gam3iya management ─────────────────────
+    suspend fun insertGam3iya(gam3iya: Gam3iyaEntity): Long = db.gam3iyaDao().insertGam3iya(gam3iya)
+    suspend fun updateGam3iya(gam3iya: Gam3iyaEntity) = db.gam3iyaDao().updateGam3iya(gam3iya)
+    suspend fun insertGam3iyaMember(member: Gam3iyaMemberEntity): Long =
+        db.gam3iyaDao().insertMember(member)
+    suspend fun deleteGam3iyaMember(member: Gam3iyaMemberEntity) = db.gam3iyaDao().deleteMember(member)
+    suspend fun getGam3iyaMemberById(id: Long): Gam3iyaMemberEntity? = db.gam3iyaDao().getMemberById(id)
+
+    val allGam3iyaPayments: Flow<List<Gam3iyaPaymentEntity>> = db.gam3iyaDao().getAllPayments()
+    fun getPaymentsForGam3iya(gam3iyaId: Long): Flow<List<Gam3iyaPaymentEntity>> =
+        db.gam3iyaDao().getPaymentsForGam3iya(gam3iyaId)
+    suspend fun insertGam3iyaPayment(payment: Gam3iyaPaymentEntity): Long =
+        db.gam3iyaDao().insertPayment(payment)
+    suspend fun deleteGam3iyaPayment(payment: Gam3iyaPaymentEntity) = db.gam3iyaDao().deletePayment(payment)
+
+    val allGam3iyaAttachments: Flow<List<Gam3iyaAttachmentEntity>> = db.gam3iyaDao().getAllAttachments()
+    fun getAttachmentsForGam3iya(gam3iyaId: Long): Flow<List<Gam3iyaAttachmentEntity>> =
+        db.gam3iyaDao().getAttachmentsForGam3iya(gam3iyaId)
+    suspend fun insertGam3iyaAttachment(a: Gam3iyaAttachmentEntity): Long =
+        db.gam3iyaDao().insertAttachment(a)
+    suspend fun deleteGam3iyaAttachment(a: Gam3iyaAttachmentEntity) = db.gam3iyaDao().deleteAttachment(a)
 
     // Alarms
     val allAlarms: Flow<List<AlarmEntity>> = db.alarmDao().getAllAlarms()
@@ -87,7 +137,25 @@ class NotificationRepository(private val db: AppDatabase) {
     val allFinancialItems: Flow<List<FinancialItemEntity>> = db.financialDao().getAll()
     suspend fun insertFinancialItem(item: FinancialItemEntity): Long = db.financialDao().insert(item)
     suspend fun updateFinancialItem(item: FinancialItemEntity) = db.financialDao().update(item)
-    suspend fun deleteFinancialItem(item: FinancialItemEntity) = db.financialDao().delete(item)
+    suspend fun deleteFinancialItem(item: FinancialItemEntity) {
+        db.financialDao().deletePaymentsForItem(item.id)
+        db.financialDao().deleteAttachmentsForItem(item.id)
+        db.financialDao().delete(item)
+    }
+    suspend fun getFinancialItemById(id: Long): FinancialItemEntity? = db.financialDao().getById(id)
+
+    // ── Sprint 6 — installment payment history + attachments ──────────
+    val allFinancialPayments: Flow<List<FinancialPaymentEntity>> = db.financialDao().getAllFinancialPayments()
+    fun getPaymentsForFinancialItem(itemId: Long): Flow<List<FinancialPaymentEntity>> =
+        db.financialDao().getPaymentsForItem(itemId)
+    suspend fun insertFinancialPayment(p: FinancialPaymentEntity): Long = db.financialDao().insertPayment(p)
+    suspend fun deleteFinancialPayment(p: FinancialPaymentEntity) = db.financialDao().deletePayment(p)
+
+    val allFinancialAttachments: Flow<List<FinancialAttachmentEntity>> = db.financialDao().getAllFinancialAttachments()
+    fun getAttachmentsForFinancialItem(itemId: Long): Flow<List<FinancialAttachmentEntity>> =
+        db.financialDao().getAttachmentsForItem(itemId)
+    suspend fun insertFinancialAttachment(a: FinancialAttachmentEntity): Long = db.financialDao().insertAttachment(a)
+    suspend fun deleteFinancialAttachment(a: FinancialAttachmentEntity) = db.financialDao().deleteAttachment(a)
 
     // Phase C — habit engine. A habit is "done today" when a log row
     // exists for today's local-midnight dayStart; toggling deletes or
@@ -117,4 +185,12 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun insertWorkNote(note: WorkNoteEntity): Long = db.workNoteDao().insertNote(note)
     suspend fun updateWorkNote(note: WorkNoteEntity) = db.workNoteDao().updateNote(note)
     suspend fun deleteWorkNote(note: WorkNoteEntity) = db.workNoteDao().deleteNote(note)
+
+    // General memory — free-form facts Rafeeq keeps for the user.
+    val allMemories: Flow<List<MemoryEntity>> = db.memoryDao().getAllMemories()
+    suspend fun insertMemory(memory: MemoryEntity): Long = db.memoryDao().insertMemory(memory)
+    suspend fun searchMemories(query: String): List<MemoryEntity> = db.memoryDao().searchMemories(query)
+    suspend fun getAllMemoriesOnce(): List<MemoryEntity> = db.memoryDao().getAllMemoriesOnce()
+    suspend fun deleteMemory(memory: MemoryEntity) = db.memoryDao().deleteMemory(memory)
+    suspend fun deleteMemoryById(id: Long) = db.memoryDao().deleteMemoryById(id)
 }

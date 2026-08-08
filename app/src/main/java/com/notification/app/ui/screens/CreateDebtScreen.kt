@@ -9,7 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -74,6 +74,7 @@ fun CreateDebtScreen(
         personName: String,
         amount: Double,
         isLent: Boolean,
+        receivedDate: Long,
         dueDate: Long?,
         note: String
     ) -> Unit,
@@ -85,10 +86,12 @@ fun CreateDebtScreen(
 
     var amountText by remember { mutableStateOf("") }
     var isLent by remember { mutableStateOf(true) } // true = I lent them money
+    var receivedDateMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var dueDateMillis by remember { mutableStateOf<Long?>(null) }
     var note by remember { mutableStateOf("") }
 
     var showDatePicker by remember { mutableStateOf(false) }
+    var showReceivedPicker by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()) }
 
     val amount = amountText.toDoubleOrNull() ?: 0.0
@@ -111,7 +114,7 @@ fun CreateDebtScreen(
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = if (isArabic) "رجوع" else "Back"
                         )
                     }
@@ -141,15 +144,6 @@ fun CreateDebtScreen(
                         personDropdownExpanded = true
                     },
                     label = { Text(if (isArabic) "الشخص" else "Person") },
-                    supportingText = {
-                        Text(
-                            text = if (selectedPerson != null) {
-                                if (isArabic) "شخص موجود في دفتر الديون" else "Existing ledger contact"
-                            } else {
-                                if (isArabic) "اكتب اسمًا جديدًا أو اختر من القائمة" else "Type a new name or pick from the list"
-                            }
-                        )
-                    },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = personDropdownExpanded)
                     },
@@ -207,10 +201,23 @@ fun CreateDebtScreen(
                 }
             }
 
+            // متى استُلم المبلغ فعليًا — يظهر في السجل وفي بطاقة المشاركة.
+            PickerField(
+                value = dateFormat.format(Date(receivedDateMillis)),
+                label = if (isArabic) {
+                    if (isLent) "تاريخ إعطاء المبلغ" else "تاريخ استلام المبلغ"
+                } else {
+                    if (isLent) "Date given" else "Date received"
+                },
+                icon = Icons.Default.CalendarMonth,
+                onClick = { showReceivedPicker = true },
+                modifier = Modifier.fillMaxWidth()
+            )
+
             PickerField(
                 value = dueDateMillis?.let { dateFormat.format(Date(it)) }
-                    ?: if (isArabic) "بدون تاريخ استحقاق" else "No due date",
-                label = if (isArabic) "تاريخ الاستحقاق (اختياري)" else "Due date (optional)",
+                    ?: if (isArabic) "بدون تاريخ سداد" else "No due date",
+                label = if (isArabic) "تاريخ السداد (مع تذكير)" else "Repayment date (with reminder)",
                 icon = Icons.Default.CalendarMonth,
                 onClick = { showDatePicker = true },
                 modifier = Modifier.fillMaxWidth()
@@ -233,6 +240,7 @@ fun CreateDebtScreen(
                         personName.trim(),
                         amount,
                         isLent,
+                        receivedDateMillis,
                         dueDateMillis,
                         note.trim()
                     )
@@ -286,6 +294,41 @@ fun CreateDebtScreen(
             }
         ) {
             DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showReceivedPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = receivedDateMillis)
+        DatePickerDialog(
+            onDismissRequest = { showReceivedPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        state.selectedDateMillis?.let { utcMillis ->
+                            val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                timeInMillis = utcMillis
+                            }
+                            receivedDateMillis = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                                set(Calendar.HOUR_OF_DAY, 12)
+                                set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+                        }
+                        showReceivedPicker = false
+                    }
+                ) { Text(if (isArabic) "تم" else "OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReceivedPicker = false }) {
+                    Text(if (isArabic) "إلغاء" else "Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = state)
         }
     }
 }

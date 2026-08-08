@@ -33,11 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.notification.app.domain.scheduler.AlarmManagerScheduler
 import com.notification.app.service.AlarmService
-import com.notification.app.ui.theme.MaroonContainerDark
-import com.notification.app.ui.theme.OnPrimary
 import com.notification.app.ui.theme.MaroonPrimary
 import com.notification.app.ui.theme.NotificationTheme
-import com.notification.app.ui.theme.PlatinumDarkBackground
+import com.notification.app.ui.theme.Primary
+import com.notification.app.ui.theme.PrimaryDark
 
 class AlarmRingingActivity : ComponentActivity() {
 
@@ -69,7 +68,7 @@ class AlarmRingingActivity : ComponentActivity() {
         val isArabic = java.util.Locale.getDefault().language == "ar"
 
         setContent {
-            NotificationTheme(darkTheme = true, isArabic = isArabic) {
+            NotificationTheme(isArabic = isArabic) {
                 AlarmRingingScreen(
                     title = title,
                     note = note,
@@ -140,11 +139,18 @@ fun AlarmRingingScreen(
             kotlinx.coroutines.delay(1000)
         }
     }
-    val timeFormat = androidx.compose.runtime.remember {
-        java.text.SimpleDateFormat("hh:mm", java.util.Locale.getDefault())
+    // Honour the phone's 24-hour setting: a device on 24h shows "20:05" with
+    // no AM/PM, a 12h device shows "08:05 م". Digits follow the app language.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val is24Hour = androidx.compose.runtime.remember {
+        android.text.format.DateFormat.is24HourFormat(ctx)
     }
-    val ampmFormat = androidx.compose.runtime.remember {
-        java.text.SimpleDateFormat("a", java.util.Locale.getDefault())
+    val clockLocale = if (isArabic) java.util.Locale("ar") else java.util.Locale.ENGLISH
+    val timeFormat = androidx.compose.runtime.remember(is24Hour) {
+        java.text.SimpleDateFormat(if (is24Hour) "HH:mm" else "hh:mm", clockLocale)
+    }
+    val ampmFormat = androidx.compose.runtime.remember(is24Hour) {
+        if (is24Hour) null else java.text.SimpleDateFormat("a", clockLocale)
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -162,8 +168,10 @@ fun AlarmRingingScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(
+                // Vivid wake-up: a deep→electric indigo wash. White clock
+                // and text stay perfectly readable on it.
                 Brush.verticalGradient(
-                    colors = listOf(PlatinumDarkBackground, MaroonContainerDark, Color(0xFF140307))
+                    colors = listOf(PrimaryDark, Primary, Color(0xFF6366F1))
                 )
             )
             .padding(24.dp),
@@ -184,13 +192,15 @@ fun AlarmRingingScreen(
                         ),
                         color = Color.White
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = ampmFormat.format(java.util.Date(nowMillis.value)),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(bottom = 14.dp)
-                    )
+                    if (ampmFormat != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = ampmFormat.format(java.util.Date(nowMillis.value)),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(bottom = 14.dp)
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -201,18 +211,18 @@ fun AlarmRingingScreen(
                 modifier = Modifier
                     .size(160.dp)
                     .scale(pulseScale)
-                    .background(MaroonPrimary.copy(alpha = 0.25f), shape = CircleShape)
+                    .background(Color.White.copy(alpha = 0.22f), shape = CircleShape)
             ) {
                 Box(
                     modifier = Modifier
                         .size(110.dp)
-                        .background(MaroonPrimary, shape = CircleShape),
+                        .background(Color.White, shape = CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = iconForCategory(category),
-                        contentDescription = "Ringing Icon",
-                        tint = Color.White,
+                        contentDescription = null,
+                        tint = MaroonPrimary,
                         modifier = Modifier.size(56.dp)
                     )
                 }
@@ -252,7 +262,7 @@ fun AlarmRingingScreen(
                 Text(
                     text = note,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color.LightGray,
+                    color = Color.White.copy(alpha = 0.85f),
                     textAlign = TextAlign.Center
                 )
             }
@@ -267,8 +277,8 @@ fun AlarmRingingScreen(
                 Button(
                     onClick = onSnooze,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        containerColor = Color.White.copy(alpha = 0.18f),
+                        contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier
@@ -276,7 +286,7 @@ fun AlarmRingingScreen(
                         .height(56.dp)
                         .padding(end = 8.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Snooze, contentDescription = "Snooze")
+                    Icon(imageVector = Icons.Default.Snooze, contentDescription = if (isArabic) "غفوة" else "Snooze")
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (isArabic) "غفوة $snoozeMinutes د" else "Snooze $snoozeMinutes m",
@@ -287,8 +297,8 @@ fun AlarmRingingScreen(
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaroonPrimary,
-                        contentColor = OnPrimary
+                        containerColor = Color.White,
+                        contentColor = MaroonPrimary
                     ),
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier
@@ -296,7 +306,7 @@ fun AlarmRingingScreen(
                         .height(56.dp)
                         .padding(start = 8.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Check, contentDescription = "Dismiss")
+                    Icon(imageVector = Icons.Default.Check, contentDescription = if (isArabic) "إيقاف" else "Dismiss")
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = if (isArabic) "تم" else "Done", fontWeight = FontWeight.Bold)
                 }

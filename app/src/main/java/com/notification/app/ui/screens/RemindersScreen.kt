@@ -91,20 +91,25 @@ fun RemindersScreen(
                 contentColor = OnPrimary,
                 shape = CircleShape
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Reminder")
+                Icon(imageVector = Icons.Default.Add, contentDescription = if (isArabic) "إضافة تذكير" else "Add reminder")
             }
         }
     ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        // Rafeeq DNA — the «المهام» atmosphere: mint morning.
+        com.notification.app.ui.components.RafeeqAtmosphere(
+            palette = com.notification.app.ui.components.RafeeqWeather.Tasks,
+            modifier = Modifier.fillMaxWidth().height(230.dp)
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
 
-            // Header Title
+            // Headline (product mock).
             Text(
-                text = if (isArabic) "التذكيرات والتنبيهات" else "Reminders & Alerts",
+                text = if (isArabic) "التذكيرات والمهام" else "Reminders & Tasks",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -204,9 +209,7 @@ fun RemindersScreen(
                 com.notification.app.ui.components.EmptyState(
                     icon = Icons.Default.EventAvailable,
                     title = if (isArabic) "لا توجد تذكيرات حالياً" else "No Reminders Found",
-                    subtitle = if (isArabic) "مساحتك صافية — سجّل ما يشغل بالك وسيتولى رفيق تذكيرك في الوقت المناسب" else "All clear — capture what matters and Rafeeq will remind you right on time",
-                    actionLabel = if (isArabic) "أضف مهمة" else "Add Task",
-                    onAction = { onCreateTask?.invoke() }
+                    subtitle = if (isArabic) "أضف مهمة أو تذكيرًا وسيصلك تنبيه في موعده" else "Add a task or reminder and you'll be alerted on time"
                 )
             } else {
                 LazyColumn(
@@ -234,6 +237,7 @@ fun RemindersScreen(
                 }
             }
         }
+        }
     }
 
 }
@@ -253,6 +257,16 @@ fun DetailedReminderCard(
     onDuplicate: (() -> Unit)? = null
 ) {
     val category = ReminderCategory.fromString(reminder.category)
+
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        com.notification.app.ui.components.ConfirmDeleteDialog(
+            isArabic = isArabic,
+            itemLabel = reminder.title,
+            onConfirm = onDelete,
+            onDismiss = { confirmDelete = false }
+        )
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -282,7 +296,7 @@ fun DetailedReminderCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Phase D — pin toggle; pinned items always sort first.
                     if (onTogglePin != null) {
-                        IconButton(onClick = onTogglePin, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = onTogglePin, modifier = Modifier.size(44.dp)) {
                             Icon(
                                 imageVector = if (reminder.isPinned) Icons.Filled.PushPin
                                 else Icons.Outlined.PushPin,
@@ -346,7 +360,7 @@ fun DetailedReminderCard(
                         IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit",
+                                contentDescription = if (isArabic) "تعديل" else "Edit",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -357,7 +371,7 @@ fun DetailedReminderCard(
                         IconButton(onClick = onDuplicate, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 imageVector = Icons.Default.ContentCopy,
-                                contentDescription = "Duplicate",
+                                contentDescription = if (isArabic) "تكرار" else "Duplicate",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -366,7 +380,7 @@ fun DetailedReminderCard(
                     IconButton(onClick = onShare, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Share,
-                            contentDescription = "Share",
+                            contentDescription = if (isArabic) "مشاركة" else "Share",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
@@ -383,10 +397,10 @@ fun DetailedReminderCard(
                             )
                         }
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { confirmDelete = true }, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete",
+                            contentDescription = if (isArabic) "حذف" else "Delete",
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(20.dp)
                         )
@@ -411,9 +425,9 @@ private fun shareReminderText(
     dateFormat: SimpleDateFormat
 ) {
     val text = if (isArabic) {
-        "📌 تذكير: ${reminder.title}\n📅 الموعد: ${dateFormat.format(Date(reminder.dueDate))}\n📝 تفاصيل: ${reminder.note}\nأُرسل عبر تطبيق رفيق"
+        "تذكير: ${reminder.title}\nالموعد: ${dateFormat.format(Date(reminder.dueDate))}\nتفاصيل: ${reminder.note}\n— تطبيق رفيق"
     } else {
-        "📌 Reminder: ${reminder.title}\n📅 Due Date: ${dateFormat.format(Date(reminder.dueDate))}\n📝 Note: ${reminder.note}\nSent via Rafeeq"
+        "Reminder: ${reminder.title}\nDue: ${dateFormat.format(Date(reminder.dueDate))}\nNote: ${reminder.note}\n— Rafeeq"
     }
 
     val intent = Intent(Intent.ACTION_SEND).apply {

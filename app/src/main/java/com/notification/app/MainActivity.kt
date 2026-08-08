@@ -36,16 +36,25 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     object Splash : Screen("splash", "Splash", "البداية", Icons.Default.Notifications)
 
     // Sprint 1 — the four primary Bottom Navigation destinations.
-    object Dashboard : Screen("dashboard", "Dashboard", "الرئيسية", Icons.Default.Dashboard)
+    object Dashboard : Screen("dashboard", "My Day", "يومك", Icons.Default.Dashboard)
     object AiChat : Screen("ai_chat", "AI Assistant", "المساعد الذكي", Icons.Default.AutoAwesome)
     object Tasks : Screen("tasks", "Tasks", "المهام", Icons.Default.Assignment)
     object Notifications : Screen("notifications", "Notifications", "الإشعارات", Icons.Default.NotificationsActive)
 
-    // Existing feature screens — kept fully intact and reachable from
-    // Dashboard's Quick Actions, but no longer shown in Bottom Navigation.
-    object Home : Screen("home", "Home", "الرئيسية", Icons.Default.Home)
-    object Reminders : Screen("reminders", "Reminders", "التذكيرات", Icons.Default.NotificationsActive)
-    object Ledger : Screen("ledger", "Ledger", "دفتر الديون", Icons.Default.AccountBalanceWallet)
+    // Existing feature screens — reachable from Dashboard's Quick Actions,
+    // not shown in Bottom Navigation. (The old Home surface + its duplicate
+    // Reminders route were removed — Dashboard is the home surface and the
+    // Tasks route hosts the live reminders screen.)
+    object Ledger : Screen("ledger", "Debts", "الديون", Icons.Default.AccountBalanceWallet)
+
+    // Opens the Debts screen straight into one person's detail (from the
+    // dashboard money card). Separate route so the Debts bottom-nav tab
+    // selection logic is untouched.
+    object LedgerPerson : Screen(
+        "ledger_person/{personId}", "Debts", "الديون", Icons.Default.AccountBalanceWallet
+    ) {
+        fun createRoute(personId: Long) = "ledger_person/$personId"
+    }
     object Gam3iya : Screen("gam3iya", "Gam3iya", "الجمعيات", Icons.Default.Group)
     object Islamic : Screen("islamic", "Islamic", "إسلاميات", Icons.Default.Mosque)
     object HealthNotes : Screen("health_notes", "Health/Notes", "الصحة", Icons.Default.WaterDrop)
@@ -68,6 +77,10 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
     // Sprint 4 — Smart Debt: reuses the existing Ledger implementation.
     object CreateDebt : Screen("create_debt", "New Debt", "دين جديد", Icons.Default.Add)
 
+    // «مناسباتك» — weddings, birthdays, gatherings: a dedicated form that
+    // rides the reminder pipeline (pre-alerts included).
+    object CreateEvent : Screen("create_event", "New Occasion", "مناسبة جديدة", Icons.Default.Add)
+
     // Sprint 5 — Bill / Appointment / Medicine: the SAME shared reminder
     // form as Task, parametrized per type (SmartReminderFormConfig). One
     // pipeline, zero duplicated forms.
@@ -77,9 +90,8 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
         fun createRoute(itemId: String) = "create_smart/$itemId"
     }
 
-    // Sprint 5 — Smart Gam3iya: reuses the existing Gam3iya implementation
-    // (viewModel.createGam3iya → createGam3iyaWithMembers).
-    object CreateGam3iya : Screen("create_gam3iya", "New Gam3iya", "جمعية جديدة", Icons.Default.Add)
+    // جمعية أنا فيها — participant-only tracking form.
+    object CreateGam3iya : Screen("create_gam3iya", "My Gam3iya", "جمعيتي", Icons.Default.Add)
 
     // Stability sprint — Smart Alarm: reuses the existing AlarmEntity +
     // addAlarm + AlarmManagerScheduler pipeline.
@@ -101,11 +113,21 @@ sealed class Screen(val route: String, val titleEn: String, val titleAr: String,
         fun createRoute(itemId: Long) = "edit_financial/$itemId"
     }
 
+    // Installment payment-plan detail (payments, history, attachments).
+    object InstallmentDetail : Screen(
+        "installment_detail/{itemId}", "Installment", "قسط", Icons.Default.CreditCard
+    ) {
+        fun createRoute(itemId: Long) = "installment_detail/$itemId"
+    }
+
     // The money list (bills / installments / subscriptions).
     object Financial : Screen("financial", "Money", "المالية", Icons.Default.AccountBalanceWallet)
 
     // Final Product sprint (Phase C) — the habit engine screen.
     object Habits : Screen("habits", "Habits", "العادات", Icons.Default.Add)
+
+    // Global search across every module.
+    object Search : Screen("search", "Search", "بحث", Icons.Default.Search)
 }
 
 class MainActivity : ComponentActivity() {
@@ -114,6 +136,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Rafeeq Vivid is light-only: dark status/navigation bar icons so
+        // they stay readable over the white canvas.
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
 
         setContent {
             val language by viewModel.language.collectAsState()
@@ -129,7 +158,6 @@ class MainActivity : ComponentActivity() {
             val persons by viewModel.allPersons.collectAsState()
             val transactions by viewModel.allTransactions.collectAsState()
             val gam3iyas by viewModel.allGam3iyas.collectAsState()
-            val gam3iyaMembers by viewModel.allGam3iyaMembers.collectAsState()
             val alarms by viewModel.allAlarms.collectAsState()
             val financialItems by viewModel.allFinancialItems.collectAsState()
             val habits by viewModel.allHabits.collectAsState()
@@ -138,15 +166,14 @@ class MainActivity : ComponentActivity() {
             val workNotes by viewModel.allWorkNotes.collectAsState()
             val chatMessages by viewModel.chatMessages.collectAsState()
             val isAiLoading by viewModel.isAiLoading.collectAsState()
-            val aiSuggestions by viewModel.aiSuggestions.collectAsState()
-            val aiSuggestionsLoading by viewModel.aiSuggestionsLoading.collectAsState()
             val waterCount by viewModel.waterCount.collectAsState()
 
             val isArabic = language == "ar"
             val layoutDirection = if (isArabic) LayoutDirection.Rtl else LayoutDirection.Ltr
 
-            // Stability sprint — Rafeeq is officially dark-theme only.
-            NotificationTheme(darkTheme = true, isArabic = isArabic) {
+            // Rafeeq Vivid — light-only by design (white canvas, indigo
+            // identity, green for done). No dark theme, on purpose.
+            NotificationTheme(isArabic = isArabic) {
                 // Ask for the notification permission on first launch so
                 // alerts and alarms can actually appear (Android 13+).
                 com.notification.app.ui.permissions.RequestCorePermissions()
@@ -167,9 +194,10 @@ class MainActivity : ComponentActivity() {
                     // primary destinations. Settings is intentionally
                     // excluded — it's reachable only from the Top App Bar's
                     // profile button.
+                    // Chat-first: Rafeeq (the assistant) leads the navigation.
                     val bottomBarScreens = listOf(
-                        Screen.Dashboard,
                         Screen.AiChat,
+                        Screen.Dashboard,
                         Screen.Tasks,
                         Screen.Notifications
                     )
@@ -190,40 +218,25 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         if (isArabic) "رفيق" else "Rafeeq"
                                     },
-                                    onProfileClick = { navController.navigate(Screen.Settings.route) }
+                                    onProfileClick = { navController.navigate(Screen.Settings.route) },
+                                    onSearchClick = { navController.navigate(Screen.Search.route) }
                                 )
                             }
                         },
                         bottomBar = {
                             if (showChrome) {
-                                NavigationBar {
-                                    bottomBarScreens.forEach { screen ->
-                                        NavigationBarItem(
-                                            selected = currentRoute == screen.route,
-                                            onClick = {
-                                                navController.navigate(screen.route) {
-                                                    popUpTo(Screen.Dashboard.route) {
-                                                        saveState = true
-                                                    }
-                                                    launchSingleTop = true
-                                                    restoreState = true
-                                                }
-                                            },
-                                            icon = {
-                                                Icon(
-                                                    imageVector = screen.icon,
-                                                    contentDescription = screen.titleEn
-                                                )
-                                            },
-                                            label = {
-                                                Text(
-                                                    text = if (isArabic) screen.titleAr else screen.titleEn,
-                                                    maxLines = 1
-                                                )
-                                            }
-                                        )
+                                RafeeqFloatingNav(
+                                    screens = bottomBarScreens,
+                                    currentRoute = currentRoute,
+                                    isArabic = isArabic,
+                                    onSelect = { screen ->
+                                        navController.navigate(screen.route) {
+                                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
                                     }
-                                }
+                                )
                             }
                         },
                         floatingActionButton = {
@@ -305,8 +318,10 @@ class MainActivity : ComponentActivity() {
                                 SplashScreen(
                                     isArabic = isArabic,
                                     onSplashFinished = {
-                                        // Sprint 1: Dashboard is now the default landing screen.
-                                        val destination = if (isLoggedIn) Screen.Dashboard.route else Screen.Auth.route
+                                        // Chat-first: Rafeeq (the assistant) is the home. The
+                                        // user lands in conversation, like a general AI, not a
+                                        // dashboard of modules.
+                                        val destination = if (isLoggedIn) Screen.AiChat.route else Screen.Auth.route
                                         navController.navigate(destination) {
                                             popUpTo(Screen.Splash.route) { inclusive = true }
                                         }
@@ -315,9 +330,9 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable(Screen.Dashboard.route) {
-                                // Sprint 3/4: the Dashboard now shows REAL
-                                // summaries read from the existing Room flows
-                                // already collected above — no fake data.
+                                // «يومك» — one chronological answer to
+                                // "إيه اللي عليّا؟", read from the existing
+                                // Room flows already collected above.
                                 DashboardScreen(
                                     isArabic = isArabic,
                                     userName = userName,
@@ -326,20 +341,11 @@ class MainActivity : ComponentActivity() {
                                     persons = persons,
                                     transactions = transactions,
                                     alarms = alarms,
-                                    gam3iyaMembers = gam3iyaMembers,
                                     prayerTimes = prayerTimes,
                                     workNotes = workNotes,
                                     waterCount = waterCount,
                                     financialItems = financialItems,
-                                    aiSuggestions = aiSuggestions,
-                                    aiSuggestionsLoading = aiSuggestionsLoading,
-                                    onRefreshSuggestions = {
-                                        viewModel.refreshAiSuggestions(isArabic = isArabic)
-                                    },
-                                    onPullRefresh = {
-                                        // Pull-to-refresh: bypass the TTL cache.
-                                        viewModel.refreshAiSuggestions(isArabic = isArabic, force = true)
-                                    },
+                                    onToggleReminderDone = { viewModel.toggleReminderCompleted(it) },
                                     onWaterClick = { viewModel.incrementWater() },
                                     onAskRafeeq = { question ->
                                         // Existing assistant flow: open the AI
@@ -366,6 +372,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
+                                    onNavigateToLedgerPerson = { pid -> navController.navigate(Screen.LedgerPerson.createRoute(pid)) },
                                     onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
                                     onNavigateToIslamic = { navController.navigate(Screen.Islamic.route) },
                                     onNavigateToHealthNotes = { navController.navigate(Screen.HealthNotes.route) },
@@ -395,9 +402,10 @@ class MainActivity : ComponentActivity() {
                                         viewModel.setReminderArchived(reminder, archived)
                                     },
                                     onDuplicate = { viewModel.duplicateReminder(it) },
-                                    onCreateTask = {
-                                        navController.navigate(Screen.CreateTask.createRoute())
-                                    }
+                                    // The Tasks "+" opens the SAME organized
+                                    // sheet as the Dashboard — every type gets
+                                    // its own dedicated form.
+                                    onCreateTask = { showSmartItemSheet = true }
                                 )
                             }
 
@@ -420,40 +428,6 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            composable(Screen.Home.route) {
-                                HomeScreen(
-                                    userName = userName,
-                                    reminders = visibleReminders,
-                                    prayerTimes = prayerTimes,
-                                    isArabic = isArabic,
-                                    onNavigateToReminders = { navController.navigate(Screen.Reminders.route) },
-                                    onNavigateToLedger = { navController.navigate(Screen.Ledger.route) },
-                                    onNavigateToGam3iya = { navController.navigate(Screen.Gam3iya.route) },
-                                    onNavigateToAiChat = { navController.navigate(Screen.AiChat.route) },
-                                    onToggleReminder = { viewModel.toggleReminderCompleted(it) }
-                                )
-                            }
-
-                            composable(Screen.Reminders.route) {
-                                RemindersScreen(
-                                    reminders = reminders,
-                                    isArabic = isArabic,
-                                    onToggleReminder = { viewModel.toggleReminderCompleted(it) },
-                                    onDeleteReminder = { viewModel.deleteReminder(it) },
-                                    onEditReminder = { reminder ->
-                                        navController.navigate(Screen.CreateTask.createRoute(reminder.id))
-                                    },
-                                    onTogglePin = { viewModel.toggleReminderPinned(it) },
-                                    onSetArchived = { reminder, archived ->
-                                        viewModel.setReminderArchived(reminder, archived)
-                                    },
-                                    onDuplicate = { viewModel.duplicateReminder(it) },
-                                    onCreateTask = {
-                                        navController.navigate(Screen.CreateTask.createRoute())
-                                    }
-                                )
-                            }
-
                             composable(Screen.Ledger.route) {
                                 LedgerScreen(
                                     persons = persons,
@@ -463,18 +437,42 @@ class MainActivity : ComponentActivity() {
                                     onAddPersonFull = { viewModel.addPersonFull(it) },
                                     onAddTransaction = { viewModel.addLedgerTransaction(it) },
                                     onDeleteTransaction = { viewModel.deleteLedgerTransaction(it) },
-                                    onUpdateTransaction = { viewModel.updateLedgerTransaction(it) }
+                                    onUpdateTransaction = { viewModel.updateLedgerTransaction(it) },
+                                    onUpdatePerson = { viewModel.updatePerson(it) },
+                                    onDeletePerson = { viewModel.deletePerson(it) },
+                                    getLedgerAttachments = { id -> viewModel.getLedgerAttachmentsForPerson(id) },
+                                    onAddLedgerAttachment = { personId, uri -> viewModel.addLedgerAttachment(personId, 0, uri, "RECEIPT", "") },
+                                    onDeleteLedgerAttachment = { viewModel.deleteLedgerAttachment(it) }
+                                )
+                            }
+
+                            composable(
+                                Screen.LedgerPerson.route,
+                                arguments = listOf(navArgument("personId") { type = NavType.LongType })
+                            ) { backStackEntry ->
+                                val personId = backStackEntry.arguments?.getLong("personId")
+                                LedgerScreen(
+                                    persons = persons,
+                                    transactions = transactions,
+                                    isArabic = isArabic,
+                                    onAddPerson = { name, phone -> viewModel.addPerson(name, phone) },
+                                    onAddPersonFull = { viewModel.addPersonFull(it) },
+                                    onAddTransaction = { viewModel.addLedgerTransaction(it) },
+                                    onDeleteTransaction = { viewModel.deleteLedgerTransaction(it) },
+                                    onUpdateTransaction = { viewModel.updateLedgerTransaction(it) },
+                                    onUpdatePerson = { viewModel.updatePerson(it) },
+                                    onDeletePerson = { viewModel.deletePerson(it) },
+                                    getLedgerAttachments = { id -> viewModel.getLedgerAttachmentsForPerson(id) },
+                                    onAddLedgerAttachment = { pid, uri -> viewModel.addLedgerAttachment(pid, 0, uri, "RECEIPT", "") },
+                                    onDeleteLedgerAttachment = { viewModel.deleteLedgerAttachment(it) },
+                                    initialPersonId = personId
                                 )
                             }
 
                             composable(Screen.Gam3iya.route) {
                                 Gam3iyaScreen(
-                                    gam3iyas = gam3iyas,
-                                    isArabic = isArabic,
-                                    getMembersForGam3iya = { id -> viewModel.getMembersForGam3iya(id) },
-                                    onCreateGam3iya = { title, total, installment, members, startDate ->
-                                        viewModel.createGam3iya(title, total, installment, members, startDate)
-                                    }
+                                    viewModel = viewModel,
+                                    isArabic = isArabic
                                 )
                             }
 
@@ -492,6 +490,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     onOpenLedger = { navController.navigate(Screen.Ledger.route) },
+                                    onOpenFinancial = { navController.navigate(Screen.Financial.route) },
                                     onOpenNotifications = {
                                         navController.navigate(Screen.Notifications.route) {
                                             popUpTo(Screen.Dashboard.route) { saveState = true }
@@ -506,9 +505,21 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable(Screen.Islamic.route) {
+                                val adhkarMorning by viewModel.adhkarMorning.collectAsState()
+                                val adhkarEvening by viewModel.adhkarEvening.collectAsState()
+                                val adhkarDuha by viewModel.adhkarDuha.collectAsState()
+                                val adhkarQiyam by viewModel.adhkarQiyam.collectAsState()
                                 IslamicRemindersScreen(
                                     prayerTimes = prayerTimes,
-                                    isArabic = isArabic
+                                    isArabic = isArabic,
+                                    morningAdhkarEnabled = adhkarMorning,
+                                    eveningAdhkarEnabled = adhkarEvening,
+                                    duhaEnabled = adhkarDuha,
+                                    qiyamEnabled = adhkarQiyam,
+                                    onSetMorningAdhkar = { viewModel.setAdhkarMorning(it) },
+                                    onSetEveningAdhkar = { viewModel.setAdhkarEvening(it) },
+                                    onSetDuha = { viewModel.setAdhkarDuha(it) },
+                                    onSetQiyam = { viewModel.setAdhkarQiyam(it) }
                                 )
                             }
 
@@ -527,6 +538,10 @@ class MainActivity : ComponentActivity() {
                             composable(Screen.Settings.route) {
                                 val backupState by viewModel.backupState.collectAsState()
                                 val restoreState by viewModel.restoreState.collectAsState()
+                                val fileBackupState by viewModel.fileBackupState.collectAsState()
+                                val fileRestoreState by viewModel.fileRestoreState.collectAsState()
+                                val restorePreview by viewModel.restorePreview.collectAsState()
+                                val autoCloudBackup by viewModel.autoCloudBackup.collectAsState()
                                 SettingsScreen(
                                     currentLanguage = language,
                                     isLoggedIn = isLoggedIn,
@@ -539,6 +554,16 @@ class MainActivity : ComponentActivity() {
                                     backupState = backupState,
                                     onTriggerRestore = { viewModel.triggerRestore() },
                                     restoreState = restoreState,
+                                    suggestedBackupFileName = viewModel.suggestedBackupFileName(),
+                                    onExportBackupFile = { viewModel.exportBackupToFile(it) },
+                                    onPickRestoreFile = { viewModel.prepareRestoreFromFile(it) },
+                                    fileBackupState = fileBackupState,
+                                    fileRestoreState = fileRestoreState,
+                                    restorePreview = restorePreview,
+                                    onConfirmRestore = { viewModel.confirmRestoreFromFile() },
+                                    onCancelRestore = { viewModel.cancelRestorePreview() },
+                                    autoCloudBackup = autoCloudBackup,
+                                    onSetAutoCloudBackup = { viewModel.setAutoCloudBackup(it) },
                                     onSignOut = {
                                         // Stability sprint — REAL logout:
                                         // Firebase sign-out + persisted session
@@ -560,12 +585,12 @@ class MainActivity : ComponentActivity() {
                                     onSignInSuccess = { name, email ->
                                         viewModel.setUserAuth(name, email, true)
                                         viewModel.restoreFromBackup()
-                                        navController.navigate(Screen.Dashboard.route) {
+                                        navController.navigate(Screen.AiChat.route) {
                                             popUpTo(Screen.Auth.route) { inclusive = true }
                                         }
                                     },
                                     onSkip = {
-                                        navController.navigate(Screen.Dashboard.route) {
+                                        navController.navigate(Screen.AiChat.route) {
                                             popUpTo(Screen.Auth.route) { inclusive = true }
                                         }
                                     },
@@ -651,11 +676,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            // Sprint 5 — Smart Gam3iya. Saving goes through the
-                            // EXISTING creation pipeline (viewModel.createGam3iya
-                            // → createGam3iyaWithMembers + Gam3iyaCalculator),
-                            // then returns to the Dashboard.
-                            // Stability sprint — Smart Alarm. Saving goes
+                            // Smart Alarm. Saving goes
                             // through the EXISTING alarm pipeline
                             // (viewModel.addAlarm → AlarmManagerScheduler),
                             // then returns to the Dashboard with a confirmation.
@@ -726,6 +747,30 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
+                            // Sprint 6 — installment payment-plan detail.
+                            composable(
+                                route = Screen.InstallmentDetail.route,
+                                arguments = listOf(navArgument("itemId") { type = NavType.LongType })
+                            ) { backStackEntry ->
+                                val itemId = backStackEntry.arguments?.getLong("itemId") ?: -1L
+                                val target = financialItems.firstOrNull { it.id == itemId }
+                                if (target != null) {
+                                    InstallmentDetailScreen(
+                                        viewModel = viewModel,
+                                        item = target,
+                                        isArabic = isArabic,
+                                        onBack = { navController.popBackStack() },
+                                        onEdit = { navController.navigate(Screen.EditFinancial.createRoute(target.id)) },
+                                        onDelete = {
+                                            viewModel.deleteFinancialItem(target)
+                                            navController.popBackStack()
+                                        }
+                                    )
+                                } else {
+                                    androidx.compose.runtime.LaunchedEffect(Unit) { navController.popBackStack() }
+                                }
+                            }
+
                             // Phase B — the money list.
                             composable(Screen.Financial.route) {
                                 FinancialListScreen(
@@ -733,6 +778,7 @@ class MainActivity : ComponentActivity() {
                                     items = financialItems,
                                     onBack = { navController.popBackStack() },
                                     onEdit = { navController.navigate(Screen.EditFinancial.createRoute(it.id)) },
+                                    onOpenDetail = { navController.navigate(Screen.InstallmentDetail.createRoute(it.id)) },
                                     onDelete = { viewModel.deleteFinancialItem(it) },
                                     onTogglePaid = { viewModel.updateFinancialItem(it.copy(isPaid = !it.isPaid)) },
                                     onAdd = { navController.navigate(Screen.CreateFinancial.createRoute("BILL")) },
@@ -765,15 +811,37 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            composable(Screen.CreateGam3iya.route) {
-                                CreateGam3iyaScreen(
+                            // Global search across every module.
+                            composable(Screen.Search.route) {
+                                SearchScreen(
                                     isArabic = isArabic,
-                                    onSave = { title, total, installment, members, startDate ->
-                                        viewModel.createGam3iya(title, total, installment, members, startDate)
+                                    reminders = reminders,
+                                    persons = persons,
+                                    gam3iyas = gam3iyas,
+                                    financialItems = financialItems,
+                                    habits = habits,
+                                    onBack = { navController.popBackStack() },
+                                    onOpenTask = { navController.navigate(Screen.CreateTask.createRoute(it)) },
+                                    onOpenLedger = { navController.navigate(Screen.Ledger.route) },
+                                    onOpenGam3iya = { navController.navigate(Screen.Gam3iya.route) },
+                                    onOpenInstallment = { navController.navigate(Screen.InstallmentDetail.createRoute(it)) },
+                                    onOpenFinancial = { navController.navigate(Screen.EditFinancial.createRoute(it)) },
+                                    onOpenHabits = { navController.navigate(Screen.Habits.route) }
+                                )
+                            }
+
+                            // رفيق شخصي: تسجيل الجمعية اللي المستخدم مشترك
+                            // فيها (وضع "مدير الجمعية" اتشال نهائيًا).
+                            composable(Screen.CreateGam3iya.route) {
+                                ParticipantGam3iyaForm(
+                                    viewModel = viewModel,
+                                    isArabic = isArabic,
+                                    existing = null,
+                                    onDone = {
                                         navController.popBackStack(Screen.Dashboard.route, inclusive = false)
                                         scope.launch {
                                             snackbarHostState.showSnackbar(
-                                                if (isArabic) "تم إنشاء الجمعية بنجاح" else "Gam3iya created successfully."
+                                                if (isArabic) "تم حفظ الجمعية وتفعيل التذكير الشهري بالقسط" else "Gam3iya saved with a monthly installment reminder"
                                             )
                                         }
                                     },
@@ -790,12 +858,13 @@ class MainActivity : ComponentActivity() {
                                 CreateDebtScreen(
                                     persons = persons,
                                     isArabic = isArabic,
-                                    onSave = { existingPersonId, personName, amount, isLent, dueDate, note ->
+                                    onSave = { existingPersonId, personName, amount, isLent, receivedDate, dueDate, note ->
                                         viewModel.addDebt(
                                             existingPersonId = existingPersonId,
                                             personName = personName,
                                             amount = amount,
                                             isLent = isLent,
+                                            receivedDate = receivedDate,
                                             dueDate = dueDate,
                                             note = note
                                         )
@@ -809,15 +878,32 @@ class MainActivity : ComponentActivity() {
                                     onCancel = { navController.popBackStack() }
                                 )
                             }
+
+                            // «مناسباتك» — the dedicated occasions form.
+                            composable(Screen.CreateEvent.route) {
+                                CreateEventScreen(
+                                    isArabic = isArabic,
+                                    onSave = { reminder ->
+                                        viewModel.addReminder(reminder)
+                                        navController.popBackStack(Screen.Dashboard.route, inclusive = false)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (isArabic) "تم حفظ المناسبة وسيصلك تذكير قبلها" else "Occasion saved — you'll be reminded."
+                                            )
+                                        }
+                                    },
+                                    onCancel = { navController.popBackStack() }
+                                )
+                            }
                         }
                     }
 
-                    // Sprint 2 — Smart Item Engine Foundation.
-                    // Opened by the Dashboard "+" FAB above.
-                    // Sprint 3/4: "task" and "debt" open their real forms.
-                    // Sprint 5: "bill", "appointment", "medicine" (shared
-                    // reminder form) and "gam3iya" too; every remaining type
-                    // still lands on the placeholder.
+                    // Smart Item Engine — opened by the Dashboard "+" FAB.
+                    // Every type routes to a REAL screen: task/debt/alarm/
+                    // gam3iya/habit to their dedicated forms, bill/installment/
+                    // subscription to the financial form, and every other type
+                    // to the shared Smart Reminder form with its category
+                    // preset (see the `when` below). No placeholder screens.
                     if (showSmartItemSheet) {
                         SmartItemBottomSheet(
                             isArabic = isArabic,
@@ -842,15 +928,93 @@ class MainActivity : ComponentActivity() {
                                     )
                                     "gam3iya" -> navController.navigate(Screen.CreateGam3iya.route)
                                     "habit" -> navController.navigate(Screen.Habits.route)
-                                    // study / work / event / personal / more —
-                                    // every remaining type opens the REAL shared
-                                    // reminder form with its own category preset.
+                                    "event" -> navController.navigate(Screen.CreateEvent.route)
                                     else -> navController.navigate(
                                         Screen.CreateSmartReminder.createRoute(item.id)
                                     )
                                 }
                             }
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Rafeeq Design DNA — the FLOATING NAV.
+ *
+ * The second signature element: navigation floats above the content on a
+ * soft glass pill, detached from the screen edges. The selected tab sits
+ * inside an animated indigo capsule; unselected tabs stay quiet gray.
+ */
+@Composable
+private fun RafeeqFloatingNav(
+    screens: List<Screen>,
+    currentRoute: String?,
+    isArabic: Boolean,
+    onSelect: (Screen) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 18.dp)
+            .padding(bottom = 12.dp)
+    ) {
+        Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(32.dp),
+            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.97f),
+            shadowElevation = 14.dp,
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp, androidx.compose.ui.graphics.Color(0xFFEDEDF8)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                screens.forEach { screen ->
+                    val selected = currentRoute == screen.route
+                    val capsule by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (selected)
+                            com.notification.app.ui.theme.Primary.copy(alpha = 0.10f)
+                        else androidx.compose.ui.graphics.Color.Transparent,
+                        animationSpec = tween(250),
+                        label = "navCapsule"
+                    )
+                    val tint by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (selected) com.notification.app.ui.theme.Primary
+                        else androidx.compose.ui.graphics.Color(0xFF9CA3AF),
+                        animationSpec = tween(250),
+                        label = "navTint"
+                    )
+                    Surface(
+                        onClick = { if (!selected) onSelect(screen) },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                        color = capsule,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(
+                            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.padding(vertical = 7.dp)
+                        ) {
+                            Icon(
+                                imageVector = screen.icon,
+                                contentDescription = screen.titleEn,
+                                tint = tint,
+                                modifier = Modifier.size(23.dp)
+                            )
+                            Text(
+                                text = if (isArabic) screen.titleAr else screen.titleEn,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = tint,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }

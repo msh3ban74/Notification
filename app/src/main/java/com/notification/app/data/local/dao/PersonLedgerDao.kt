@@ -1,6 +1,7 @@
 package com.notification.app.data.local.dao
 
 import androidx.room.*
+import com.notification.app.data.local.entities.LedgerAttachmentEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
 import kotlinx.coroutines.flow.Flow
@@ -35,4 +36,30 @@ interface PersonLedgerDao {
 
     @Delete
     suspend fun deleteTransaction(transaction: LedgerTransactionEntity)
+
+    // ── Sprint 5 — person edit + cascade delete ───────────────────────
+    @Update
+    suspend fun updatePerson(person: PersonEntity)
+
+    @Query("DELETE FROM ledger_transactions WHERE personId = :personId")
+    suspend fun deleteTransactionsForPerson(personId: Long)
+
+    // ── Sprint 5 — attachments (receipts / docs / audio) ──────────────
+    @Query("SELECT * FROM ledger_attachments WHERE personId = :personId ORDER BY createdAt DESC")
+    fun getAttachmentsForPerson(personId: Long): Flow<List<LedgerAttachmentEntity>>
+
+    @Query("SELECT * FROM ledger_attachments ORDER BY createdAt DESC")
+    fun getAllLedgerAttachments(): Flow<List<LedgerAttachmentEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLedgerAttachment(a: LedgerAttachmentEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLedgerAttachments(list: List<LedgerAttachmentEntity>)
+
+    @Delete
+    suspend fun deleteLedgerAttachment(a: LedgerAttachmentEntity)
+
+    @Query("DELETE FROM ledger_attachments WHERE personId = :personId")
+    suspend fun deleteLedgerAttachmentsForPerson(personId: Long)
 }

@@ -1,6 +1,9 @@
 package com.notification.app.ui.screens
 
 import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -21,12 +25,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.notification.app.data.local.entities.LedgerAttachmentEntity
 import com.notification.app.data.local.entities.LedgerTransactionEntity
 import com.notification.app.data.local.entities.PersonEntity
+import kotlinx.coroutines.flow.Flow
 import com.notification.app.domain.calculator.LedgerCalculator
+import com.notification.app.domain.calculator.MoneyFormat
 import com.notification.app.domain.calculator.LedgerStatus
 import com.notification.app.domain.calculator.LedgerSummary
-import com.notification.app.domain.calculator.StatementExporter
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.ui.theme.MaroonPrimary
 import com.notification.app.ui.theme.OnPrimary
@@ -46,14 +52,35 @@ fun LedgerScreen(
     onAddTransaction: (LedgerTransactionEntity) -> Unit,
     onDeleteTransaction: (LedgerTransactionEntity) -> Unit,
     // Sprint 5 — edit flow. Optional so existing call sites keep working.
-    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null
+    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null,
+    // Person profile edit / delete (optional).
+    onUpdatePerson: ((PersonEntity) -> Unit)? = null,
+    onDeletePerson: ((PersonEntity) -> Unit)? = null,
+    // Person attachments (receipts / docs) — optional.
+    getLedgerAttachments: ((Long) -> Flow<List<LedgerAttachmentEntity>>)? = null,
+    onAddLedgerAttachment: ((Long, String) -> Unit)? = null,
+    onDeleteLedgerAttachment: ((LedgerAttachmentEntity) -> Unit)? = null,
+    // When set (e.g. tapped from the dashboard money card), open straight
+    // into this person's debt detail on first composition.
+    initialPersonId: Long? = null
 ) {
     var selectedPersonForDetail by remember { mutableStateOf<PersonEntity?>(null) }
+    androidx.compose.runtime.LaunchedEffect(initialPersonId, persons) {
+        if (initialPersonId != null && selectedPersonForDetail == null) {
+            persons.firstOrNull { it.id == initialPersonId }?.let { selectedPersonForDetail = it }
+        }
+    }
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Owed to me (لهم), 1: I owe (لي)
     var showAddPersonDialog by remember { mutableStateOf(false) }
+    var showStats by remember { mutableStateOf(false) }
     var personSearch by remember { mutableStateOf("") }
 
     val context = LocalContext.current
+
+    if (showStats) {
+        LedgerStatsScreen(transactions = transactions, isArabic = isArabic, onBack = { showStats = false })
+        return
+    }
 
     if (selectedPersonForDetail != null) {
         val personTxs = transactions.filter { it.personId == selectedPersonForDetail!!.id }
@@ -65,13 +92,34 @@ fun LedgerScreen(
             onAddTransaction = onAddTransaction,
             onDeleteTransaction = onDeleteTransaction,
             onUpdateTransaction = onUpdateTransaction,
+            onUpdatePerson = onUpdatePerson,
+            onDeletePerson = onDeletePerson?.let { del -> { p: PersonEntity -> del(p); selectedPersonForDetail = null } },
+            getLedgerAttachments = getLedgerAttachments,
+            onAddLedgerAttachment = onAddLedgerAttachment,
+            onDeleteLedgerAttachment = onDeleteLedgerAttachment,
             onExportStatement = {
-                val statement = StatementExporter.generatePersonLedgerStatement(selectedPersonForDetail!!, personTxs)
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, statement)
+                // Share the SAME clean branded card image everywhere — never
+                // the old raw English text statement.
+                val p = selectedPersonForDetail!!
+                val summary = LedgerCalculator.calculateNetBalance(personTxs)
+                val amountLine = when (summary.status) {
+                    LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${summary.netAmount.toLong()} ج.م" else "Owes you ${summary.netAmount.toLong()} EGP"
+                    LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${summary.netAmount.toLong()} ج.م" else "You owe ${summary.netAmount.toLong()} EGP"
+                    LedgerStatus.SETTLED -> if (isArabic) "الحساب مسدّد" else "Settled"
                 }
-                context.startActivity(Intent.createChooser(intent, "Share Ledger Statement"))
+                val dateFmt = java.text.SimpleDateFormat("d MMM yyyy", if (isArabic) java.util.Locale("ar") else java.util.Locale.ENGLISH)
+                val latestDue = personTxs.filter { it.dueDate > 0 }.maxByOrNull { it.dueDate }?.dueDate
+                val latestDate = personTxs.maxByOrNull { it.date }?.date
+                try {
+                    com.notification.app.domain.share.DebtCardImage.share(
+                        context = context,
+                        isArabic = isArabic,
+                        personName = p.name,
+                        amountLine = amountLine,
+                        receivedLine = latestDate?.let { (if (isArabic) "تاريخ المعاملة: " else "Date: ") + dateFmt.format(java.util.Date(it)) },
+                        dueLine = latestDue?.let { (if (isArabic) "تاريخ السداد: " else "Due: ") + dateFmt.format(java.util.Date(it)) }
+                    )
+                } catch (_: Exception) { }
             }
         )
         return
@@ -106,7 +154,7 @@ fun LedgerScreen(
                 contentColor = OnPrimary,
                 shape = CircleShape
             ) {
-                Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Add Person")
+                Icon(imageVector = Icons.Default.PersonAdd, contentDescription = if (isArabic) "إضافة شخص" else "Add person")
             }
         }
     ) { padding ->
@@ -117,13 +165,22 @@ fun LedgerScreen(
                 .padding(horizontal = 16.dp)
         ) {
 
-            Text(
-                text = if (isArabic) "دفتر الديون والمعاملات" else "Debt & Loans Ledger",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = if (isArabic) "الديون" else "Debts",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { showStats = true }) {
+                    Icon(Icons.Default.BarChart, contentDescription = if (isArabic) "الإحصائيات" else "Statistics")
+                }
+            }
 
             // Tabs for "Owed to Me" vs "I Owe"
             TabRow(
@@ -233,16 +290,16 @@ fun LedgerScreen(
     }
 
     if (showAddPersonDialog) {
+        // رحلة "دين جديد" تبدأ من هنا: مين الشخص؟ اسمه ورقمه وكفاية —
+        // ده تطبيق أفراد، مش دفتر عملاء شركة.
         var name by remember { mutableStateOf("") }
         var phone by remember { mutableStateOf("") }
         var whatsapp by remember { mutableStateOf("") }
-        var email by remember { mutableStateOf("") }
-        var address by remember { mutableStateOf("") }
-        var category by remember { mutableStateOf("") }
+        var notes by remember { mutableStateOf("") }
 
         AlertDialog(
             onDismissRequest = { showAddPersonDialog = false },
-            title = { Text(if (isArabic) "جهة اتصال جديدة" else "New Contact") },
+            title = { Text(if (isArabic) "شخص جديد" else "New person") },
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -255,27 +312,17 @@ fun LedgerScreen(
                     )
                     OutlinedTextField(
                         value = phone, onValueChange = { phone = it },
-                        label = { Text(if (isArabic) "رقم الهاتف" else "Phone") },
+                        label = { Text(if (isArabic) "رقم الهاتف (اختياري)" else "Phone (optional)") },
                         singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = whatsapp, onValueChange = { whatsapp = it },
-                        label = { Text(if (isArabic) "واتساب" else "WhatsApp") },
+                        label = { Text(if (isArabic) "واتساب (اختياري)" else "WhatsApp (optional)") },
                         singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
-                        value = email, onValueChange = { email = it },
-                        label = { Text(if (isArabic) "البريد الإلكتروني" else "Email") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = address, onValueChange = { address = it },
-                        label = { Text(if (isArabic) "العنوان" else "Address") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = category, onValueChange = { category = it },
-                        label = { Text(if (isArabic) "التصنيف (عائلة، أصدقاء، عملاء…)" else "Category (family, friends, clients…)") },
+                        value = notes, onValueChange = { notes = it },
+                        label = { Text(if (isArabic) "ملاحظة (اختياري)" else "Note (optional)") },
                         singleLine = true, modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -287,8 +334,7 @@ fun LedgerScreen(
                         onAddPersonFull(
                             PersonEntity(
                                 name = name.trim(), phoneNumber = phone.trim(),
-                                whatsapp = whatsapp.trim(), email = email.trim(),
-                                address = address.trim(), category = category.trim()
+                                whatsapp = whatsapp.trim(), notes = notes.trim()
                             )
                         )
                         showAddPersonDialog = false
@@ -314,10 +360,12 @@ fun PersonLedgerSummaryCard(
     isArabic: Boolean,
     onClick: () -> Unit
 ) {
+    // QA fix: the Arabic copy here was reversed (showed "he demands from
+    // you" for money owed TO you). Correct: THEY_OWE_ME = «لك عنده».
     val statusText = when (summary.status) {
-        LedgerStatus.THEY_OWE_ME -> if (isArabic) "يطالبك بـ ${summary.netAmount} ج.م" else "They owe you ${summary.netAmount} EGP"
-        LedgerStatus.I_OWE_THEM -> if (isArabic) "تطالبه بـ ${summary.netAmount} ج.م" else "You owe them ${summary.netAmount} EGP"
-        LedgerStatus.SETTLED -> if (isArabic) "مسدد بالكامل (خالص)" else "Settled / Even"
+        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${MoneyFormat.format(summary.netAmount)} ج.م" else "They owe you ${MoneyFormat.format(summary.netAmount)} EGP"
+        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${MoneyFormat.format(summary.netAmount)} ج.م" else "You owe them ${MoneyFormat.format(summary.netAmount)} EGP"
+        LedgerStatus.SETTLED -> if (isArabic) "مُسدَّد بالكامل" else "Settled / Even"
     }
 
     val statusColor = when (summary.status) {
@@ -375,8 +423,8 @@ fun PersonLedgerSummaryCard(
             }
 
             Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = "View Details",
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = if (isArabic) "عرض التفاصيل" else "View details",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -395,25 +443,76 @@ fun PersonDetailScreen(
     onExportStatement: () -> Unit,
     // Sprint 5 — edit flow. When provided, each transaction row gets an
     // Edit action that reopens the same dialog pre-filled.
-    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null
+    onUpdateTransaction: ((LedgerTransactionEntity) -> Unit)? = null,
+    onUpdatePerson: ((PersonEntity) -> Unit)? = null,
+    onDeletePerson: ((PersonEntity) -> Unit)? = null,
+    getLedgerAttachments: ((Long) -> Flow<List<LedgerAttachmentEntity>>)? = null,
+    onAddLedgerAttachment: ((Long, String) -> Unit)? = null,
+    onDeleteLedgerAttachment: ((LedgerAttachmentEntity) -> Unit)? = null
 ) {
     val summary = remember(transactions) { LedgerCalculator.calculateNetBalance(transactions) }
     var showAddTxDialog by remember { mutableStateOf(false) }
     var editingTx by remember { mutableStateOf<LedgerTransactionEntity?>(null) }
+    var deletingTx by remember { mutableStateOf<LedgerTransactionEntity?>(null) }
+    deletingTx?.let { tx ->
+        com.notification.app.ui.components.ConfirmDeleteDialog(
+            isArabic = isArabic,
+            itemLabel = "${tx.amount.toLong()} ج.م",
+            onConfirm = { onDeleteTransaction(tx) },
+            onDismiss = { deletingTx = null }
+        )
+    }
+    var showEditPerson by remember { mutableStateOf(false) }
+    var showDeletePerson by remember { mutableStateOf(false) }
+    var personMenu by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(person.name, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = if (isArabic) "رجوع" else "Back")
                     }
                 },
                 actions = {
+                    if (onUpdatePerson != null) {
+                        IconButton(onClick = { onUpdatePerson(person.copy(isFavorite = !person.isFavorite)) }) {
+                            Icon(
+                                imageVector = if (person.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = if (isArabic) "مفضّلة" else "Favorite",
+                                tint = if (person.isFavorite) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
+                        }
+                    }
                     IconButton(onClick = onExportStatement) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = "Export Statement")
+                        Icon(imageVector = Icons.Default.Share, contentDescription = if (isArabic) "مشاركة كشف الحساب" else "Share statement")
+                    }
+                    if (onUpdatePerson != null || onDeletePerson != null) {
+                        IconButton(onClick = { personMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = if (isArabic) "خيارات" else "Options")
+                        }
+                        DropdownMenu(expanded = personMenu, onDismissRequest = { personMenu = false }) {
+                            if (onUpdatePerson != null) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isArabic) "تعديل جهة الاتصال" else "Edit contact") },
+                                    onClick = { personMenu = false; showEditPerson = true },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (person.isArchived) (if (isArabic) "إلغاء الأرشفة" else "Unarchive") else (if (isArabic) "أرشفة" else "Archive")) },
+                                    onClick = { personMenu = false; onUpdatePerson(person.copy(isArchived = !person.isArchived)) },
+                                    leadingIcon = { Icon(if (person.isArchived) Icons.Default.Unarchive else Icons.Default.Archive, contentDescription = null) }
+                                )
+                            }
+                            if (onDeletePerson != null) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isArabic) "حذف جهة الاتصال" else "Delete contact") },
+                                    onClick = { personMenu = false; showDeletePerson = true },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) }
+                                )
+                            }
+                        }
                     }
                 }
             )
@@ -424,7 +523,7 @@ fun PersonDetailScreen(
                 containerColor = MaroonPrimary,
                 contentColor = OnPrimary
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Transaction")
+                Icon(imageVector = Icons.Default.Add, contentDescription = if (isArabic) "إضافة معاملة" else "Add transaction")
             }
         }
     ) { padding ->
@@ -448,14 +547,14 @@ fun PersonDetailScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (isArabic) "صافي الحساب الحالى" else "Current Net Balance",
+                        text = if (isArabic) "صافي الحساب الحالي" else "Current Net Balance",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
 
                     val netString = when (summary.status) {
-                        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${summary.netAmount} ج.م" else "Owed to you: ${summary.netAmount} EGP"
-                        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${summary.netAmount} ج.م" else "You owe: ${summary.netAmount} EGP"
+                        LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${MoneyFormat.format(summary.netAmount)} ج.م" else "Owed to you: ${MoneyFormat.format(summary.netAmount)} EGP"
+                        LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${MoneyFormat.format(summary.netAmount)} ج.م" else "You owe: ${MoneyFormat.format(summary.netAmount)} EGP"
                         LedgerStatus.SETTLED -> if (isArabic) "الحساب مسدد بالكامل" else "Fully settled"
                     }
 
@@ -466,6 +565,114 @@ fun PersonDetailScreen(
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(top = 4.dp)
                     )
+
+                    // «فكّره بلطف» — one tap opens WhatsApp with a friendly,
+                    // pre-written nudge. A companion helps you ask without
+                    // the awkwardness.
+                    val nudgeNumber = person.whatsapp.ifBlank { person.phoneNumber }
+                        .filter { it.isDigit() || it == '+' }.removePrefix("+")
+                    val shareContext = LocalContext.current
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (summary.status == LedgerStatus.THEY_OWE_ME && nudgeNumber.isNotBlank()) {
+                            TextButton(onClick = {
+                                val msg = if (isArabic)
+                                    "مرحبًا ${person.name}، تذكير بخصوص مبلغ ${summary.netAmount.toLong()} ج.م المستحق بيننا. شكرًا لك."
+                                else
+                                    "Hi ${person.name}, a reminder about the ${summary.netAmount.toLong()} EGP due between us. Thank you."
+                                val url = "https://wa.me/$nudgeNumber?text=" + java.net.URLEncoder.encode(msg, "UTF-8")
+                                // Target WhatsApp explicitly so no other app that
+                                // registers https can intercept the number+amount.
+                                try {
+                                    shareContext.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(url)).setPackage("com.whatsapp")
+                                    )
+                                } catch (_: Exception) {
+                                    try {
+                                        shareContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                    } catch (_: Exception) { }
+                                }
+                            }) {
+                                Text(if (isArabic) "تذكير عبر واتساب" else "Remind on WhatsApp")
+                            }
+                        }
+                        // «مشاركة كصورة» — بطاقة رفيق أنيقة بملخص الحساب.
+                        if (summary.status != LedgerStatus.SETTLED) {
+                            TextButton(onClick = {
+                                val dateFmt = java.text.SimpleDateFormat(
+                                    "d MMM yyyy",
+                                    if (isArabic) java.util.Locale("ar") else java.util.Locale.ENGLISH
+                                )
+                                val latestDue = transactions
+                                    .filter { it.dueDate > 0 }
+                                    .maxByOrNull { it.dueDate }?.dueDate
+                                val latestDate = transactions.maxByOrNull { it.date }?.date
+                                try {
+                                    com.notification.app.domain.share.DebtCardImage.share(
+                                        context = shareContext,
+                                        isArabic = isArabic,
+                                        personName = person.name,
+                                        amountLine = netString,
+                                        receivedLine = latestDate?.let {
+                                            (if (isArabic) "تاريخ المعاملة: " else "Transaction date: ") +
+                                                dateFmt.format(java.util.Date(it))
+                                        },
+                                        dueLine = latestDue?.let {
+                                            (if (isArabic) "تاريخ السداد: " else "Due date: ") +
+                                                dateFmt.format(java.util.Date(it))
+                                        }
+                                    )
+                                } catch (_: Exception) { }
+                            }) {
+                                Text(if (isArabic) "مشاركة كصورة" else "Share as image")
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (getLedgerAttachments != null) {
+                val attachments by getLedgerAttachments(person.id).collectAsState(initial = emptyList())
+                val ctx = LocalContext.current
+                val attachPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                    if (uri != null) { takePersistable(ctx, uri); onAddLedgerAttachment?.invoke(person.id, uri.toString()) }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (isArabic) "المرفقات والإيصالات" else "Attachments & receipts",
+                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
+                    )
+                    TextButton(onClick = { attachPicker.launch(arrayOf("image/*", "application/pdf")) }) {
+                        Icon(Icons.Default.AttachFile, contentDescription = null); Spacer(Modifier.width(4.dp))
+                        Text(if (isArabic) "إضافة" else "Add")
+                    }
+                }
+                attachments.forEach { a ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Description, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Text(a.label.ifBlank { if (isArabic) "إيصال" else "Receipt" }, Modifier.weight(1f), maxLines = 1)
+                            TextButton(onClick = {
+                                // Only open our own SAF content URIs — a
+                                // restored backup could carry an arbitrary URI.
+                                val parsed = Uri.parse(a.uri)
+                                if (parsed.scheme == "content") {
+                                    try { ctx.startActivity(Intent(Intent.ACTION_VIEW, parsed).apply { addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch (_: Exception) {}
+                                }
+                            }) { Text(if (isArabic) "فتح" else "Open") }
+                            IconButton(onClick = { onDeleteLedgerAttachment?.invoke(a) }) {
+                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
                 }
             }
 
@@ -527,7 +734,7 @@ fun PersonDetailScreen(
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "${tx.amount} EGP",
+                                        text = "${MoneyFormat.format(tx.amount)} ${if (isArabic) "ج.م" else "EGP"}",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = if (txType.isGivingToThem) Success else Error
@@ -537,16 +744,16 @@ fun PersonDetailScreen(
                                         IconButton(onClick = { editingTx = tx }) {
                                             Icon(
                                                 imageVector = Icons.Default.Edit,
-                                                contentDescription = "Edit",
+                                                contentDescription = if (isArabic) "تعديل" else "Edit",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }
 
-                                    IconButton(onClick = { onDeleteTransaction(tx) }) {
+                                    IconButton(onClick = { deletingTx = tx }) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete",
+                                            contentDescription = if (isArabic) "حذف" else "Delete",
                                             tint = MaterialTheme.colorScheme.error
                                         )
                                     }
@@ -572,6 +779,8 @@ fun PersonDetailScreen(
             )
         }
         var note by remember(editing) { mutableStateOf(editing?.note ?: "") }
+        var dueDate by remember(editing) { mutableStateOf(editing?.dueDate ?: 0L) }
+        val txContext = LocalContext.current
         val dismissDialog = {
             showAddTxDialog = false
             editingTx = null
@@ -592,8 +801,16 @@ fun PersonDetailScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = amountText,
-                        onValueChange = { amountText = it },
+                        onValueChange = { input ->
+                            // Numbers only, at most one decimal point.
+                            val cleaned = input.filter { it.isDigit() || it == '.' }
+                            if (cleaned.count { it == '.' } <= 1) amountText = cleaned
+                        },
                         label = { Text(if (isArabic) "المبلغ (ج.م)" else "Amount (EGP)") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -622,10 +839,17 @@ fun PersonDetailScreen(
                         }
                     }
 
+                    // "قالي هيرجعهالك يوم الأحد" → حدد اليوم ورفيق يفكرك
+                    // تلقائيًا (تذكير مجدول يتعمل مع الحفظ).
+                    DateField(
+                        value = dueDate, onPick = { dueDate = it },
+                        label = if (isArabic) "تاريخ السداد (مع تذكير)" else "Due date (with reminder)",
+                        context = txContext, isArabic = isArabic, allowEmpty = true
+                    )
                     OutlinedTextField(
                         value = note,
                         onValueChange = { note = it },
-                        label = { Text(if (isArabic) "ملاحظات" else "Note") },
+                        label = { Text(if (isArabic) "ملاحظة (السبب مثلًا)" else "Note (e.g. the reason)") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -640,7 +864,8 @@ fun PersonDetailScreen(
                                     editing.copy(
                                         type = selectedType.name,
                                         amount = amount,
-                                        note = note
+                                        note = note,
+                                        dueDate = dueDate
                                     )
                                 )
                             } else {
@@ -650,7 +875,8 @@ fun PersonDetailScreen(
                                         type = selectedType.name,
                                         amount = amount,
                                         date = System.currentTimeMillis(),
-                                        note = note
+                                        note = note,
+                                        dueDate = dueDate
                                     )
                                 )
                             }
@@ -669,4 +895,56 @@ fun PersonDetailScreen(
             }
         )
     }
+
+    if (showEditPerson && onUpdatePerson != null) {
+        var eName by remember { mutableStateOf(person.name) }
+        var ePhone by remember { mutableStateOf(person.phoneNumber) }
+        var eWhatsapp by remember { mutableStateOf(person.whatsapp) }
+        var eNotes by remember { mutableStateOf(person.notes) }
+        AlertDialog(
+            onDismissRequest = { showEditPerson = false },
+            title = { Text(if (isArabic) "تعديل الشخص" else "Edit person") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    OutlinedTextField(eName, { eName = it }, label = { Text(if (isArabic) "الاسم" else "Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(ePhone, { ePhone = it }, label = { Text(if (isArabic) "رقم الهاتف" else "Phone") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eWhatsapp, { eWhatsapp = it }, label = { Text(if (isArabic) "واتساب" else "WhatsApp") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(eNotes, { eNotes = it }, label = { Text(if (isArabic) "ملاحظة" else "Note") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = eName.isNotBlank(),
+                    onClick = {
+                        onUpdatePerson(
+                            person.copy(
+                                name = eName.trim(), phoneNumber = ePhone.trim(),
+                                whatsapp = eWhatsapp.trim(), notes = eNotes.trim()
+                            )
+                        )
+                        showEditPerson = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
+                ) { Text(if (isArabic) "حفظ" else "Save") }
+            },
+            dismissButton = { TextButton(onClick = { showEditPerson = false }) { Text(if (isArabic) "إلغاء" else "Cancel") } }
+        )
+    }
+
+    if (showDeletePerson && onDeletePerson != null) {
+        AlertDialog(
+            onDismissRequest = { showDeletePerson = false },
+            title = { Text(if (isArabic) "حذف جهة الاتصال؟" else "Delete contact?") },
+            text = { Text(if (isArabic) "سيتم حذف جهة الاتصال وكل معاملاتها ومرفقاتها نهائيًا." else "This permanently deletes the contact with all its transactions and attachments.") },
+            confirmButton = {
+                Button(onClick = { showDeletePerson = false; onDeletePerson(person) },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text(if (isArabic) "حذف" else "Delete") }
+            },
+            dismissButton = { TextButton(onClick = { showDeletePerson = false }) { Text(if (isArabic) "إلغاء" else "Cancel") } }
+        )
+    }
 }
+

@@ -44,7 +44,7 @@ fun HealthWorkNotesScreen(
                 contentColor = OnPrimary,
                 shape = CircleShape
             ) {
-                Icon(imageVector = Icons.Default.NoteAdd, contentDescription = "Add Work Note")
+                Icon(imageVector = Icons.Default.NoteAdd, contentDescription = if (isArabic) "إضافة ملاحظة" else "Add note")
             }
         }
     ) { padding ->
@@ -135,7 +135,7 @@ fun HealthWorkNotesScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
-                                contentDescription = if (isArabic) "شربت كأس" else "Log a cup"
+                                contentDescription = if (isArabic) "تسجيل كوب" else "Log a cup"
                             )
                         }
                     }
@@ -181,14 +181,14 @@ fun HealthWorkNotesScreen(
                             }
                             Spacer(modifier = Modifier.height(20.dp))
                             Text(
-                                text = if (isArabic) "لا توجد ملاحظات عمل قائمة" else "No Work Notes Recorded",
+                                text = if (isArabic) "لا توجد ملاحظات عمل مسجلة" else "No Work Notes Recorded",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = if (isArabic) "دوّن تكليفاتك وملاحظات شغلك وتابع إنجازها من مكان واحد" else "Capture assignments and work notes, then track them through to done",
+                                text = if (isArabic) "تدوين التكليفات وملاحظات العمل ومتابعة إنجازها من مكان واحد" else "Capture assignments and work notes, then track them through to done",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -197,6 +197,15 @@ fun HealthWorkNotesScreen(
                 }
             } else {
                 items(workNotes, key = { it.id }) { note ->
+                    var confirmDelete by remember { mutableStateOf(false) }
+                    if (confirmDelete) {
+                        com.notification.app.ui.components.ConfirmDeleteDialog(
+                            isArabic = isArabic,
+                            itemLabel = note.title,
+                            onConfirm = { onDeleteNote(note) },
+                            onDismiss = { confirmDelete = false }
+                        )
+                    }
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         shape = RoundedCornerShape(16.dp),
@@ -234,10 +243,10 @@ fun HealthWorkNotesScreen(
                                 }
                             }
 
-                            IconButton(onClick = { onDeleteNote(note) }) {
+                            IconButton(onClick = { confirmDelete = true }) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete",
+                                    contentDescription = if (isArabic) "حذف" else "Delete",
                                     tint = MaterialTheme.colorScheme.error
                                 )
                             }

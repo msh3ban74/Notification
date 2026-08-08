@@ -14,23 +14,51 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            // Reboot wipes AlarmManager — re-arm the daily briefs too.
+            AlarmManagerScheduler.scheduleMorningBrief(context)
+            AlarmManagerScheduler.scheduleEveningBrief(context)
+
+            // goAsync keeps the process alive past onReceive so the DB read +
+            // re-arm loop actually finishes — without it Android could kill us
+            // first and reboot would silently lose every alarm/reminder.
+            val pending = goAsync()
             val db = AppDatabase.getDatabase(context)
             CoroutineScope(Dispatchers.IO).launch {
-                val now = System.currentTimeMillis()
+                try {
+                    val now = System.currentTimeMillis()
 
-                db.alarmDao().getActiveAlarms().forEach { alarm ->
-                    if (alarm.timeInMillis > now) {
-                        AlarmManagerScheduler.scheduleExactAlarm(context, alarm)
+                    db.alarmDao().getActiveAlarms().forEach { alarm ->
+                        // Recurring alarms must ALWAYS be re-armed — their stored
+                        // timeInMillis is the first (now-past) occurrence, and
+                        // scheduleExactAlarm recomputes the next matching day.
+                        // One-shot alarms only re-arm if still in the future.
+                        if (alarm.repeatDays.isNotBlank() || alarm.timeInMillis > now) {
+                            AlarmManagerScheduler.scheduleExactAlarm(context, alarm)
+                        }
                     }
+
+                    // Reboot wipes EVERY AlarmManager registration — task, bill
+                    // and medicine reminders included, not just clock alarms.
+                    db.reminderDao().getPendingReminders().first()
+                        .filter { !it.isArchived && it.dueDate > now }
+                        .forEach { reminder ->
+                            AlarmManagerScheduler.scheduleReminderAlarm(context, reminder)
+                        }
+
+                    // Re-arm any adhkar/nafl the user has enabled.
+                    val prefs = com.notification.app.data.preferences.UserPreferencesRepository(context)
+                    if (prefs.adhkarMorningFlow.first())
+                        AlarmManagerScheduler.scheduleAdhkar(context, com.notification.app.receiver.AdhkarReceiver.KIND_MORNING)
+                    if (prefs.adhkarEveningFlow.first())
+                        AlarmManagerScheduler.scheduleAdhkar(context, com.notification.app.receiver.AdhkarReceiver.KIND_EVENING)
+                    if (prefs.adhkarDuhaFlow.first())
+                        AlarmManagerScheduler.scheduleAdhkar(context, com.notification.app.receiver.AdhkarReceiver.KIND_DUHA)
+                    if (prefs.adhkarQiyamFlow.first())
+                        AlarmManagerScheduler.scheduleAdhkar(context, com.notification.app.receiver.AdhkarReceiver.KIND_QIYAM)
+                } catch (_: Exception) {
+                } finally {
+                    pending.finish()
                 }
-
-                // Reboot wipes EVERY AlarmManager registration — task, bill
-                // and medicine reminders included, not just clock alarms.
-                db.reminderDao().getPendingReminders().first()
-                    .filter { !it.isArchived && it.dueDate > now }
-                    .forEach { reminder ->
-                        AlarmManagerScheduler.scheduleReminderAlarm(context, reminder)
-                    }
             }
         }
     }

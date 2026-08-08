@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Rafeeq</string>
+    <string name="widget_label">Rafeeq — My Day</string>
+    <string name="widget_title_placeholder">Rafeeq</string>
 </resources>

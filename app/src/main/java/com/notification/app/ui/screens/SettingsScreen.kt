@@ -24,6 +24,7 @@ import com.notification.app.ui.theme.MaroonPrimary
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     currentLanguage: String,
@@ -39,9 +40,29 @@ fun SettingsScreen(
     // failures made the sync button look dead; every outcome is visible.
     backupState: String? = null,
     onTriggerRestore: (() -> Unit)? = null,
-    restoreState: String? = null
+    restoreState: String? = null,
+    // Sprint 3 — local backup file (SAF).
+    suggestedBackupFileName: String = "Rafeeq_Backup.rafeeq",
+    onExportBackupFile: ((android.net.Uri) -> Unit)? = null,
+    onPickRestoreFile: ((android.net.Uri) -> Unit)? = null,
+    fileBackupState: String? = null,
+    fileRestoreState: String? = null,
+    restorePreview: com.notification.app.data.repository.LocalBackupManager.RestorePreview? = null,
+    onConfirmRestore: () -> Unit = {},
+    onCancelRestore: () -> Unit = {},
+    // Sprint 3 — automatic scheduled backup.
+    autoCloudBackup: Boolean = false,
+    onSetAutoCloudBackup: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
+
+    // SAF pickers — the user chooses where to save / which file to open.
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri -> if (uri != null) onExportBackupFile?.invoke(uri) }
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) onPickRestoreFile?.invoke(uri) }
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
 
     LazyColumn(
@@ -168,6 +189,116 @@ fun SettingsScreen(
                     // Visible outcome for backup — success message or failure reason.
                     StatusLine(state = backupState, isArabic = isArabic)
                     StatusLine(state = restoreState, isArabic = isArabic)
+                }
+            }
+        }
+
+        // Local backup file (export / import via SAF) — a portable,
+        // compressed, checksummed, encrypted-when-possible package.
+        if (onExportBackupFile != null || onPickRestoreFile != null) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text(
+                            text = if (isArabic) "نسخة احتياطية كملف" else "Backup as a file",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isArabic)
+                                "ملف واحد مضغوط ومُتحقَّق منه، يمكن حفظه في أي مكان واستعادته في أي وقت"
+                            else "One compressed, verified file — save it anywhere and restore anytime",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            if (onExportBackupFile != null) {
+                                FilledTonalButton(
+                                    onClick = {
+                                        if (fileBackupState != "syncing") exportLauncher.launch(suggestedBackupFileName)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    if (fileBackupState == "syncing") {
+                                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                                    } else {
+                                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(if (isArabic) "تصدير" else "Export")
+                                    }
+                                }
+                            }
+                            if (onPickRestoreFile != null) {
+                                FilledTonalButton(
+                                    onClick = {
+                                        if (fileRestoreState != "syncing") importLauncher.launch(arrayOf("*/*"))
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    if (fileRestoreState == "syncing") {
+                                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                                    } else {
+                                        Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(if (isArabic) "استيراد" else "Import")
+                                    }
+                                }
+                            }
+                        }
+                        StatusLine(state = fileBackupState, isArabic = isArabic)
+                        StatusLine(state = fileRestoreState, isArabic = isArabic)
+                    }
+                }
+            }
+        }
+
+        // ── Automatic scheduled backup ───────────────────────────────
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = if (isArabic) "نسخ احتياطي تلقائي" else "Automatic backup",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (isArabic)
+                                "يرفع بياناتك للسحابة تلقائيًا مع كل تعديل"
+                            else "Backs up to the cloud automatically on every change",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f).padding(end = 12.dp)
+                        )
+                        Switch(
+                            checked = autoCloudBackup,
+                            onCheckedChange = onSetAutoCloudBackup
+                        )
+                    }
                 }
             }
         }
@@ -382,7 +513,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = if (isArabic) "الإصدار 1.0 • رفيقك الذكي في كل تفاصيل حياتك" else "Version 1.0 • Your intelligent life companion",
+                        text = if (isArabic) "الإصدار 1.0 • مساعدك الشخصي الذكي" else "Version 1.0 • Your intelligent personal assistant",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -390,6 +521,61 @@ fun SettingsScreen(
             }
         }
     }
+
+    // Restore confirmation — preview counts, then apply only on confirm.
+    val preview = restorePreview
+    if (preview != null) {
+        val dateFmt = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
+        AlertDialog(
+            onDismissRequest = onCancelRestore,
+            title = { Text(if (isArabic) "تأكيد الاستعادة" else "Confirm restore") },
+            text = {
+                Column {
+                    Text(
+                        text = if (isArabic)
+                            "نسخة بتاريخ ${dateFmt.format(Date(preview.createdAt))}"
+                        else "Backup from ${dateFmt.format(Date(preview.createdAt))}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = if (isArabic) "سيتم استعادة ${preview.totalCount} عنصر ودمجها مع بياناتك الحالية:"
+                        else "${preview.totalCount} items will be restored and merged with your data:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    preview.counts.forEach { (key, n) ->
+                        Text("• ${labelForKey(key, isArabic)}: $n", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = onConfirmRestore,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaroonPrimary)
+                ) { Text(if (isArabic) "استعادة" else "Restore") }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelRestore) { Text(if (isArabic) "إلغاء" else "Cancel") }
+            }
+        )
+    }
+}
+
+private fun labelForKey(key: String, isArabic: Boolean): String = when (key) {
+    "reminders" -> if (isArabic) "المهام والتذكيرات" else "Tasks & reminders"
+    "persons" -> if (isArabic) "جهات الاتصال" else "Contacts"
+    "ledger_transactions" -> if (isArabic) "معاملات الديون" else "Ledger entries"
+    "gam3iyas" -> if (isArabic) "الجمعيات" else "Gam3iyas"
+    "gam3iya_members" -> if (isArabic) "أعضاء الجمعيات" else "Gam3iya members"
+    "alarms" -> if (isArabic) "المنبهات" else "Alarms"
+    "work_notes" -> if (isArabic) "الملاحظات" else "Notes"
+    "financial_items" -> if (isArabic) "الفواتير والأقساط" else "Bills & installments"
+    "habits" -> if (isArabic) "العادات" else "Habits"
+    "habit_logs" -> if (isArabic) "سجل العادات" else "Habit logs"
+    else -> key
 }
 
 /** Renders a backup/restore outcome line: green on success, red on error. */

@@ -8,7 +8,7 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- Rafeeq brand: rich black behind the golden "R" launcher artwork,
-         sampled from the icon's own background so the layers blend. -->
-    <color name="ic_launcher_background">#1E1C19</color>
+    <!-- Rafeeq brand: Rafeeq Vivid indigo behind the launcher artwork so the
+         icon matches the in-app identity. -->
+    <color name="ic_launcher_background">#4F46E5</color>
 </resources>

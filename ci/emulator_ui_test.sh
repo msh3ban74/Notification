@@ -89,7 +89,7 @@ tap_text "المهام"
 checkpoint "05-tasks-tab"
 tap_text "الإشعارات"
 checkpoint "06-notifications-tab"
-tap_text "الرئيسية"
+tap_text "يومك"
 checkpoint "07-back-to-dashboard"
 
 # The "+" smart item sheet and every real form
@@ -106,7 +106,7 @@ adb shell input keyevent 4
 sleep 1
 
 # Settings via the profile button (top corner, RTL-aware: try both sides)
-tap_text "الرئيسية"
+tap_text "يومك"
 sleep 1
 adb shell input tap 90 145 || true
 sleep 2

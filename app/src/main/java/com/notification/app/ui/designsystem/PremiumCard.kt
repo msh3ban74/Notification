@@ -18,7 +18,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -99,7 +98,9 @@ fun PremiumCard(
         modifier = cardModifier,
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        // Vivid light theme: a hair of indigo outline instead of the old
+        // 6%-white border (which is invisible on a white canvas).
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
         elevation = CardDefaults.cardElevation(
             defaultElevation = restingElevation,
             pressedElevation = if (elevated) AppElevation.medium else AppElevation.none

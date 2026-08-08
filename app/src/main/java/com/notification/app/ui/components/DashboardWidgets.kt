@@ -45,6 +45,10 @@ fun SmartWidget(
     primaryLine: String,
     modifier: Modifier = Modifier,
     secondaryLine: String? = null,
+    // Rafeeq Vivid — each widget carries its own accent (teal prayer,
+    // sky water, amber habits…) so the dashboard feels alive while every
+    // accent shares the same saturation family.
+    accent: androidx.compose.ui.graphics.Color? = null,
     trailing: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null
 ) {
@@ -60,20 +64,17 @@ fun SmartWidget(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Soft gold icon medallion
+                val tint = accent ?: MaterialTheme.colorScheme.primary
                 Box(
                     modifier = Modifier
                         .size(44.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                            CircleShape
-                        ),
+                        .background(tint.copy(alpha = 0.14f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = tint,
                         modifier = Modifier.size(AppDimens.iconSizeMedium)
                     )
                 }

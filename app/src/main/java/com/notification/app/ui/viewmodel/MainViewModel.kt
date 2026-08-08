@@ -12,24 +12,27 @@ import com.notification.app.data.remote.GeminiContent
 import com.notification.app.data.remote.GeminiPart
 import com.notification.app.data.repository.GeminiRepository
 import com.notification.app.data.repository.NotificationRepository
+import com.notification.app.domain.calculator.Gam3iyaCalculator
 import com.notification.app.domain.calculator.PrayerTime
 import com.notification.app.domain.calculator.PrayerTimesCalculator
-import com.notification.app.domain.model.AiSuggestion
 import com.notification.app.domain.model.LedgerTransactionType
 import com.notification.app.domain.model.RecurrenceType
 import com.notification.app.domain.model.ReminderCategory
 import com.notification.app.domain.scheduler.AlarmManagerScheduler
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getDatabase(application)
     val repository = NotificationRepository(db)
     val preferencesRepository = UserPreferencesRepository(application)
-    private val geminiRepository = GeminiRepository(repository)
+    private val geminiRepository = GeminiRepository(repository, preferencesRepository)
 
     // User Preferences State
     val language: StateFlow<String> = preferencesRepository.languageFlow
@@ -72,10 +75,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allGam3iyas: StateFlow<List<Gam3iyaEntity>> = repository.allGam3iyas
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
-    // Sprint 6 — Executive Dashboard: upcoming gam3iya payouts widget.
-    val allGam3iyaMembers: StateFlow<List<Gam3iyaMemberEntity>> = repository.allGam3iyaMembers
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val allAlarms: StateFlow<List<AlarmEntity>> = repository.allAlarms
@@ -171,6 +170,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ── Sprint 6 — installment payments + attachments ─────────────────
+    fun getFinancialPaymentsForItem(itemId: Long): Flow<List<FinancialPaymentEntity>> =
+        repository.getPaymentsForFinancialItem(itemId)
+    fun getFinancialAttachmentsForItem(itemId: Long): Flow<List<FinancialAttachmentEntity>> =
+        repository.getAttachmentsForFinancialItem(itemId)
+
+    /**
+     * Record a payment against an installment. Logs the payment, advances
+     * paidInstallments, recomputes remaining and the next due date (or
+     * marks the item paid when the balance reaches zero) and refreshes the
+     * linked reminder via the existing [updateFinancialItem] pipeline.
+     */
+    fun recordFinancialPayment(item: FinancialItemEntity, amount: Double, type: String, note: String) {
+        if (amount <= 0) return
+        viewModelScope.launch {
+            repository.insertFinancialPayment(
+                FinancialPaymentEntity(
+                    financialItemId = item.id, amount = amount, date = System.currentTimeMillis(),
+                    type = type, note = note
+                )
+            )
+            val payments = repository.getPaymentsForFinancialItem(item.id).first()
+            val plan = com.notification.app.domain.calculator.FinancialCalculator.computePlan(item, payments)
+            val nextDue = if (plan.isFinished) item.dueDate else {
+                java.util.Calendar.getInstance().apply {
+                    timeInMillis = if (item.dueDate > 0) item.dueDate else System.currentTimeMillis()
+                    add(java.util.Calendar.MONTH, 1)
+                }.timeInMillis
+            }
+            val updated = item.copy(
+                remaining = plan.remainingAmount,
+                paidInstallments = plan.paidInstallments,
+                isPaid = plan.isFinished,
+                dueDate = if (plan.isFinished) item.dueDate else nextDue
+            )
+            // Reuses the reminder-aware update pipeline (cancels the alarm
+            // when finished, else reschedules for the new due date).
+            updateFinancialItem(updated)
+        }
+    }
+
+    fun deleteFinancialPayment(item: FinancialItemEntity, p: FinancialPaymentEntity) {
+        viewModelScope.launch {
+            repository.deleteFinancialPayment(p)
+            val payments = repository.getPaymentsForFinancialItem(item.id).first()
+            val plan = com.notification.app.domain.calculator.FinancialCalculator.computePlan(item, payments)
+            updateFinancialItem(item.copy(
+                remaining = plan.remainingAmount, paidInstallments = plan.paidInstallments,
+                isPaid = plan.isFinished
+            ))
+        }
+    }
+
+    fun addFinancialAttachment(itemId: Long, uri: String, kind: String, label: String) {
+        viewModelScope.launch {
+            repository.insertFinancialAttachment(
+                FinancialAttachmentEntity(
+                    financialItemId = itemId, uri = uri, kind = kind, label = label,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+    fun deleteFinancialAttachment(a: FinancialAttachmentEntity) {
+        viewModelScope.launch { repository.deleteFinancialAttachment(a) }
+    }
+
     // Phase C — habit engine. The log flow feeds HabitCalculator
     // (streaks / calendar / percentages) in the UI layer.
     val allHabits: StateFlow<List<HabitEntity>> = repository.allHabits
@@ -241,41 +307,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Dashboard "Rafeeq Suggestions" — produced by the EXISTING Gemini
-    // pipeline from real data (see GeminiRepository.generateDashboardSuggestions).
-    private val _aiSuggestions = MutableStateFlow<List<AiSuggestion>>(emptyList())
-    val aiSuggestions: StateFlow<List<AiSuggestion>> = _aiSuggestions.asStateFlow()
-
-    private val _aiSuggestionsLoading = MutableStateFlow(false)
-    val aiSuggestionsLoading: StateFlow<Boolean> = _aiSuggestionsLoading.asStateFlow()
-
-    // Sprint 6 — TTL cache for AI suggestions: within the TTL the cached
-    // list is served instantly with no network call; pull-to-refresh
-    // passes force=true to bypass. The UI is never blocked either way.
-    private var aiSuggestionsFetchedAt = 0L
-
-    /**
-     * Refreshes the dashboard AI suggestions. Reuses the existing Gemini
-     * repository and API-key resolution; on failure the previous list is
-     * kept (or stays empty, letting the dashboard fall back to its local
-     * rule-based insights).
-     */
-    fun refreshAiSuggestions(isArabic: Boolean, force: Boolean = false) {
-        if (_aiSuggestionsLoading.value) return
-        val fresh = System.currentTimeMillis() - aiSuggestionsFetchedAt < AI_SUGGESTIONS_TTL_MS
-        if (!force && _aiSuggestions.value.isNotEmpty() && fresh) return
-        viewModelScope.launch {
-            _aiSuggestionsLoading.value = true
-            val result = geminiRepository.generateDashboardSuggestions(
-                isArabic = isArabic
-            )
-            if (result.isNotEmpty()) {
-                _aiSuggestions.value = result
-                aiSuggestionsFetchedAt = System.currentTimeMillis()
-            }
-            _aiSuggestionsLoading.value = false
-        }
-    }
+    // NOTE: AI dashboard suggestions were removed on purpose — they burned
+    // the free-tier quota the CHAT needs. «رفيق شايف إن…» on the home
+    // screen is computed locally from the user's own data at zero cost.
 
     /**
      * Stability sprint — full logout: Firebase sign-out happens at the
@@ -289,32 +323,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         aiJob?.cancel()
         _chatMessages.value = emptyList()
-        _aiSuggestions.value = emptyList()
-        aiSuggestionsFetchedAt = 0L
         _isAiLoading.value = false
         persistChat()
     }
 
     companion object {
-        /** How long cached AI suggestions stay fresh before a silent re-fetch. */
-        const val AI_SUGGESTIONS_TTL_MS: Long = 15 * 60 * 1000L
-
         /** Hard ceiling for a single AI generation before a friendly cancel.
          *  30s covers a tool round-trip plus one transient retry; the OkHttp
          *  call timeout (25s) usually trips first, so this is the backstop. */
         const val AI_GENERATION_TIMEOUT_MS: Long = 30_000L
     }
 
-    // Water counter state
-    private val _waterCount = MutableStateFlow(0)
-    val waterCount: StateFlow<Int> = _waterCount.asStateFlow()
+    // Water counter — persisted per-day (survives restart, resets each day).
+    val waterCount: StateFlow<Int> = preferencesRepository.waterCountFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
 
     init {
-        // Stability sprint — runtime verification of the key pipeline
-        // (GitHub Secret -> .env -> BuildConfig). Logs availability ONLY.
-        Log.i("Rafeeq", "API Key Available = " + BuildConfig.GEMINI_API_KEY.isNotBlank())
+        // Debug-only diagnostic of the key pipeline (GitHub Secret -> .env ->
+        // BuildConfig). Logs a boolean availability flag ONLY, never the key,
+        // and is stripped from release builds.
+        if (BuildConfig.DEBUG) {
+            Log.i("Rafeeq", "API Key Available = " + BuildConfig.GEMINI_API_KEY.isNotBlank())
+        }
         updatePrayerTimes()
         loadChat()
+        // رسائل رفيق اليومية — idempotent 8:00 morning + 21:00 evening briefs.
+        AlarmManagerScheduler.scheduleMorningBrief(getApplication())
+        AlarmManagerScheduler.scheduleEveningBrief(getApplication())
+        // Home-screen widget: refresh with live data whenever the app opens.
+        com.notification.app.receiver.TodayWidgetProvider.refreshAll(getApplication())
     }
 
     fun updatePrayerTimes() {
@@ -412,24 +450,106 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updatePerson(person: PersonEntity) {
-        viewModelScope.launch { repository.insertPerson(person) }
+        viewModelScope.launch { repository.updatePerson(person) }
+    }
+
+    // ── Sprint 5 — person profile CRUD extras ─────────────────────────
+    fun deletePerson(person: PersonEntity) {
+        viewModelScope.launch { repository.deletePersonCascade(person) }
+    }
+    fun togglePersonFavorite(person: PersonEntity) {
+        viewModelScope.launch { repository.updatePerson(person.copy(isFavorite = !person.isFavorite)) }
+    }
+    fun togglePersonArchived(person: PersonEntity) {
+        viewModelScope.launch { repository.updatePerson(person.copy(isArchived = !person.isArchived)) }
+    }
+
+    // ── Sprint 5 — ledger attachments (receipts / docs / audio) ───────
+    fun getLedgerAttachmentsForPerson(personId: Long): Flow<List<LedgerAttachmentEntity>> =
+        repository.getAttachmentsForPerson(personId)
+    fun addLedgerAttachment(personId: Long, transactionId: Long, uri: String, kind: String, label: String) {
+        viewModelScope.launch {
+            repository.insertLedgerAttachment(
+                LedgerAttachmentEntity(
+                    personId = personId, transactionId = transactionId, uri = uri,
+                    kind = kind, label = label, createdAt = System.currentTimeMillis()
+                )
+            )
+        }
+    }
+    fun deleteLedgerAttachment(a: LedgerAttachmentEntity) {
+        viewModelScope.launch { repository.deleteLedgerAttachment(a) }
     }
 
     fun addLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
-            repository.insertLedgerTransaction(tx)
+            val now = System.currentTimeMillis()
+            val stamped = tx.copy(
+                createdAt = if (tx.createdAt == 0L) now else tx.createdAt,
+                updatedAt = now
+            )
+            val id = repository.insertLedgerTransaction(stamped)
+            // Schedule a due-date reminder when one is set and in the future.
+            if (stamped.dueDate > now) {
+                val person = repository.getPersonById(stamped.personId)
+                val title = if (ar()) "استحقاق دين: ${person?.name ?: ""}" else "Debt due: ${person?.name ?: ""}"
+                val reminderId = insertAndScheduleReminder(
+                    ReminderEntity(
+                        title = title, note = stamped.note, dueDate = stamped.dueDate,
+                        category = ReminderCategory.MONEY.name
+                    )
+                )
+                repository.updateLedgerTransaction(stamped.copy(id = id, linkedReminderId = reminderId))
+            }
         }
     }
 
-    /** Sprint 5 — edit flow for debts: updates an existing ledger transaction in place. */
+    /**
+     * Edit flow for debts. The promised-date reminder stays in sync:
+     * changing the date reschedules it, clearing the date cancels it, and
+     * adding a date to an old transaction creates one.
+     */
     fun updateLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
-            repository.updateLedgerTransaction(tx)
+            val now = System.currentTimeMillis()
+            var toStore = tx.copy(updatedAt = now)
+            val linked = tx.linkedReminderId?.let { repository.getReminderById(it) }
+            when {
+                linked != null && tx.dueDate > now -> {
+                    val updated = linked.copy(dueDate = tx.dueDate, note = tx.note)
+                    repository.updateReminder(updated)
+                    AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), updated)
+                }
+                linked != null -> {
+                    AlarmManagerScheduler.cancelReminderAlarm(getApplication(), linked.id)
+                    repository.deleteReminder(linked)
+                    toStore = toStore.copy(linkedReminderId = null)
+                }
+                tx.dueDate > now -> {
+                    val person = repository.getPersonById(tx.personId)
+                    val title = if (ar()) "استحقاق دين: ${person?.name ?: ""}" else "Debt due: ${person?.name ?: ""}"
+                    val reminderId = insertAndScheduleReminder(
+                        ReminderEntity(
+                            title = title, note = tx.note, dueDate = tx.dueDate,
+                            category = ReminderCategory.MONEY.name
+                        )
+                    )
+                    toStore = toStore.copy(linkedReminderId = reminderId)
+                }
+            }
+            repository.updateLedgerTransaction(toStore)
         }
     }
 
     fun deleteLedgerTransaction(tx: LedgerTransactionEntity) {
         viewModelScope.launch {
+            // Never leave a ghost reminder behind a deleted debt.
+            tx.linkedReminderId?.let { linkedId ->
+                repository.getReminderById(linkedId)?.let { reminder ->
+                    AlarmManagerScheduler.cancelReminderAlarm(getApplication(), reminder.id)
+                    repository.deleteReminder(reminder)
+                }
+            }
             repository.deleteLedgerTransaction(tx)
         }
     }
@@ -452,6 +572,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         personName: String,
         amount: Double,
         isLent: Boolean,
+        receivedDate: Long = System.currentTimeMillis(),
         dueDate: Long?,
         note: String
     ) {
@@ -480,34 +601,102 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         LedgerTransactionType.THEY_GAVE_ME.name
                     },
                     amount = amount,
-                    date = System.currentTimeMillis(),
+                    date = receivedDate,
                     note = note,
+                    dueDate = dueDate ?: 0L,
                     linkedReminderId = linkedReminderId
                 )
             )
         }
     }
 
-    // Gam3iya Actions
-    fun getMembersForGam3iya(id: Long): Flow<List<Gam3iyaMemberEntity>> = repository.getMembersForGam3iya(id)
+    // ── رفيق — جمعيتي (مشترك فقط): تسجيل، تعديل، "دفعت قسط الشهر"،
+    // وتذكير شهري تلقائي. وضع "مدير الجمعية" اتشال نهائيًا من التطبيق.
 
-    fun createGam3iya(
-        title: String,
-        totalAmount: Double,
-        monthlyInstallment: Double,
-        memberNamesWithTurns: List<Pair<String, Int>>,
-        startDate: Long
-    ) {
+    /** Create a PARTICIPANT-mode gam3iya (I only take part). */
+    fun createParticipantGam3iya(gam3iya: Gam3iyaEntity) {
         viewModelScope.launch {
-            val gam3iya = Gam3iyaEntity(
-                title = title,
-                totalAmount = totalAmount,
-                monthlyInstallment = monthlyInstallment,
-                membersCount = memberNamesWithTurns.size,
-                startDate = startDate
+            val p = gam3iya.copy(
+                mode = "PARTICIPANT",
+                membersCount = 0,
+                createdAt = if (gam3iya.createdAt == 0L) System.currentTimeMillis() else gam3iya.createdAt
             )
-            repository.createGam3iyaWithMembers(gam3iya, memberNamesWithTurns)
+            val id = repository.insertGam3iya(p)
+            syncGam3iyaReminder(p.copy(id = id))
         }
+    }
+
+    fun updateGam3iya(gam3iya: Gam3iyaEntity) {
+        viewModelScope.launch {
+            repository.updateGam3iya(gam3iya)
+            syncGam3iyaReminder(gam3iya)
+        }
+    }
+
+    fun deleteGam3iya(gam3iya: Gam3iyaEntity) {
+        viewModelScope.launch {
+            AlarmManagerScheduler.cancelReminderAlarm(getApplication(), gam3iyaReminderId(gam3iya.id))
+            repository.deleteReminderById(gam3iyaReminderId(gam3iya.id))
+            repository.deleteGam3iya(gam3iya)
+        }
+    }
+
+    /** "دفعت قسط الشهر ✓" — record that I paid one more installment. */
+    fun participantRecordPayment(gam3iya: Gam3iyaEntity) {
+        viewModelScope.launch {
+            val amount = if (gam3iya.myInstallmentAmount > 0) gam3iya.myInstallmentAmount else gam3iya.monthlyInstallment
+            val newCount = gam3iya.myPaidInstallments + 1
+            val updated = gam3iya.copy(myPaidInstallments = newCount)
+            repository.updateGam3iya(updated)
+            repository.insertGam3iyaPayment(
+                Gam3iyaPaymentEntity(
+                    gam3iyaId = gam3iya.id, memberId = 0,
+                    monthIndex = newCount, amount = amount,
+                    date = System.currentTimeMillis(), type = "INSTALLMENT"
+                )
+            )
+            syncGam3iyaReminder(updated)
+        }
+    }
+
+    // A single rolling "next installment" reminder per gam3iya, upserted
+    // with a stable id derived from the gam3iya id (no schema change, no
+    // duplicates), riding the app's one reminder+alarm pipeline.
+    private fun gam3iyaReminderId(gam3iyaId: Long): Long = 900_000_000L + gam3iyaId
+
+    /** (Re)compute and (re)schedule the next-installment reminder. */
+    private suspend fun syncGam3iyaReminder(gam3iya: Gam3iyaEntity) {
+        val rid = gam3iyaReminderId(gam3iya.id)
+        val app = getApplication<android.app.Application>()
+        val now = System.currentTimeMillis()
+
+        val status = Gam3iyaCalculator.computeStatus(gam3iya, emptyList())
+
+        // Cancel path: reminders off, archived/completed, or fully paid.
+        if (!gam3iya.reminderEnabled || gam3iya.status != "ACTIVE" || status.isFinished) {
+            AlarmManagerScheduler.cancelReminderAlarm(app, rid)
+            repository.deleteReminderById(rid)
+            return
+        }
+
+        val date = if (gam3iya.myCollectionDate > now) gam3iya.myCollectionDate
+        else Gam3iyaCalculator.calculateMemberPayoutDate(gam3iya.startDate, gam3iya.myPaidInstallments + 1)
+        if (date <= now) {
+            AlarmManagerScheduler.cancelReminderAlarm(app, rid)
+            repository.deleteReminderById(rid)
+            return
+        }
+
+        val reminder = ReminderEntity(
+            id = rid,
+            title = if (ar()) "قسط جمعية: ${gam3iya.title}" else "Gam3iya installment: ${gam3iya.title}",
+            note = if (ar()) "تذكير تلقائي من رفيق" else "Automatic Rafeeq reminder",
+            dueDate = date,
+            category = ReminderCategory.MONEY.name,
+            preAlerts = if (gam3iya.reminderDaysBefore >= 1) "ONE_DAY,ONE_HOUR" else "ONE_HOUR"
+        )
+        repository.insertReminder(reminder) // REPLACE upsert on the stable id
+        AlarmManagerScheduler.scheduleReminderAlarm(app, reminder)
     }
 
     // Alarm Actions
@@ -560,7 +749,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun incrementWater() {
-        _waterCount.value++
+        viewModelScope.launch { preferencesRepository.setWaterCount(waterCount.value + 1) }
     }
 
     // AI Chat
@@ -591,8 +780,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Offline pre-check — fail fast with a clear message, never spin.
         if (!com.notification.app.data.remote.NetworkMonitor.isOnline(getApplication())) {
             appendModel(
-                if (isArabic) "لا يوجد اتصال بالإنترنت — تأكد من الشبكة وحاول مجددًا 🌐"
-                else "No internet connection — check your network and try again 🌐"
+                if (isArabic) "لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مرة أخرى."
+                else "No internet connection. Check your network and try again."
             )
             return
         }
@@ -612,7 +801,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), it)
                         }
                     },
-                    onLogWater = { incrementWater() }
+                    onLogWater = { incrementWater() },
+                    onGam3iyaCreated = { gam3iyaId ->
+                        repository.getGam3iyaById(gam3iyaId)?.let { syncGam3iyaReminder(it) }
+                    },
+                    onAlarmCancelled = { alarmId ->
+                        AlarmManagerScheduler.cancelAlarm(getApplication(), alarmId)
+                    }
                 )
             }
             if (result != null) {
@@ -623,8 +818,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     parts = listOf(
                         GeminiPart(
                             text = if (isArabic)
-                                "استغرق الرد وقتًا أطول من المعتاد فأوقفته — اضغط \"إعادة\" للمحاولة 🙏"
-                            else "That took longer than usual, so I stopped it — tap \"Regenerate\" to retry 🙏"
+                                "استغرق الرد وقتًا أطول من المعتاد. اضغط \"إعادة\" للمحاولة مرة أخرى."
+                            else "The response took longer than usual. Tap \"Regenerate\" to retry."
                         )
                     )
                 )
@@ -648,8 +843,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         aiJob?.cancel()
         aiJob = null
         appendModel(
-            if (language.value == "ar") "أوقفت الرد. اضغط \"إعادة\" وقت ما تحب."
-            else "Stopped. Tap \"Regenerate\" whenever you like."
+            if (language.value == "ar") "تم إيقاف الرد."
+            else "Response stopped."
         )
     }
 
@@ -732,9 +927,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val result = withTimeoutOrNull(30_000L) { backupRepository.restoreLatest() }
             _restoreState.value = when (result) {
-                is com.notification.app.data.repository.BackupRepository.BackupResult.Success ->
+                is com.notification.app.data.repository.BackupRepository.BackupResult.Success -> {
+                    // Restore wiped + rewrote every table, so all alarm/reminder
+                    // registrations are stale — re-arm them from the fresh data.
+                    rescheduleEverythingAfterRestore()
                     if (language.value == "ar") "success:تمت استعادة ${result.count} عنصر"
                     else "success:${result.count} items restored"
+                }
                 is com.notification.app.data.repository.BackupRepository.BackupResult.Failure ->
                     "error: ${result.message}"
                 null ->
@@ -745,10 +944,222 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Called right after a successful sign-in to pull any existing cloud backup down. */
+    /**
+     * Called right after a successful sign-in — on a NEW phone this is what
+     * makes all your data appear: it pulls the cloud mirror down (replacing
+     * local) and re-arms every alarm/reminder from the restored data.
+     */
     fun restoreFromBackup() {
         viewModelScope.launch {
-            backupRepository.restoreLatest()
+            val result = backupRepository.restoreLatest()
+            if (result is com.notification.app.data.repository.BackupRepository.BackupResult.Success) {
+                rescheduleEverythingAfterRestore()
+            }
         }
+    }
+
+    // ── Sprint 3 — Local backup file (SAF, encrypted, checksummed) ─────────
+    private val localBackup = com.notification.app.data.repository.LocalBackupManager(
+        getApplication(), db, preferencesRepository
+    )
+
+    private val _fileBackupState = MutableStateFlow<String?>(null)
+    val fileBackupState: StateFlow<String?> = _fileBackupState.asStateFlow()
+
+    private val _fileRestoreState = MutableStateFlow<String?>(null)
+    val fileRestoreState: StateFlow<String?> = _fileRestoreState.asStateFlow()
+
+    private val _restorePreview =
+        MutableStateFlow<com.notification.app.data.repository.LocalBackupManager.RestorePreview?>(null)
+    val restorePreview: StateFlow<com.notification.app.data.repository.LocalBackupManager.RestorePreview?> =
+        _restorePreview.asStateFlow()
+
+    private fun ar() = language.value == "ar"
+
+    /** Suggested backup file name for the SAF create-document picker. */
+    fun suggestedBackupFileName(): String {
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+        return "Rafeeq_Backup_$stamp.rafeeq"
+    }
+
+    fun exportBackupToFile(uri: android.net.Uri) {
+        if (_fileBackupState.value == "syncing") return
+        _fileBackupState.value = "syncing"
+        viewModelScope.launch {
+            val result = withTimeoutOrNull(60_000L) {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { localBackup.exportToUri(uri) }
+            }
+            _fileBackupState.value = when (result) {
+                is com.notification.app.data.repository.LocalBackupManager.Result.Success ->
+                    if (ar()) "success:تم حفظ ${result.count} عنصر في الملف"
+                    else "success:${result.count} items saved to file"
+                is com.notification.app.data.repository.LocalBackupManager.Result.Failure ->
+                    "error: ${result.reason}"
+                null -> "error: " + (if (ar()) "استغرق الحفظ وقتًا طويلًا" else "Backup timed out")
+            }
+        }
+    }
+
+    /** Step 1 of restore — validate + build a preview for the confirm dialog. */
+    fun prepareRestoreFromFile(uri: android.net.Uri) {
+        if (_fileRestoreState.value == "syncing") return
+        _fileRestoreState.value = "syncing"
+        viewModelScope.launch {
+            val validation = withTimeoutOrNull(60_000L) {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { localBackup.readAndValidate(uri) }
+            }
+            when (validation) {
+                is com.notification.app.data.repository.LocalBackupManager.Result.Failure -> {
+                    _fileRestoreState.value = "error: ${validation.reason}"
+                }
+                null -> _fileRestoreState.value =
+                    "error: " + (if (ar()) "استغرقت القراءة وقتًا طويلًا" else "Reading timed out")
+                else -> {
+                    val preview = withContext(kotlinx.coroutines.Dispatchers.IO) { localBackup.preview(uri) }
+                    if (preview == null) {
+                        _fileRestoreState.value =
+                            "error: " + (if (ar()) "تعذّر تحضير المعاينة" else "Couldn't prepare preview")
+                    } else {
+                        _fileRestoreState.value = null
+                        _restorePreview.value = preview
+                    }
+                }
+            }
+        }
+    }
+
+    /** Step 2 — the user confirmed; apply the previewed restore, then re-arm. */
+    fun confirmRestoreFromFile() {
+        val preview = _restorePreview.value ?: return
+        _restorePreview.value = null
+        _fileRestoreState.value = "syncing"
+        viewModelScope.launch {
+            val result = withTimeoutOrNull(60_000L) {
+                withContext(kotlinx.coroutines.Dispatchers.IO) { localBackup.applyRestore(preview.inner) }
+            }
+            _fileRestoreState.value = when (result) {
+                is com.notification.app.data.repository.LocalBackupManager.Result.Success -> {
+                    rescheduleEverythingAfterRestore()
+                    if (ar()) "success:تمت استعادة ${result.count} عنصر" else "success:${result.count} items restored"
+                }
+                is com.notification.app.data.repository.LocalBackupManager.Result.Failure ->
+                    "error: ${result.reason}"
+                null -> "error: " + (if (ar()) "استغرقت الاستعادة وقتًا طويلًا" else "Restore timed out")
+            }
+        }
+    }
+
+    fun cancelRestorePreview() {
+        _restorePreview.value = null
+        _fileRestoreState.value = null
+    }
+
+    // ── Automatic cloud backup ─────────────────────────────────────────────
+    // A single ON/OFF toggle. When ON, every change to the user's data
+    // (something added or removed) silently mirrors to the cloud — no
+    // schedules, no folders, no Wi-Fi/charging conditions. The backup is a
+    // MIRROR: the cloud always equals the device, so a later restore on a new
+    // phone brings back EXACTLY what's there now.
+    val autoCloudBackup: StateFlow<Boolean> = preferencesRepository.autoCloudBackupFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setAutoCloudBackup(value: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setAutoCloudBackup(value)
+            // Turning it ON takes an immediate snapshot so the cloud is never
+            // stale relative to what the user is looking at right now.
+            if (value) autoBackupNow()
+        }
+    }
+
+    /** Fire-and-forget mirror upload used by the auto-backup observer.
+     *  Never touches the visible backupState spinner — it's silent. */
+    private var autoBackupInFlight = false
+    private fun autoBackupNow() {
+        if (autoBackupInFlight) return
+        autoBackupInFlight = true
+        viewModelScope.launch {
+            try {
+                withTimeoutOrNull(30_000L) { backupRepository.backupNow() }
+                preferencesRepository.updateLastSyncTime(System.currentTimeMillis())
+            } finally {
+                autoBackupInFlight = false
+            }
+        }
+    }
+
+    init {
+        // Watch every data source that a backup captures. Each Room change
+        // pushes a new combined fingerprint; we debounce so a burst of edits
+        // collapses into one upload, drop the very first (initial load) so we
+        // don't back up just for opening the app, and only run while the
+        // toggle is ON.
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                repository.allReminders,
+                repository.allPersons,
+                repository.allTransactions,
+                repository.allFinancialItems,
+                repository.allGam3iyas
+            ) { a, b, c, d, e -> a.size + b.size + c.size + d.size + e.size }
+                .drop(1)
+                .debounce(4_000L)
+                .collect {
+                    if (autoCloudBackup.value) autoBackupNow()
+                }
+        }
+        // Re-arm any adhkar the user has enabled — AlarmManager registrations
+        // are cleared on reboot/reinstall, and scheduleAdhkar is idempotent.
+        viewModelScope.launch {
+            val app = getApplication<android.app.Application>()
+            if (preferencesRepository.adhkarMorningFlow.first())
+                AlarmManagerScheduler.scheduleAdhkar(app, com.notification.app.receiver.AdhkarReceiver.KIND_MORNING)
+            if (preferencesRepository.adhkarEveningFlow.first())
+                AlarmManagerScheduler.scheduleAdhkar(app, com.notification.app.receiver.AdhkarReceiver.KIND_EVENING)
+            if (preferencesRepository.adhkarDuhaFlow.first())
+                AlarmManagerScheduler.scheduleAdhkar(app, com.notification.app.receiver.AdhkarReceiver.KIND_DUHA)
+            if (preferencesRepository.adhkarQiyamFlow.first())
+                AlarmManagerScheduler.scheduleAdhkar(app, com.notification.app.receiver.AdhkarReceiver.KIND_QIYAM)
+        }
+    }
+
+    // ── أذكار ونوافل — persisted toggles that schedule/cancel daily nudges ──
+    val adhkarMorning: StateFlow<Boolean> = preferencesRepository.adhkarMorningFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val adhkarEvening: StateFlow<Boolean> = preferencesRepository.adhkarEveningFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val adhkarQiyam: StateFlow<Boolean> = preferencesRepository.adhkarQiyamFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val adhkarDuha: StateFlow<Boolean> = preferencesRepository.adhkarDuhaFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private fun setAdhkar(kind: String, enabled: Boolean, persist: suspend (Boolean) -> Unit) {
+        viewModelScope.launch {
+            persist(enabled)
+            val app = getApplication<android.app.Application>()
+            if (enabled) AlarmManagerScheduler.scheduleAdhkar(app, kind)
+            else AlarmManagerScheduler.cancelAdhkar(app, kind)
+        }
+    }
+
+    fun setAdhkarMorning(enabled: Boolean) =
+        setAdhkar(com.notification.app.receiver.AdhkarReceiver.KIND_MORNING, enabled) { preferencesRepository.setAdhkarMorning(it) }
+    fun setAdhkarEvening(enabled: Boolean) =
+        setAdhkar(com.notification.app.receiver.AdhkarReceiver.KIND_EVENING, enabled) { preferencesRepository.setAdhkarEvening(it) }
+    fun setAdhkarQiyam(enabled: Boolean) =
+        setAdhkar(com.notification.app.receiver.AdhkarReceiver.KIND_QIYAM, enabled) { preferencesRepository.setAdhkarQiyam(it) }
+    fun setAdhkarDuha(enabled: Boolean) =
+        setAdhkar(com.notification.app.receiver.AdhkarReceiver.KIND_DUHA, enabled) { preferencesRepository.setAdhkarDuha(it) }
+
+    /** After a restore, re-schedule alarms + pending reminders so restored
+     *  items actually fire (their AlarmManager registrations are gone). */
+    private suspend fun rescheduleEverythingAfterRestore() {
+        val now = System.currentTimeMillis()
+        repository.getActiveAlarms().forEach { alarm ->
+            if (alarm.timeInMillis > now) AlarmManagerScheduler.scheduleExactAlarm(getApplication(), alarm)
+        }
+        repository.pendingReminders.first()
+            .filter { !it.isArchived && it.dueDate > now }
+            .forEach { AlarmManagerScheduler.scheduleReminderAlarm(getApplication(), it) }
     }
 }

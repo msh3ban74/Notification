@@ -35,6 +35,43 @@ android {
       ?: "REPLACE_ME_GOOGLE_WEB_CLIENT_ID"
     buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
 
+    // Extra AI keys — from CI env (GitHub Secrets) or local.properties,
+    // ALWAYS quoted here so an unset secret compiles to "" instead of
+    // breaking BuildConfig generation. Never shown anywhere in the app.
+    val geminiKey2 = System.getenv("GEMINI_API_KEY_2")
+      ?: localProperties.getProperty("GEMINI_API_KEY_2") ?: ""
+    buildConfigField("String", "GEMINI_API_KEY_2", "\"$geminiKey2\"")
+    val geminiKey3 = System.getenv("GEMINI_API_KEY_3")
+      ?: localProperties.getProperty("GEMINI_API_KEY_3") ?: ""
+    buildConfigField("String", "GEMINI_API_KEY_3", "\"$geminiKey3\"")
+    val geminiKey4 = System.getenv("GEMINI_API_KEY_4")
+      ?: localProperties.getProperty("GEMINI_API_KEY_4") ?: ""
+    buildConfigField("String", "GEMINI_API_KEY_4", "\"$geminiKey4\"")
+    val geminiKey5 = System.getenv("GEMINI_API_KEY_5")
+      ?: localProperties.getProperty("GEMINI_API_KEY_5") ?: ""
+    buildConfigField("String", "GEMINI_API_KEY_5", "\"$geminiKey5\"")
+    // Unlimited extra keys in ONE secret: a comma/semicolon-separated list.
+    // Add as many as you like later WITHOUT any code or build change.
+    val geminiKeysCsv = System.getenv("GEMINI_API_KEYS")
+      ?: localProperties.getProperty("GEMINI_API_KEYS") ?: ""
+    buildConfigField("String", "GEMINI_API_KEYS", "\"$geminiKeysCsv\"")
+
+    val groqKey = System.getenv("GROQ_API_KEY")
+      ?: localProperties.getProperty("GROQ_API_KEY") ?: ""
+    buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
+    val groqKeysCsv = System.getenv("GROQ_API_KEYS")
+      ?: localProperties.getProperty("GROQ_API_KEYS") ?: ""
+    buildConfigField("String", "GROQ_API_KEYS", "\"$groqKeysCsv\"")
+
+    // Future providers — placeholders so adding Claude / OpenAI later is just a
+    // secret + a small provider block, no schema change. Empty until set.
+    val claudeKeysCsv = System.getenv("CLAUDE_API_KEYS")
+      ?: localProperties.getProperty("CLAUDE_API_KEYS") ?: ""
+    buildConfigField("String", "CLAUDE_API_KEYS", "\"$claudeKeysCsv\"")
+    val openaiKeysCsv = System.getenv("OPENAI_API_KEYS")
+      ?: localProperties.getProperty("OPENAI_API_KEYS") ?: ""
+    buildConfigField("String", "OPENAI_API_KEYS", "\"$openaiKeysCsv\"")
+
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
@@ -102,27 +139,24 @@ dependencies {
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
-  implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
-  implementation(libs.firebase.ai)
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.auth)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
   implementation(libs.googleid)
-  implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
-  implementation(libs.play.services.location)
   implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)

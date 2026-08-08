@@ -36,7 +36,37 @@ object AlarmManagerScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        scheduleExactOrFallback(alarmManager, alarm.timeInMillis, pendingIntent)
+        // For a repeating alarm the stored timeInMillis is only its FIRST
+        // occurrence and is soon in the past. Always compute the next matching
+        // weekday at the alarm's clock time so re-arming (app start / reboot)
+        // schedules a real future time instead of a dead past one.
+        val triggerAt = if (alarm.repeatDays.isBlank()) alarm.timeInMillis
+        else nextRecurringTrigger(alarm.repeatDays, alarm.timeInMillis, System.currentTimeMillis())
+            ?: alarm.timeInMillis
+        scheduleExactOrFallback(alarmManager, triggerAt, pendingIntent)
+    }
+
+    /** Soonest future instant strictly after [after] that lands on one of
+     *  [repeatDays] (Calendar.DAY_OF_WEEK 1..7) at the clock time of
+     *  [clockFrom]. Null if repeatDays is empty/invalid. */
+    private fun nextRecurringTrigger(repeatDays: String, clockFrom: Long, after: Long): Long? {
+        val days = repeatDays.split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
+        if (days.isEmpty()) return null
+        val base = java.util.Calendar.getInstance().apply { timeInMillis = clockFrom }
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = after
+            set(java.util.Calendar.HOUR_OF_DAY, base.get(java.util.Calendar.HOUR_OF_DAY))
+            set(java.util.Calendar.MINUTE, base.get(java.util.Calendar.MINUTE))
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        for (i in 0..7) {
+            if (cal.timeInMillis > after && cal.get(java.util.Calendar.DAY_OF_WEEK) in days) {
+                return cal.timeInMillis
+            }
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        return null
     }
 
     /**
@@ -105,12 +135,95 @@ object AlarmManagerScheduler {
             putExtra("EXTRA_RINGTONE_URI", ringtoneUri)
             putExtra("EXTRA_IS_ALARM", isAlarm)
         }
-        val requestCode = if (isAlarm) alarmId.toInt() else (reminderId + 100000).toInt()
+        // A snooze is a one-off re-fire. It MUST use its own request-code
+        // namespace: reusing the alarm's own id (like scheduleExactAlarm /
+        // scheduleNextRepeat do) would overwrite the pending weekly
+        // occurrence via FLAG_UPDATE_CURRENT and silently kill the repeat
+        // chain. A dedicated offset keeps the weekly alarm intact.
+        val requestCode = if (isAlarm) (alarmId % 1_000_000L).toInt() + 500_000
+        else (reminderId + 100000).toInt()
         val pendingIntent = PendingIntent.getBroadcast(
             context, requestCode, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         scheduleExactOrFallback(alarmManager, triggerAt, pendingIntent)
+    }
+
+    /**
+     * رسائل رفيق اليومية — arm (or re-arm) the daily briefs. Fixed request
+     * codes keep exactly ONE pending brief per kind, so these are cheap and
+     * idempotent: called on app start, after boot, and by each brief to
+     * schedule its own tomorrow.
+     */
+    fun scheduleMorningBrief(context: Context, hour: Int = 8) =
+        scheduleDailyBrief(context, hour, evening = false, requestCode = 777001)
+
+    fun scheduleEveningBrief(context: Context, hour: Int = 21) =
+        scheduleDailyBrief(context, hour, evening = true, requestCode = 777003)
+
+    private fun scheduleDailyBrief(context: Context, hour: Int, evening: Boolean, requestCode: Int) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, com.notification.app.receiver.MorningBriefReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_MORNING_BRIEF"
+            putExtra("EXTRA_EVENING", evening)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val next = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }.timeInMillis
+        scheduleExactOrFallback(alarmManager, next, pendingIntent)
+    }
+
+    /** أذكار ونوافل — schedule (or re-schedule) a kind's daily gentle
+     *  notification at its fixed time. Idempotent per kind. */
+    fun scheduleAdhkar(context: Context, kind: String) {
+        val (hour, minute, requestCode) = adhkarSlot(kind) ?: return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, com.notification.app.receiver.AdhkarReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_ADHKAR"
+            putExtra(com.notification.app.receiver.AdhkarReceiver.EXTRA_KIND, kind)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val next = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, minute)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }.timeInMillis
+        scheduleExactOrFallback(alarmManager, next, pendingIntent)
+    }
+
+    fun cancelAdhkar(context: Context, kind: String) {
+        val (_, _, requestCode) = adhkarSlot(kind) ?: return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, com.notification.app.receiver.AdhkarReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_ADHKAR"
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
+    }
+
+    /** (hour, minute, requestCode) for a kind, or null if unknown. */
+    private fun adhkarSlot(kind: String): Triple<Int, Int, Int>? = when (kind) {
+        com.notification.app.receiver.AdhkarReceiver.KIND_MORNING -> Triple(6, 0, 779101)
+        com.notification.app.receiver.AdhkarReceiver.KIND_EVENING -> Triple(17, 0, 779102)
+        com.notification.app.receiver.AdhkarReceiver.KIND_DUHA -> Triple(9, 0, 779103)
+        com.notification.app.receiver.AdhkarReceiver.KIND_QIYAM -> Triple(2, 30, 779104)
+        else -> null
     }
 
     fun scheduleReminderAlarm(context: Context, reminder: ReminderEntity) {
@@ -132,6 +245,51 @@ object AlarmManagerScheduler {
         )
 
         scheduleExactOrFallback(alarmManager, reminder.dueDate, pendingIntent)
+
+        // Pre-alerts (قبل يوم / قبل ساعة…): the entity always carried them,
+        // but nothing scheduled them — the promise "you'll be reminded a day
+        // before" silently never fired. Each pre-alert gets its own quiet
+        // heads-up notification ahead of the main alert.
+        schedulePreAlerts(context, alarmManager, reminder)
+    }
+
+    private fun preAlertRequestCode(reminderId: Long, ordinal: Int): Int {
+        // Gam3iya reminder ids start at 900_000_000, so reminderId*8 overflows
+        // Int and collides. Hash into a stable positive range instead.
+        val base = (reminderId.hashCode() and 0x0FFFFFFF)
+        return 700_000_000 + (base % 40_000_000) * 8 + ordinal
+    }
+
+    private fun schedulePreAlerts(
+        context: Context,
+        alarmManager: AlarmManager,
+        reminder: ReminderEntity
+    ) {
+        val now = System.currentTimeMillis()
+        com.notification.app.domain.model.PreAlertOption.entries.forEachIndexed { ordinal, option ->
+            val enabled = reminder.preAlerts.split(",")
+                .any { it.trim().equals(option.name, ignoreCase = true) }
+            if (!enabled) return@forEachIndexed
+            val triggerAt = reminder.dueDate - option.minutesBefore * 60_000L
+            if (triggerAt <= now) return@forEachIndexed
+            val intent = Intent(context, AlarmReceiver::class.java).apply {
+                action = "com.notification.app.ACTION_REMINDER_TRIGGER"
+                putExtra("EXTRA_REMINDER_ID", -1L)  // pre-alerts never re-arm recurrence
+                putExtra("EXTRA_TITLE", reminder.title)
+                putExtra("EXTRA_NOTE", reminder.note)
+                putExtra("EXTRA_CATEGORY", reminder.category)
+                putExtra("EXTRA_IS_ALARM", false)
+                putExtra("EXTRA_PRE_ALERT", true)
+                putExtra("EXTRA_PRE_ALERT_LABEL", option.name)
+            }
+            val pi = PendingIntent.getBroadcast(
+                context,
+                preAlertRequestCode(reminder.id, ordinal),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            scheduleExactOrFallback(alarmManager, triggerAt, pi)
+        }
     }
 
     /**
@@ -195,11 +353,28 @@ object AlarmManagerScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.cancel(pendingIntent)
+
+        // Mirror the pre-alert request-code namespace too.
+        com.notification.app.domain.model.PreAlertOption.entries.forEachIndexed { ordinal, _ ->
+            val pi = PendingIntent.getBroadcast(
+                context,
+                preAlertRequestCode(reminderId, ordinal),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pi)
+        }
     }
 
     fun cancelAlarm(context: Context, alarmId: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(context, AlarmReceiver::class.java)
+        // MUST mirror scheduleExactAlarm's Intent EXACTLY — AlarmManager
+        // matches PendingIntents with filterEquals(), which compares the
+        // action. Without this action the cancel never matched the scheduled
+        // alarm, so a deleted/disabled alarm kept ringing forever.
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_ALARM_TRIGGER"
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             alarmId.toInt(),

@@ -10,7 +10,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreditCard
@@ -66,9 +67,17 @@ fun FinancialListScreen(
     onTogglePaid: (FinancialItemEntity) -> Unit,
     onAdd: () -> Unit,
     // Phase D — duplicate an item as a fresh unpaid copy.
-    onDuplicate: ((FinancialItemEntity) -> Unit)? = null
+    onDuplicate: ((FinancialItemEntity) -> Unit)? = null,
+    // Sprint 6 — installments open the payment-plan detail; other types edit.
+    onOpenDetail: ((FinancialItemEntity) -> Unit)? = null
 ) {
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+
+    var showStats by rememberSaveable { mutableStateOf(false) }
+    if (showStats) {
+        InstallmentStatsScreen(items = items, isArabic = isArabic, onBack = { showStats = false })
+        return
+    }
 
     // Phase D — search + type filter on top of the unpaid-first sort.
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -100,7 +109,12 @@ fun FinancialListScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = if (isArabic) "رجوع" else "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = if (isArabic) "رجوع" else "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showStats = true }) {
+                        Icon(Icons.Default.BarChart, contentDescription = if (isArabic) "الإحصائيات" else "Statistics")
                     }
                 }
             )
@@ -189,7 +203,23 @@ fun FinancialListScreen(
                     else -> "${item.amount.toLong()} ${if (isArabic) "ج.م" else "EGP"}"
                 }
 
-                PremiumCard(onClick = { onEdit(item) }, modifier = Modifier.fillMaxWidth()) {
+                var confirmDelete by remember { mutableStateOf(false) }
+                if (confirmDelete) {
+                    com.notification.app.ui.components.ConfirmDeleteDialog(
+                        isArabic = isArabic,
+                        itemLabel = item.title,
+                        onConfirm = { onDelete(item) },
+                        onDismiss = { confirmDelete = false }
+                    )
+                }
+
+                PremiumCard(
+                    onClick = {
+                        if (item.type == "INSTALLMENT" && onOpenDetail != null) onOpenDetail(item)
+                        else onEdit(item)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -234,7 +264,7 @@ fun FinancialListScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = { onDelete(item) }) {
+                        IconButton(onClick = { confirmDelete = true }) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = if (isArabic) "حذف" else "Delete",

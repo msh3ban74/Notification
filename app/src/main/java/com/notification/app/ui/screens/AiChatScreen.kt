@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
@@ -25,7 +26,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,6 +61,7 @@ fun AiChatScreen(
     onOpenTasks: () -> Unit = {},
     onOpenLedger: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
+    onOpenFinancial: () -> Unit = {},
     // AI sprint — chat controls.
     onStopGeneration: () -> Unit = {},
     onRegenerate: () -> Unit = {},
@@ -91,6 +95,43 @@ fun AiChatScreen(
                     onSuggestionClick = onSendMessage
                 )
             } else {
+                // زر مسح المحادثة — كان مفقودًا (الـ callback موجود من زمان
+                // لكن بلا زر). مع تأكيد قبل الحذف.
+                var confirmClear by remember { mutableStateOf(false) }
+                androidx.compose.material3.FilledTonalIconButton(
+                    onClick = { confirmClear = true },
+                    colors = androidx.compose.material3.IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(Spacing.sm)
+                        .zIndex(2f)
+                        .size(40.dp)
+                ) {
+                    Icon(
+                        Icons.Default.DeleteSweep,
+                        contentDescription = if (isArabic) "مسح المحادثة" else "Clear chat",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                if (confirmClear) {
+                    AlertDialog(
+                        onDismissRequest = { confirmClear = false },
+                        title = { Text(if (isArabic) "مسح المحادثة؟" else "Clear the chat?") },
+                        text = { Text(if (isArabic) "سيتم مسح سجل المحادثة فقط. بياناتك من تذكيرات وديون وغيرها لن تتأثر." else "Only the chat history will be cleared. Your reminders, debts and other data stay intact.") },
+                        confirmButton = {
+                            Button(
+                                onClick = { confirmClear = false; onClearChat() },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) { Text(if (isArabic) "مسح" else "Clear") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { confirmClear = false }) { Text(if (isArabic) "إلغاء" else "Cancel") }
+                        }
+                    )
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -105,7 +146,13 @@ fun AiChatScreen(
                         val isUser = msg.role == "user"
                         val text = msg.parts.firstOrNull { !it.text.isNullOrBlank() }?.text ?: ""
                         if (text.isNotBlank()) {
-                            ChatBubble(text = text, isUser = isUser)
+                            // The newest model reply reveals progressively
+                            // (typing effect); older ones render instantly.
+                            ChatBubble(
+                                text = text,
+                                isUser = isUser,
+                                animateReveal = !isUser && index == lastModelIndex
+                            )
                             // Copy / share row under every model reply.
                             if (!isUser) {
                                 MessageActionsRow(
@@ -135,7 +182,8 @@ fun AiChatScreen(
                                     isArabic = isArabic,
                                     onOpenTasks = onOpenTasks,
                                     onOpenLedger = onOpenLedger,
-                                    onOpenNotifications = onOpenNotifications
+                                    onOpenNotifications = onOpenNotifications,
+                                    onOpenFinancial = onOpenFinancial
                                 )
                             }
                         }
@@ -230,18 +278,26 @@ private fun AssistantEmptyState(
     isArabic: Boolean,
     onSuggestionClick: (String) -> Unit
 ) {
+    // The four guided flows: each pill opens a short step-by-step
+    // conversation where Rafeeq collects the details then saves + reminds.
     val suggestions = if (isArabic) listOf(
-        "ما هي مهامي اليوم؟",
-        "هل لدي فواتير مستحقة؟",
-        "أخبرني عن ديوني",
-        "اضبط منبهًا بكرة ٦ الصبح"
+        "ماذا لديّ اليوم؟",
+        "ذكّرني بمهمة غدًا",
+        "احفظ معلومة أريد تذكّرها",
+        "نبّهني بعد ساعة"
     ) else listOf(
-        "What are my tasks today?",
-        "Do I have bills due?",
-        "Tell me about my debts",
-        "Set an alarm for 6 AM tomorrow"
+        "What do I have today?",
+        "Remind me of a task tomorrow",
+        "Remember something for me",
+        "Alert me in an hour"
     )
 
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Rafeeq DNA — the assistant's atmosphere: indigo dusk.
+        com.notification.app.ui.components.RafeeqAtmosphere(
+            palette = com.notification.app.ui.components.RafeeqWeather.Assistant,
+            modifier = Modifier.matchParentSize()
+        )
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -249,27 +305,38 @@ private fun AssistantEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Gold mark with halo
+        // Brand mark — a BREATHING halo: the assistant feels alive even
+        // before the first word is typed.
+        val breath by androidx.compose.animation.core.rememberInfiniteTransition(label = "aiBreath")
+            .animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(2600),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                ),
+                label = "aiBreathValue"
+            )
         Box(contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
-                    .size(104.dp)
-                    .background(MaroonPrimary.copy(alpha = 0.10f), CircleShape)
+                    .size(116.dp)
+                    .scale(1f + 0.05f * breath)
+                    .background(MaroonPrimary.copy(alpha = 0.05f + 0.04f * breath), CircleShape)
             )
             Box(
                 modifier = Modifier
-                    .size(76.dp)
-                    .background(
-                        Brush.linearGradient(listOf(MaroonPrimary, MaroonPrimaryDark)),
-                        CircleShape
-                    ),
+                    .size(84.dp)
+                    .background(MaroonPrimary.copy(alpha = 0.12f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    tint = OnPrimary,
-                    modifier = Modifier.size(36.dp)
+                    tint = MaroonPrimary,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .scale(1f + 0.06f * breath)
                 )
             }
         }
@@ -303,7 +370,10 @@ private fun AssistantEmptyState(
                 Surface(
                     onClick = { onSuggestionClick(suggestion) },
                     shape = AppRadius.button,
-                    color = MaterialTheme.colorScheme.surfaceVariant
+                    color = androidx.compose.ui.graphics.Color.White,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp, MaterialTheme.colorScheme.outlineVariant
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(
@@ -329,6 +399,7 @@ private fun AssistantEmptyState(
                 }
             }
         }
+    }
     }
 }
 
@@ -420,14 +491,17 @@ private fun ActionChipsRow(
     isArabic: Boolean,
     onOpenTasks: () -> Unit,
     onOpenLedger: () -> Unit,
-    onOpenNotifications: () -> Unit
+    onOpenNotifications: () -> Unit,
+    onOpenFinancial: () -> Unit
 ) {
     data class ChipAction(val label: String, val onClick: () -> Unit)
 
     val lower = replyText.lowercase()
     val chips = buildList {
-        if ("فاتورة" in replyText || "فواتير" in replyText || "bill" in lower) {
-            add(ChipAction(if (isArabic) "افتح الفواتير" else "Open Bills", onOpenTasks))
+        if ("فاتورة" in replyText || "فواتير" in replyText || "قسط" in replyText ||
+            "أقساط" in replyText || "bill" in lower || "installment" in lower
+        ) {
+            add(ChipAction(if (isArabic) "افتح المالية" else "Open Money", onOpenFinancial))
         }
         if ("دين" in replyText || "ديون" in replyText || "فلوس" in replyText ||
             "debt" in lower || "owe" in lower
@@ -548,7 +622,20 @@ private fun renderMarkdownLite(text: String): androidx.compose.ui.text.Annotated
  * lines comfortable to read; Rafeeq's replies render markdown-lite.
  */
 @Composable
-fun ChatBubble(text: String, isUser: Boolean) {
+fun ChatBubble(text: String, isUser: Boolean, animateReveal: Boolean = false) {
+    // Progressive "typing" reveal for the newest reply — the streaming
+    // experience without the fragility of real SSE + tool interplay.
+    var shown by remember(text) { mutableStateOf(if (animateReveal) 0 else text.length) }
+    LaunchedEffect(text, animateReveal) {
+        if (!animateReveal) { shown = text.length; return@LaunchedEffect }
+        // ~45 chars/frame step keeps long replies quick but visibly typed.
+        while (shown < text.length) {
+            shown = (shown + 3).coerceAtMost(text.length)
+            kotlinx.coroutines.delay(12)
+        }
+    }
+    val display = text.take(shown)
+
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
@@ -568,7 +655,7 @@ fun ChatBubble(text: String, isUser: Boolean) {
                 text = if (isUser) {
                     androidx.compose.ui.text.AnnotatedString(text)
                 } else {
-                    renderMarkdownLite(text)
+                    renderMarkdownLite(display)
                 },
                 // Follow the content's own direction so Arabic replies read
                 // right-to-left (from the right edge) and English left-to-right,

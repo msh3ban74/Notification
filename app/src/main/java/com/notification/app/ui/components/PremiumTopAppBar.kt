@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,7 +52,10 @@ import com.notification.app.ui.designsystem.AppPadding
 @Composable
 fun PremiumTopAppBar(
     title: String,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    // When provided, a search action appears left of the profile avatar and
+    // opens the global search screen.
+    onSearchClick: (() -> Unit)? = null
 ) {
     // Visual polish — transparent app bar: the bar shares the screen's
     // background so content and chrome read as ONE calm surface (Linear /
@@ -74,7 +78,7 @@ fun PremiumTopAppBar(
                 .padding(horizontal = AppPadding.screen),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Rafeeq brand mark — the sparkle, matching the launcher icon.
+            // Rafeeq brand mark — the indigo sparkle (product mock).
             Icon(
                 imageVector = Icons.Default.AutoAwesome,
                 contentDescription = "Rafeeq logo",
@@ -84,7 +88,7 @@ fun PremiumTopAppBar(
 
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
@@ -92,14 +96,25 @@ fun PremiumTopAppBar(
                     .padding(horizontal = AppPadding.cardCompact)
             )
 
+            if (onSearchClick != null) {
+                IconButton(onClick = onSearchClick) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "بحث / Search",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(AppDimens.iconSizeMedium)
+                    )
+                }
+            }
+
             // Stability sprint — Settings must be immediately discoverable:
             // a larger, gold-filled avatar instead of the old faint chip.
             IconButton(onClick = onProfileClick) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(38.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.primaryContainer,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -107,7 +122,7 @@ fun PremiumTopAppBar(
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "الإعدادات / Settings",
-                        tint = MaterialTheme.colorScheme.onPrimary,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(AppDimens.iconSizeMedium)
                     )
                 }

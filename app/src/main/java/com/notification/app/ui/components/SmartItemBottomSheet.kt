@@ -5,6 +5,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,9 +49,9 @@ import com.notification.app.ui.theme.Spacing
  * typography and a staggered entrance animation for the grid were
  * refined. The Smart Item list and selection behavior are unchanged.
  *
- * Bottom sheet opened from the Dashboard's "+" FAB. UI/navigation only —
- * selecting a type just routes to a placeholder screen (Sprint 3 builds
- * the real forms). Uses ONLY the existing Sprint 1 Design System
+ * Bottom sheet opened from the Dashboard's "+" FAB. Selecting a type
+ * routes to its real create screen (handled in MainActivity). Uses ONLY
+ * the existing Sprint 1 Design System
  * (PremiumCard, AppRadius, AppPadding, AppDimens) and the existing
  * MaterialTheme — no new colors or typography are introduced here.
  */
@@ -74,29 +76,45 @@ fun SmartItemBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = AppPadding.screen)
                 .padding(bottom = AppPadding.screen),
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             Text(
-                text = if (isArabic) "عايز تنظم إيه؟" else "What would you like to organize?",
+                text = if (isArabic) "ماذا تريد أن تنظّم؟" else "What would you like to organize?",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold
             )
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                itemsIndexed(items = SmartItemType.all) { index, item ->
-                    SmartItemGridCard(
-                        item = item,
-                        isArabic = isArabic,
-                        entranceDelayMillis = index * 25,
-                        onClick = { onItemSelected(item) }
-                    )
+            // Organized, titled sections — each type opens its OWN form.
+            var entranceIndex = 0
+            com.notification.app.domain.model.SmartItemCatalog.sections.forEach { section ->
+                Text(
+                    text = if (isArabic) section.titleAr else section.titleEn,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                section.items.chunked(3).forEach { rowItems ->
+                    androidx.compose.foundation.layout.Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        rowItems.forEach { item ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                SmartItemGridCard(
+                                    item = item,
+                                    isArabic = isArabic,
+                                    entranceDelayMillis = (entranceIndex++) * 25,
+                                    onClick = { onItemSelected(item) }
+                                )
+                            }
+                        }
+                        repeat(3 - rowItems.size) {
+                            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
@@ -124,21 +142,22 @@ private fun SmartItemGridCard(
                 animationSpec = tween(AppAnimationDuration.normal)
             )
     ) {
+        // Height wraps the content (no fixed aspect ratio) so the title can
+        // NEVER be clipped, whatever the font metrics are.
         PremiumCard(
             onClick = onClick,
             contentPadding = AppPadding.cardCompact,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(0.95f)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.xs),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
-                        .size(AppDimens.avatarSizeMedium)
+                        .size(40.dp)
                         .background(
                             color = MaterialTheme.colorScheme.primaryContainer,
                             shape = CircleShape
@@ -149,25 +168,17 @@ private fun SmartItemGridCard(
                         imageVector = item.icon,
                         contentDescription = if (isArabic) item.titleAr else item.titleEn,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(AppDimens.iconSizeMedium)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
                 Text(
                     text = if (isArabic) item.titleAr else item.titleEn,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     modifier = Modifier.padding(top = Spacing.xs)
-                )
-                Text(
-                    text = if (isArabic) item.subtitleAr else item.subtitleEn,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
         }

@@ -17,7 +17,16 @@ data class PersonEntity(
     val email: String = "",
     val address: String = "",
     val category: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    // Sprint 5 (Debts & Ledger) — full person profile. Added via Migration
+    // 8→9 (additive, defaults reproduce the previous blank profile).
+    val photoUri: String = "",
+    val company: String = "",
+    val nationalId: String = "",
+    val notes: String = "",
+    val tags: String = "",           // comma-separated
+    val isFavorite: Boolean = false,
+    val isArchived: Boolean = false
 )
 
 @Entity(tableName = "ledger_transactions")
@@ -28,5 +37,29 @@ data class LedgerTransactionEntity(
     val amount: Double,
     val date: Long,
     val note: String = "",
-    val linkedReminderId: Long? = null
+    val linkedReminderId: Long? = null,
+    // Sprint 5 additions (Migration 8→9).
+    val currency: String = "EGP",
+    val reason: String = "",
+    val dueDate: Long = 0,
+    val paymentType: String = "",    // PARTIAL | FULL | ADVANCE | SCHEDULED | RECURRING
+    val recurring: Boolean = false,
+    val createdAt: Long = 0,
+    val updatedAt: Long = 0
+)
+
+/**
+ * Sprint 5 — an attachment on a person or a specific ledger transaction:
+ * a receipt image, a PDF/document, or a voice note. transactionId = 0 means
+ * it belongs to the person (profile-level), not one transaction.
+ */
+@Entity(tableName = "ledger_attachments")
+data class LedgerAttachmentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val personId: Long,
+    val transactionId: Long = 0,
+    val uri: String,
+    val kind: String = "IMAGE",      // IMAGE | PDF | DOC | AUDIO
+    val label: String = "",
+    val createdAt: Long = 0
 )

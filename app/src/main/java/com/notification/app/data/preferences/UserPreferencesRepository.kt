@@ -17,7 +17,6 @@ class UserPreferencesRepository(private val context: Context) {
         val USER_NAME = stringPreferencesKey("user_display_name")
         val USER_EMAIL = stringPreferencesKey("user_email")
         val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
-        val GEMINI_KEY = stringPreferencesKey("gemini_api_key")
         val WATER_INTERVAL = intPreferencesKey("water_interval_hours")
         val PRAYER_FAJR = booleanPreferencesKey("prayer_fajr")
         val PRAYER_DHUHR = booleanPreferencesKey("prayer_dhuhr")
@@ -34,7 +33,52 @@ class UserPreferencesRepository(private val context: Context) {
         // survives process death / app restart (ViewModel alone only
         // survives rotation).
         val CHAT_HISTORY = stringPreferencesKey("ai_chat_history_json")
+        // Water tracker — persisted per-day so the count survives app
+        // restart / process death and resets automatically on a new day.
+        val WATER_COUNT = intPreferencesKey("water_count_today")
+        val WATER_DAY = longPreferencesKey("water_count_day_start")
+        // Automatic cloud backup — a single ON/OFF switch. When on, the app
+        // silently mirrors every data change to the cloud.
+        val AUTO_CLOUD_BACKUP = booleanPreferencesKey("auto_cloud_backup_enabled")
+        val AUTO_BACKUP_LAST = longPreferencesKey("auto_backup_last_at")
+        // Adhkar / nafl daily reminders. ADHKAR_MORNING / ADHKAR_EVENING are
+        // declared above; add only the two new ones here.
+        val ADHKAR_QIYAM = booleanPreferencesKey("adhkar_qiyam_enabled")
+        val ADHKAR_DUHA = booleanPreferencesKey("adhkar_duha_enabled")
     }
+
+    private fun todayStartMillis(): Long = java.util.Calendar.getInstance().apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    /** Today's water count; automatically 0 once the stored day is not today. */
+    val waterCountFlow: Flow<Int> = context.dataStore.data.map { prefs ->
+        if ((prefs[PreferenceKeys.WATER_DAY] ?: 0L) == todayStartMillis()) prefs[PreferenceKeys.WATER_COUNT] ?: 0 else 0
+    }
+
+    suspend fun setWaterCount(count: Int) {
+        context.dataStore.edit {
+            it[PreferenceKeys.WATER_COUNT] = count.coerceAtLeast(0)
+            it[PreferenceKeys.WATER_DAY] = todayStartMillis()
+        }
+    }
+
+    val autoCloudBackupFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.AUTO_CLOUD_BACKUP] ?: false }
+    val autoBackupLastFlow: Flow<Long> = context.dataStore.data.map { it[PreferenceKeys.AUTO_BACKUP_LAST] ?: 0L }
+
+    suspend fun setAutoCloudBackup(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.AUTO_CLOUD_BACKUP] = v } }
+    suspend fun setAutoBackupLast(v: Long) { context.dataStore.edit { it[PreferenceKeys.AUTO_BACKUP_LAST] = v } }
+
+    val adhkarMorningFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.ADHKAR_MORNING] ?: false }
+    val adhkarEveningFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.ADHKAR_EVENING] ?: false }
+    val adhkarQiyamFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.ADHKAR_QIYAM] ?: false }
+    val adhkarDuhaFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.ADHKAR_DUHA] ?: false }
+
+    suspend fun setAdhkarMorning(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.ADHKAR_MORNING] = v } }
+    suspend fun setAdhkarEvening(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.ADHKAR_EVENING] = v } }
+    suspend fun setAdhkarQiyam(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.ADHKAR_QIYAM] = v } }
+    suspend fun setAdhkarDuha(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.ADHKAR_DUHA] = v } }
 
     val chatHistoryFlow: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[PreferenceKeys.CHAT_HISTORY] ?: ""
@@ -62,10 +106,6 @@ class UserPreferencesRepository(private val context: Context) {
 
     val userEmailFlow: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[PreferenceKeys.USER_EMAIL] ?: ""
-    }
-
-    val geminiApiKeyFlow: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[PreferenceKeys.GEMINI_KEY] ?: ""
     }
 
     val waterIntervalFlow: Flow<Int> = context.dataStore.data.map { prefs ->
@@ -108,10 +148,6 @@ class UserPreferencesRepository(private val context: Context) {
             prefs[PreferenceKeys.USER_EMAIL] = email
             prefs[PreferenceKeys.IS_LOGGED_IN] = isLoggedIn
         }
-    }
-
-    suspend fun setGeminiApiKey(key: String) {
-        context.dataStore.edit { prefs -> prefs[PreferenceKeys.GEMINI_KEY] = key }
     }
 
     suspend fun setWaterInterval(hours: Int) {

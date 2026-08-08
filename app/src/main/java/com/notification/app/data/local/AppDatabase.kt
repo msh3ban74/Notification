@@ -14,15 +14,21 @@ import com.notification.app.data.local.entities.*
         ReminderEntity::class,
         PersonEntity::class,
         LedgerTransactionEntity::class,
+        LedgerAttachmentEntity::class,
         Gam3iyaEntity::class,
         Gam3iyaMemberEntity::class,
+        Gam3iyaPaymentEntity::class,
+        Gam3iyaAttachmentEntity::class,
         AlarmEntity::class,
         WorkNoteEntity::class,
         FinancialItemEntity::class,
+        FinancialPaymentEntity::class,
+        FinancialAttachmentEntity::class,
         HabitEntity::class,
-        HabitLogEntity::class
+        HabitLogEntity::class,
+        MemoryEntity::class
     ],
-    version = 7,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -33,6 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workNoteDao(): WorkNoteDao
     abstract fun financialDao(): FinancialDao
     abstract fun habitDao(): HabitDao
+    abstract fun memoryDao(): MemoryDao
 
     companion object {
         @Volatile
@@ -165,6 +172,176 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration 7→8 — Sprint 4: professional Gam3iya. Additive ALTER
+         * TABLEs on the two existing gam3iya tables (defaults reproduce the
+         * old MANAGER-only, no-photo behaviour) plus two new CREATE TABLEs
+         * for payment history and attachments. No existing data touched.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // gam3iyas — new columns
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN mode TEXT NOT NULL DEFAULT 'MANAGER'")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN currency TEXT NOT NULL DEFAULT 'EGP'")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN collectionTime TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN durationMonths INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN photoUri TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN reminderEnabled INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN reminderDaysBefore INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN alarmEnabled INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN organizerName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN organizerPhone TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN organizerWhatsapp TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN organizerEmail TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN myInstallmentAmount REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN myTurnNumber INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN myCollectionDate INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iyas ADD COLUMN myPaidInstallments INTEGER NOT NULL DEFAULT 0")
+                // gam3iya_members — new columns
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN photoUri TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN phone TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN whatsapp TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN address TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN nationalId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN installmentAmount REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN isLate INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE gam3iya_members ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+                // new tables
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS gam3iya_payments (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        gam3iyaId INTEGER NOT NULL,
+                        memberId INTEGER NOT NULL DEFAULT 0,
+                        monthIndex INTEGER NOT NULL DEFAULT 0,
+                        amount REAL NOT NULL DEFAULT 0,
+                        date INTEGER NOT NULL DEFAULT 0,
+                        type TEXT NOT NULL DEFAULT 'INSTALLMENT',
+                        note TEXT NOT NULL DEFAULT ''
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS gam3iya_attachments (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        gam3iyaId INTEGER NOT NULL,
+                        memberId INTEGER NOT NULL DEFAULT 0,
+                        uri TEXT NOT NULL,
+                        kind TEXT NOT NULL DEFAULT 'RECEIPT',
+                        label TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        /**
+         * Migration 8→9 — Sprint 5: professional Debts & Ledger. Additive
+         * ALTER TABLEs on persons + ledger_transactions (defaults reproduce
+         * the previous behaviour) plus a new ledger_attachments table. No
+         * existing data touched.
+         */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE persons ADD COLUMN photoUri TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN company TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN nationalId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE persons ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE persons ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN currency TEXT NOT NULL DEFAULT 'EGP'")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN reason TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN dueDate INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN paymentType TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN recurring INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE ledger_transactions ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS ledger_attachments (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        personId INTEGER NOT NULL,
+                        transactionId INTEGER NOT NULL DEFAULT 0,
+                        uri TEXT NOT NULL,
+                        kind TEXT NOT NULL DEFAULT 'IMAGE',
+                        label TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        /**
+         * Migration 9→10 — Sprint 6: professional Installments. Additive
+         * ALTER TABLEs on financial_items (defaults reproduce prior data)
+         * plus two new tables for payment history and attachments.
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN brand TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN store TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN storePhone TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN storeWhatsapp TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN category TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN currency TEXT NOT NULL DEFAULT 'EGP'")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN interestAmount REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN purchaseDate INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN warranty TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE financial_items ADD COLUMN paidInstallments INTEGER NOT NULL DEFAULT 0")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS financial_payments (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        financialItemId INTEGER NOT NULL,
+                        amount REAL NOT NULL DEFAULT 0,
+                        date INTEGER NOT NULL DEFAULT 0,
+                        type TEXT NOT NULL DEFAULT 'PARTIAL',
+                        note TEXT NOT NULL DEFAULT ''
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS financial_attachments (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        financialItemId INTEGER NOT NULL,
+                        uri TEXT NOT NULL,
+                        kind TEXT NOT NULL DEFAULT 'RECEIPT',
+                        label TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        // v11 — the general memory store (free-form facts Rafeeq remembers).
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS memories (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        content TEXT NOT NULL,
+                        label TEXT NOT NULL DEFAULT '',
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -174,10 +351,16 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
-                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7
+                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                    MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
+                    MIGRATION_10_11
                 )
-                // Safety net only — real migrations above preserve data.
-                .fallbackToDestructiveMigration()
+                // Never silently wipe a user's financial history on a normal
+                // upgrade: the contiguous 1→10 migrations above cover every
+                // forward step. Destructive fallback is limited to the only
+                // case a real migration can't exist — a DOWNGRADE (installing
+                // an older build over a newer schema).
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance
                 instance

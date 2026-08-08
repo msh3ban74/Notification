@@ -5,8 +5,10 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.notification.app.data.local.AppDatabase
 import com.notification.app.data.local.entities.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 /**
  * Real cloud backup/restore for the local Room database, using Firestore
@@ -31,11 +33,27 @@ class BackupRepository(
         data class Failure(val message: String) : BackupResult()
     }
 
-    private fun userDoc() = auth.currentUser?.uid?.let { uid -> firestore.collection("users").document(uid) }
+    /**
+     * BUG FIX (النسخ الاحتياطي مش شغال): users who tapped "تخطي" at login
+     * had no Firebase user, so every backup died with "Not signed in".
+     * Now Rafeeq signs in ANONYMOUSLY on demand — the backup still lands
+     * under a stable per-device uid, and upgrading to Google sign-in later
+     * keeps working as before.
+     */
+    private suspend fun userDoc() = run {
+        val uid = auth.currentUser?.uid ?: try {
+            auth.signInAnonymously().await().user?.uid
+        } catch (e: Exception) {
+            null
+        }
+        uid?.let { firestore.collection("users").document(it) }
+    }
 
-    /** Uploads the full local database to Firestore for the current signed-in user. */
+    /** Uploads the full local database to Firestore for the current user. */
     suspend fun backupNow(): BackupResult {
-        val userDocRef = userDoc() ?: return BackupResult.Failure("Not signed in.")
+        val userDocRef = userDoc() ?: return BackupResult.Failure(
+            "تعذّر تجهيز حساب النسخ — تأكد من الاتصال وحاول مجددًا / Couldn't prepare the backup account — check your connection."
+        )
         return try {
             data class Op(val collection: String, val docId: String, val data: Map<String, Any?>)
 
@@ -49,11 +67,20 @@ class BackupRepository(
             db.personLedgerDao().getAllTransactions().first().forEach {
                 ops += Op("ledger_transactions", it.id.toString(), transactionToMap(it))
             }
+            db.personLedgerDao().getAllLedgerAttachments().first().forEach {
+                ops += Op("ledger_attachments", it.id.toString(), ledgerAttachmentToMap(it))
+            }
             db.gam3iyaDao().getAllGam3iyas().first().forEach {
                 ops += Op("gam3iyas", it.id.toString(), gam3iyaToMap(it))
             }
             db.gam3iyaDao().getAllMembers().first().forEach {
                 ops += Op("gam3iya_members", it.id.toString(), gam3iyaMemberToMap(it))
+            }
+            db.gam3iyaDao().getAllPayments().first().forEach {
+                ops += Op("gam3iya_payments", it.id.toString(), gam3iyaPaymentToMap(it))
+            }
+            db.gam3iyaDao().getAllAttachments().first().forEach {
+                ops += Op("gam3iya_attachments", it.id.toString(), gam3iyaAttachmentToMap(it))
             }
             db.alarmDao().getAllAlarms().first().forEach {
                 ops += Op("alarms", it.id.toString(), alarmToMap(it))
@@ -63,6 +90,12 @@ class BackupRepository(
             }
             db.financialDao().getAll().first().forEach {
                 ops += Op("financial_items", it.id.toString(), financialToMap(it))
+            }
+            db.financialDao().getAllFinancialPayments().first().forEach {
+                ops += Op("financial_payments", it.id.toString(), financialPaymentToMap(it))
+            }
+            db.financialDao().getAllFinancialAttachments().first().forEach {
+                ops += Op("financial_attachments", it.id.toString(), financialAttachmentToMap(it))
             }
             db.habitDao().getAllHabitsRaw().first().forEach {
                 ops += Op("habits", it.id.toString(), habitToMap(it))
@@ -79,6 +112,35 @@ class BackupRepository(
                 }
                 batch.commit().await()
             }
+
+            // MIRROR: delete any cloud doc that no longer exists locally, so
+            // the backup is an exact copy of the device — not an append-only
+            // pile. This is what makes "I deleted a paid installment" stick
+            // after a restore on another phone.
+            val allCollections = listOf(
+                "reminders", "persons", "ledger_transactions", "ledger_attachments",
+                "gam3iyas", "gam3iya_members", "gam3iya_payments", "gam3iya_attachments",
+                "alarms", "work_notes", "financial_items", "financial_payments",
+                "financial_attachments", "habits", "habit_logs"
+            )
+            val localIdsByCollection = ops.groupBy({ it.collection }, { it.docId })
+                .mapValues { it.value.toSet() }
+            val staleDeletes = mutableListOf<com.google.firebase.firestore.DocumentReference>()
+            allCollections.forEach { coll ->
+                val localIds = localIdsByCollection[coll] ?: emptySet()
+                val cloudDocs = userDocRef.collection(coll).get().await().documents
+                cloudDocs.forEach { doc ->
+                    if (doc.id !in localIds) {
+                        staleDeletes += userDocRef.collection(coll).document(doc.id)
+                    }
+                }
+            }
+            staleDeletes.chunked(400).forEach { chunk ->
+                val batch = firestore.batch()
+                chunk.forEach { ref -> batch.delete(ref) }
+                batch.commit().await()
+            }
+
             firestore.batch().apply {
                 set(userDocRef, mapOf(
                     "lastBackupAt" to System.currentTimeMillis(),
@@ -100,8 +162,27 @@ class BackupRepository(
      * restore" rather than a misleading success.
      */
     suspend fun restoreLatest(): BackupResult {
-        val userDocRef = userDoc() ?: return BackupResult.Failure("Not signed in.")
+        val userDocRef = userDoc() ?: return BackupResult.Failure(
+            "تعذّر تجهيز حساب النسخ — تأكد من الاتصال وحاول مجددًا / Couldn't prepare the backup account — check your connection."
+        )
         return try {
+            // Guard FIRST: if this account never backed up, do NOT wipe local
+            // data — that would be catastrophic data loss. Only a real cloud
+            // backup earns the right to replace the device.
+            val cloud = userDocRef.get().await()
+            if (!cloud.exists() || (cloud.getLong("recordCount") ?: 0L) == 0L) {
+                return BackupResult.Failure(
+                    "EMPTY — no cloud backup found for this account yet."
+                )
+            }
+
+            // REPLACE, not merge: wipe every local table first so anything the
+            // user deleted before their last backup (e.g. a finished
+            // installment) can NOT reappear after restoring on another phone.
+            // clearAllTables() is a BLOCKING Room call — must be off the main
+            // thread or Room throws "cannot access database on the main thread".
+            withContext(Dispatchers.IO) { db.clearAllTables() }
+
             var count = 0
             userDocRef.collection("reminders").get().await().documents
                 .mapNotNull { it.toReminder() }
@@ -112,12 +193,21 @@ class BackupRepository(
             userDocRef.collection("ledger_transactions").get().await().documents
                 .mapNotNull { it.toTransaction() }
                 .forEach { db.personLedgerDao().insertTransaction(it); count++ }
+            userDocRef.collection("ledger_attachments").get().await().documents
+                .mapNotNull { it.toLedgerAttachment() }
+                .forEach { db.personLedgerDao().insertLedgerAttachment(it); count++ }
             userDocRef.collection("gam3iyas").get().await().documents
                 .mapNotNull { it.toGam3iya() }
                 .forEach { db.gam3iyaDao().insertGam3iya(it); count++ }
             val members = userDocRef.collection("gam3iya_members").get().await().documents
                 .mapNotNull { it.toGam3iyaMember() }
             if (members.isNotEmpty()) { db.gam3iyaDao().insertMembers(members); count += members.size }
+            userDocRef.collection("gam3iya_payments").get().await().documents
+                .mapNotNull { it.toGam3iyaPayment() }
+                .forEach { db.gam3iyaDao().insertPayment(it); count++ }
+            userDocRef.collection("gam3iya_attachments").get().await().documents
+                .mapNotNull { it.toGam3iyaAttachment() }
+                .forEach { db.gam3iyaDao().insertAttachment(it); count++ }
             userDocRef.collection("alarms").get().await().documents
                 .mapNotNull { it.toAlarm() }
                 .forEach { db.alarmDao().insertAlarm(it); count++ }
@@ -127,6 +217,12 @@ class BackupRepository(
             userDocRef.collection("financial_items").get().await().documents
                 .mapNotNull { it.toFinancialItem() }
                 .forEach { db.financialDao().insert(it); count++ }
+            userDocRef.collection("financial_payments").get().await().documents
+                .mapNotNull { it.toFinancialPayment() }
+                .forEach { db.financialDao().insertPayment(it); count++ }
+            userDocRef.collection("financial_attachments").get().await().documents
+                .mapNotNull { it.toFinancialAttachment() }
+                .forEach { db.financialDao().insertAttachment(it); count++ }
             userDocRef.collection("habits").get().await().documents
                 .mapNotNull { it.toHabit() }
                 .forEach { db.habitDao().insertHabit(it); count++ }
@@ -166,28 +262,61 @@ class BackupRepository(
         "isPinned" to r.isPinned, "isArchived" to r.isArchived
     )
 
+    private fun ledgerAttachmentToMap(a: LedgerAttachmentEntity) = mapOf(
+        "id" to a.id, "personId" to a.personId, "transactionId" to a.transactionId,
+        "uri" to a.uri, "kind" to a.kind, "label" to a.label, "createdAt" to a.createdAt
+    )
+
     private fun personToMap(p: PersonEntity) = mapOf(
         "id" to p.id, "name" to p.name, "phoneNumber" to p.phoneNumber,
         "whatsapp" to p.whatsapp, "email" to p.email, "address" to p.address,
-        "category" to p.category, "createdAt" to p.createdAt
+        "category" to p.category, "createdAt" to p.createdAt,
+        "photoUri" to p.photoUri, "company" to p.company, "nationalId" to p.nationalId,
+        "notes" to p.notes, "tags" to p.tags, "isFavorite" to p.isFavorite, "isArchived" to p.isArchived
     )
 
     private fun transactionToMap(t: LedgerTransactionEntity) = mapOf(
         "id" to t.id, "personId" to t.personId, "type" to t.type, "amount" to t.amount,
-        "date" to t.date, "note" to t.note, "linkedReminderId" to t.linkedReminderId
+        "date" to t.date, "note" to t.note, "linkedReminderId" to t.linkedReminderId,
+        "currency" to t.currency, "reason" to t.reason, "dueDate" to t.dueDate,
+        "paymentType" to t.paymentType, "recurring" to t.recurring,
+        "createdAt" to t.createdAt, "updatedAt" to t.updatedAt
     )
 
     private fun gam3iyaToMap(g: Gam3iyaEntity) = mapOf(
         "id" to g.id, "title" to g.title, "totalAmount" to g.totalAmount,
         "monthlyInstallment" to g.monthlyInstallment, "membersCount" to g.membersCount,
-        "startDate" to g.startDate, "payoutDayOfMonth" to g.payoutDayOfMonth, "note" to g.note
+        "startDate" to g.startDate, "payoutDayOfMonth" to g.payoutDayOfMonth, "note" to g.note,
+        "mode" to g.mode, "description" to g.description, "currency" to g.currency,
+        "collectionTime" to g.collectionTime, "durationMonths" to g.durationMonths,
+        "status" to g.status, "photoUri" to g.photoUri, "reminderEnabled" to g.reminderEnabled,
+        "reminderDaysBefore" to g.reminderDaysBefore, "alarmEnabled" to g.alarmEnabled,
+        "createdAt" to g.createdAt, "organizerName" to g.organizerName,
+        "organizerPhone" to g.organizerPhone, "organizerWhatsapp" to g.organizerWhatsapp,
+        "organizerEmail" to g.organizerEmail, "myInstallmentAmount" to g.myInstallmentAmount,
+        "myTurnNumber" to g.myTurnNumber, "myCollectionDate" to g.myCollectionDate,
+        "myPaidInstallments" to g.myPaidInstallments
     )
 
     private fun gam3iyaMemberToMap(m: Gam3iyaMemberEntity) = mapOf(
         "id" to m.id, "gam3iyaId" to m.gam3iyaId, "memberName" to m.memberName,
         "turnMonth" to m.turnMonth, "payoutDate" to m.payoutDate,
         "isPayoutReceived" to m.isPayoutReceived,
-        "isInstallmentPaidThisMonth" to m.isInstallmentPaidThisMonth
+        "isInstallmentPaidThisMonth" to m.isInstallmentPaidThisMonth,
+        "photoUri" to m.photoUri, "phone" to m.phone, "whatsapp" to m.whatsapp,
+        "email" to m.email, "address" to m.address, "nationalId" to m.nationalId,
+        "installmentAmount" to m.installmentAmount, "isLate" to m.isLate, "notes" to m.notes
+    )
+
+    private fun gam3iyaPaymentToMap(p: Gam3iyaPaymentEntity) = mapOf(
+        "id" to p.id, "gam3iyaId" to p.gam3iyaId, "memberId" to p.memberId,
+        "monthIndex" to p.monthIndex, "amount" to p.amount, "date" to p.date,
+        "type" to p.type, "note" to p.note
+    )
+
+    private fun gam3iyaAttachmentToMap(a: Gam3iyaAttachmentEntity) = mapOf(
+        "id" to a.id, "gam3iyaId" to a.gam3iyaId, "memberId" to a.memberId,
+        "uri" to a.uri, "kind" to a.kind, "label" to a.label, "createdAt" to a.createdAt
     )
 
     private fun alarmToMap(a: AlarmEntity) = mapOf(
@@ -210,7 +339,22 @@ class BackupRepository(
         "monthlyAmount" to f.monthlyAmount, "remaining" to f.remaining, "dueDate" to f.dueDate,
         "accountNumber" to f.accountNumber, "billNumber" to f.billNumber, "seller" to f.seller,
         "paymentMethod" to f.paymentMethod, "recurring" to f.recurring, "isPaid" to f.isPaid,
-        "note" to f.note, "linkedReminderId" to f.linkedReminderId, "createdAt" to f.createdAt
+        "note" to f.note, "linkedReminderId" to f.linkedReminderId, "createdAt" to f.createdAt,
+        "brand" to f.brand, "store" to f.store, "storePhone" to f.storePhone,
+        "storeWhatsapp" to f.storeWhatsapp, "category" to f.category, "currency" to f.currency,
+        "interestAmount" to f.interestAmount, "purchaseDate" to f.purchaseDate,
+        "warranty" to f.warranty, "tags" to f.tags, "isFavorite" to f.isFavorite,
+        "isArchived" to f.isArchived, "paidInstallments" to f.paidInstallments
+    )
+
+    private fun financialPaymentToMap(p: FinancialPaymentEntity) = mapOf(
+        "id" to p.id, "financialItemId" to p.financialItemId, "amount" to p.amount,
+        "date" to p.date, "type" to p.type, "note" to p.note
+    )
+
+    private fun financialAttachmentToMap(a: FinancialAttachmentEntity) = mapOf(
+        "id" to a.id, "financialItemId" to a.financialItemId, "uri" to a.uri,
+        "kind" to a.kind, "label" to a.label, "createdAt" to a.createdAt
     )
 
     private fun habitToMap(h: HabitEntity) = mapOf(
@@ -254,7 +398,10 @@ class BackupRepository(
         return PersonEntity(
             id = lng("id"), name = name, phoneNumber = str("phoneNumber"),
             whatsapp = str("whatsapp"), email = str("email"), address = str("address"),
-            category = str("category"), createdAt = lng("createdAt")
+            category = str("category"), createdAt = lng("createdAt"),
+            photoUri = str("photoUri"), company = str("company"), nationalId = str("nationalId"),
+            notes = str("notes"), tags = str("tags"),
+            isFavorite = bool("isFavorite"), isArchived = bool("isArchived")
         )
     }
 
@@ -262,7 +409,18 @@ class BackupRepository(
         val type = getString("type") ?: return null
         return LedgerTransactionEntity(
             id = lng("id"), personId = lng("personId"), type = type, amount = dbl("amount"),
-            date = lng("date"), note = str("note"), linkedReminderId = getLong("linkedReminderId")
+            date = lng("date"), note = str("note"), linkedReminderId = getLong("linkedReminderId"),
+            currency = str("currency", "EGP"), reason = str("reason"), dueDate = lng("dueDate"),
+            paymentType = str("paymentType"), recurring = bool("recurring"),
+            createdAt = lng("createdAt"), updatedAt = lng("updatedAt")
+        )
+    }
+
+    private fun DocumentSnapshot.toLedgerAttachment(): LedgerAttachmentEntity? {
+        val uri = getString("uri") ?: return null
+        return LedgerAttachmentEntity(
+            id = lng("id"), personId = lng("personId"), transactionId = lng("transactionId"),
+            uri = uri, kind = str("kind", "IMAGE"), label = str("label"), createdAt = lng("createdAt")
         )
     }
 
@@ -272,7 +430,17 @@ class BackupRepository(
             id = lng("id"), title = title, totalAmount = dbl("totalAmount"),
             monthlyInstallment = dbl("monthlyInstallment"),
             membersCount = lng("membersCount").toInt(), startDate = lng("startDate"),
-            payoutDayOfMonth = lng("payoutDayOfMonth", 1L).toInt(), note = str("note")
+            payoutDayOfMonth = lng("payoutDayOfMonth", 1L).toInt(), note = str("note"),
+            mode = str("mode", "MANAGER"), description = str("description"),
+            currency = str("currency", "EGP"), collectionTime = str("collectionTime"),
+            durationMonths = lng("durationMonths").toInt(), status = str("status", "ACTIVE"),
+            photoUri = str("photoUri"), reminderEnabled = bool("reminderEnabled", true),
+            reminderDaysBefore = lng("reminderDaysBefore", 1L).toInt(), alarmEnabled = bool("alarmEnabled"),
+            createdAt = lng("createdAt"), organizerName = str("organizerName"),
+            organizerPhone = str("organizerPhone"), organizerWhatsapp = str("organizerWhatsapp"),
+            organizerEmail = str("organizerEmail"), myInstallmentAmount = dbl("myInstallmentAmount"),
+            myTurnNumber = lng("myTurnNumber").toInt(), myCollectionDate = lng("myCollectionDate"),
+            myPaidInstallments = lng("myPaidInstallments").toInt()
         )
     }
 
@@ -282,7 +450,27 @@ class BackupRepository(
             id = lng("id"), gam3iyaId = lng("gam3iyaId"), memberName = memberName,
             turnMonth = lng("turnMonth").toInt(), payoutDate = lng("payoutDate"),
             isPayoutReceived = bool("isPayoutReceived"),
-            isInstallmentPaidThisMonth = bool("isInstallmentPaidThisMonth")
+            isInstallmentPaidThisMonth = bool("isInstallmentPaidThisMonth"),
+            photoUri = str("photoUri"), phone = str("phone"), whatsapp = str("whatsapp"),
+            email = str("email"), address = str("address"), nationalId = str("nationalId"),
+            installmentAmount = dbl("installmentAmount"), isLate = bool("isLate"), notes = str("notes")
+        )
+    }
+
+    private fun DocumentSnapshot.toGam3iyaPayment(): Gam3iyaPaymentEntity? {
+        if (!contains("gam3iyaId")) return null
+        return Gam3iyaPaymentEntity(
+            id = lng("id"), gam3iyaId = lng("gam3iyaId"), memberId = lng("memberId"),
+            monthIndex = lng("monthIndex").toInt(), amount = dbl("amount"), date = lng("date"),
+            type = str("type", "INSTALLMENT"), note = str("note")
+        )
+    }
+
+    private fun DocumentSnapshot.toGam3iyaAttachment(): Gam3iyaAttachmentEntity? {
+        val uri = getString("uri") ?: return null
+        return Gam3iyaAttachmentEntity(
+            id = lng("id"), gam3iyaId = lng("gam3iyaId"), memberId = lng("memberId"),
+            uri = uri, kind = str("kind", "RECEIPT"), label = str("label"), createdAt = lng("createdAt")
         )
     }
 
@@ -319,7 +507,29 @@ class BackupRepository(
             billNumber = str("billNumber"), seller = str("seller"),
             paymentMethod = str("paymentMethod"), recurring = bool("recurring"),
             isPaid = bool("isPaid"), note = str("note"),
-            linkedReminderId = getLong("linkedReminderId"), createdAt = lng("createdAt")
+            linkedReminderId = getLong("linkedReminderId"), createdAt = lng("createdAt"),
+            brand = str("brand"), store = str("store"), storePhone = str("storePhone"),
+            storeWhatsapp = str("storeWhatsapp"), category = str("category"), currency = str("currency", "EGP"),
+            interestAmount = dbl("interestAmount"), purchaseDate = lng("purchaseDate"),
+            warranty = str("warranty"), tags = str("tags"),
+            isFavorite = bool("isFavorite"), isArchived = bool("isArchived"),
+            paidInstallments = lng("paidInstallments").toInt()
+        )
+    }
+
+    private fun DocumentSnapshot.toFinancialPayment(): FinancialPaymentEntity? {
+        if (!contains("financialItemId")) return null
+        return FinancialPaymentEntity(
+            id = lng("id"), financialItemId = lng("financialItemId"), amount = dbl("amount"),
+            date = lng("date"), type = str("type", "PARTIAL"), note = str("note")
+        )
+    }
+
+    private fun DocumentSnapshot.toFinancialAttachment(): FinancialAttachmentEntity? {
+        val uri = getString("uri") ?: return null
+        return FinancialAttachmentEntity(
+            id = lng("id"), financialItemId = lng("financialItemId"), uri = uri,
+            kind = str("kind", "RECEIPT"), label = str("label"), createdAt = lng("createdAt")
         )
     }
 

@@ -6,16 +6,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -87,7 +91,7 @@ fun CreateFinancialScreen(
 
     val titleLabel = when (type) {
         FinancialType.BILL -> if (isArabic) "الجهة / الشركة" else "Company"
-        FinancialType.INSTALLMENT -> if (isArabic) "اسم المنتج" else "Item name"
+        FinancialType.INSTALLMENT -> if (isArabic) "السلعة" else "Item"
         FinancialType.SUBSCRIPTION -> if (isArabic) "اسم الخدمة" else "Service name"
     }
     val screenTitle = when (type) {
@@ -109,7 +113,7 @@ fun CreateFinancialScreen(
                 title = { Text(screenTitle, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = if (isArabic) "رجوع" else "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = if (isArabic) "رجوع" else "Back")
                     }
                 }
             )
@@ -133,16 +137,50 @@ fun CreateFinancialScreen(
             )
 
             if (type == FinancialType.INSTALLMENT) {
+                // رحلة القسط كاملة في ٤ أسئلة: اشتريت إيه؟ بكام؟ دفعت كام
+                // مقدم؟ والقسط الشهري كام؟ — التطبيق يحسب الباقي ويفكرك.
                 OutlinedTextField(
                     value = seller,
                     onValueChange = { seller = it },
-                    label = { Text(if (isArabic) "البائع / المتجر" else "Seller / Store") },
+                    label = { Text(if (isArabic) "الجهة (اختياري)" else "Provider (optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 MoneyField(totalPrice, { totalPrice = it }, if (isArabic) "السعر الكلي (ج.م)" else "Total price (EGP)")
-                MoneyField(downPayment, { downPayment = it }, if (isArabic) "المقدم (ج.م)" else "Down payment (EGP)")
+                MoneyField(downPayment, { downPayment = it }, if (isArabic) "المقدّم (ج.م)" else "Down payment (EGP)")
                 MoneyField(monthlyAmount, { monthlyAmount = it }, if (isArabic) "القسط الشهري (ج.م)" else "Monthly amount (EGP)")
+
+                // معاينة حية: الباقي وعدد الأقساط المتوقع — قبل الحفظ.
+                val liveTotal = totalPrice.toDoubleOrNull() ?: 0.0
+                val liveDown = downPayment.toDoubleOrNull() ?: 0.0
+                val liveMonthly = monthlyAmount.toDoubleOrNull() ?: 0.0
+                val liveRemaining = (liveTotal - liveDown).coerceAtLeast(0.0)
+                if (liveTotal > 0) {
+                    androidx.compose.material3.Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(Spacing.md)) {
+                            Text(
+                                text = if (isArabic) "المتبقي بعد المقدّم: ${liveRemaining.toLong()} ج.م"
+                                else "Remaining after down payment: ${liveRemaining.toLong()} EGP",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (liveMonthly > 0 && liveRemaining > 0) {
+                                val count = kotlin.math.ceil(liveRemaining / liveMonthly).toInt()
+                                Text(
+                                    text = if (isArabic) "عدد الأقساط المتوقع: $count"
+                                    else "Expected installments: $count",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
             } else {
                 MoneyField(
                     amount, { amount = it },
@@ -262,6 +300,7 @@ fun CreateFinancialScreen(
             }
         ) { DatePicker(state = state) }
     }
+
 }
 
 @Composable

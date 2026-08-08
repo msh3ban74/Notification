@@ -2,8 +2,11 @@ package com.notification.app.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material3.*
@@ -19,6 +22,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.notification.app.ui.designsystem.AppDimens
 import com.notification.app.ui.designsystem.AppElevation
 import com.notification.app.ui.designsystem.AppPadding
@@ -72,69 +76,75 @@ fun EmptyState(
         visible = 1f
     }
 
+    // No card, no border: a premium empty state floats directly on the
+    // page — tonal halo, strong title, quiet subtitle, one CTA. The column
+    // is compact AND scrollable so it can never be clipped on short areas
+    // (which previously cut the action button's text on device).
     Box(
         modifier = modifier
             .fillMaxSize()
             .padding(bottom = bottomInset),
         contentAlignment = Alignment.Center
     ) {
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = AppElevation.low),
-            shape = AppRadius.large,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .padding(AppPadding.screen)
+                .fillMaxWidth(0.86f)
+                .verticalScroll(rememberScrollState())
                 .alpha(animatedAlpha)
                 .scale(animatedScale)
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(Spacing.xl)
-            ) {
+            // Halo behind the icon for depth without any card.
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .background(MaroonPrimary.copy(alpha = 0.06f), CircleShape)
+                )
                 Surface(
                     shape = CircleShape,
                     color = MaroonPrimary.copy(alpha = 0.12f),
-                    modifier = Modifier.size(AppDimens.avatarSizeMedium * 2)
+                    modifier = Modifier.size(72.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
                             tint = MaroonPrimary,
-                            modifier = Modifier.size(AppDimens.iconSizeLarge + Spacing.xs)
+                            modifier = Modifier.size(AppDimens.iconSizeLarge)
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(Spacing.md + Spacing.xs))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = Spacing.sm)
-                )
-                if (actionLabel != null && onAction != null) {
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    Button(
-                        onClick = onAction,
-                        shape = AppRadius.button,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaroonPrimary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Text(actionLabel, style = MaterialTheme.typography.labelLarge)
-                    }
+            }
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = Spacing.sm)
+            )
+            if (actionLabel != null && onAction != null) {
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                Button(
+                    onClick = onAction,
+                    shape = AppRadius.button,
+                    // Default content padding: a tight custom vertical inset
+                    // clipped tall Arabic ascenders to dots on device.
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaroonPrimary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Text(actionLabel)
                 }
             }
         }

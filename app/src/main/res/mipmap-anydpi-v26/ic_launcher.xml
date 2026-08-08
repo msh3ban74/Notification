@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Rafeeq adaptive icon: the golden "R" monogram artwork (bitmap
-     foreground per density) over the brand's rich-black background. -->
+<!-- Rafeeq adaptive icon: premium white R monogram with amber sparks
+     over a deep indigo→violet gradient (bitmap layers per density). -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background" />
+    <background android:drawable="@mipmap/ic_launcher_bg" />
     <foreground android:drawable="@mipmap/ic_launcher_fg" />
 </adaptive-icon>

@@ -31,6 +31,12 @@ class AlarmService : Service() {
     private var torchCameraId: String? = null
     private val flashHandler = Handler(Looper.getMainLooper())
     private var torchOn = false
+    // The auto-stop timer, hoisted so it can actually be cancelled (an
+    // anonymous postDelayed lambda can't be removed and would let a stale
+    // timer stop a NEWER alarm, or leak the service for minutes).
+    private var autoStopRunnable: Runnable? = null
+    // User's alarm-stream volume before we raised it — restored on stop.
+    private var savedAlarmVolume: Int? = null
     private val flashRunnable = object : Runnable {
         override fun run() {
             toggleTorch(!torchOn)
@@ -80,10 +86,13 @@ class AlarmService : Service() {
         // Auto-stop safety net: a real alarm shouldn't ring forever if the
         // user is away. 0 = never auto-stop.
         if (autoStopMin > 0) {
-            flashHandler.postDelayed({
+            autoStopRunnable?.let { flashHandler.removeCallbacks(it) }
+            val r = Runnable {
                 stopAlarm()
                 stopSelf()
-            }, autoStopMin * 60_000L)
+            }
+            autoStopRunnable = r
+            flashHandler.postDelayed(r, autoStopMin * 60_000L)
         }
 
         return START_STICKY
@@ -96,6 +105,10 @@ class AlarmService : Service() {
     private fun raiseAlarmVolume(volumePercent: Int) {
         try {
             val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            // Remember the user's level once so we can restore it on stop.
+            if (savedAlarmVolume == null) {
+                savedAlarmVolume = audio.getStreamVolume(AudioManager.STREAM_ALARM)
+            }
             val max = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM)
             val pct = volumePercent.coerceIn(10, 100) / 100f
             audio.setStreamVolume(AudioManager.STREAM_ALARM, (max * pct).toInt().coerceAtLeast(1), 0)
@@ -190,6 +203,16 @@ class AlarmService : Service() {
         stopRingtone()
         vibrator?.cancel()
         stopFlashlight()
+        autoStopRunnable?.let { flashHandler.removeCallbacks(it) }
+        autoStopRunnable = null
+        // Restore the user's original alarm volume.
+        savedAlarmVolume?.let { prior ->
+            try {
+                (getSystemService(Context.AUDIO_SERVICE) as AudioManager)
+                    .setStreamVolume(AudioManager.STREAM_ALARM, prior, 0)
+            } catch (_: Exception) { }
+            savedAlarmVolume = null
+        }
     }
 
     override fun onDestroy() {
