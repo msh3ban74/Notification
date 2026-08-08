@@ -210,7 +210,7 @@ fun SettingsScreen(
                         )
                         Text(
                             text = if (isArabic)
-                                "ملف واحد مضغوط ومُتحقَّق منه، تختار مكان حفظه وتستعيده وقت ما تحب"
+                                "ملف واحد مضغوط ومُتحقَّق منه، يمكن حفظه في أي مكان واستعادته في أي وقت"
                             else "One compressed, verified file — save it anywhere and restore anytime",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,

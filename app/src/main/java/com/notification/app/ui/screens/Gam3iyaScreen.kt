@@ -194,7 +194,7 @@ private fun MyGam3iyaCard(
                     MiniStat(if (isArabic) "دوري" else "My turn", "#${gam3iya.myTurnNumber}")
                 }
                 if (status.nextCollectionDate > 0) {
-                    MiniStat(if (isArabic) "قبضي" else "My payout", df.format(Date(status.nextCollectionDate)))
+                    MiniStat(if (isArabic) "موعد استلامي" else "My payout", df.format(Date(status.nextCollectionDate)))
                 }
             }
 

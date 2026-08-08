@@ -365,7 +365,7 @@ fun PersonLedgerSummaryCard(
     val statusText = when (summary.status) {
         LedgerStatus.THEY_OWE_ME -> if (isArabic) "لك عنده ${MoneyFormat.format(summary.netAmount)} ج.م" else "They owe you ${MoneyFormat.format(summary.netAmount)} EGP"
         LedgerStatus.I_OWE_THEM -> if (isArabic) "عليك له ${MoneyFormat.format(summary.netAmount)} ج.م" else "You owe them ${MoneyFormat.format(summary.netAmount)} EGP"
-        LedgerStatus.SETTLED -> if (isArabic) "مسدد بالكامل (خالص)" else "Settled / Even"
+        LedgerStatus.SETTLED -> if (isArabic) "مُسدَّد بالكامل" else "Settled / Even"
     }
 
     val statusColor = when (summary.status) {

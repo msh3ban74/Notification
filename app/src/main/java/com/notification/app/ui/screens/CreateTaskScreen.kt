@@ -118,18 +118,18 @@ data class SmartReminderFormConfig(
         )
 
         val Study = SmartReminderFormConfig(
-            newTitleEn = "New Study Plan", newTitleAr = "خطة مذاكرة جديدة",
-            editTitleEn = "Edit Study Plan", editTitleAr = "تعديل خطة المذاكرة",
+            newTitleEn = "New Study Plan", newTitleAr = "خطة دراسة جديدة",
+            editTitleEn = "Edit Study Plan", editTitleAr = "تعديل خطة الدراسة",
             category = ReminderCategory.TUTORING,
             savedMessageEn = "Study plan saved.",
-            savedMessageAr = "تم حفظ خطة المذاكرة"
+            savedMessageAr = "تم حفظ خطة الدراسة"
         )
         val Work = SmartReminderFormConfig(
-            newTitleEn = "New Work Item", newTitleAr = "مهمة شغل جديدة",
-            editTitleEn = "Edit Work Item", editTitleAr = "تعديل مهمة الشغل",
+            newTitleEn = "New Work Item", newTitleAr = "مهمة عمل جديدة",
+            editTitleEn = "Edit Work Item", editTitleAr = "تعديل مهمة العمل",
             category = ReminderCategory.WORK,
             savedMessageEn = "Work item saved.",
-            savedMessageAr = "تم حفظ مهمة الشغل"
+            savedMessageAr = "تم حفظ مهمة العمل"
         )
         val Event = SmartReminderFormConfig(
             newTitleEn = "New Event", newTitleAr = "مناسبة جديدة",

@@ -69,10 +69,10 @@ fun CreateEventScreen(
 ) {
     data class EventKind(val id: String, val ar: String, val en: String, val category: String)
     val kinds = listOf(
-        EventKind("wedding", "فرح", "Wedding", ReminderCategory.EVENT.name),
+        EventKind("wedding", "زفاف", "Wedding", ReminderCategory.EVENT.name),
         EventKind("birthday", "عيد ميلاد", "Birthday", ReminderCategory.BIRTHDAY.name),
         EventKind("engagement", "خطوبة", "Engagement", ReminderCategory.EVENT.name),
-        EventKind("gathering", "عزومة", "Gathering", ReminderCategory.EVENT.name),
+        EventKind("gathering", "وليمة", "Gathering", ReminderCategory.EVENT.name),
         EventKind("other", "مناسبة أخرى", "Other", ReminderCategory.EVENT.name)
     )
     var kind by remember { mutableStateOf(kinds.first()) }

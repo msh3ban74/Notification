@@ -255,7 +255,7 @@ fun CreateAlarmScreen(
                         )
                         Text(
                             text = if (isArabic)
-                                "إذن \"المنبهات والتذكيرات الدقيقة\" غير مفعّل. فعّله ليرن المنبه في موعده بالثانية حتى في وضع توفير الطاقة."
+                                "إذن \"المنبهات والتذكيرات الدقيقة\" غير مفعّل. تفعيله يضمن انطلاق المنبه في موعده بدقة حتى في وضع توفير الطاقة."
                             else "The exact-alarms permission is off. Enable it so alarms fire precisely on time, even in battery-saver.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -344,7 +344,7 @@ fun CreateAlarmScreen(
             }
 
             PremiumButton(
-                text = if (isArabic) "احفظ المنبه" else "Save Alarm",
+                text = if (isArabic) "حفظ المنبه" else "Save Alarm",
                 onClick = {
                     onSave(
                         AlarmEntity(

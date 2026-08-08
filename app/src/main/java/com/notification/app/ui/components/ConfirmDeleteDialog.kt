@@ -33,8 +33,8 @@ fun ConfirmDeleteDialog(
             val name = itemLabel?.takeIf { it.isNotBlank() }
             Text(
                 if (isArabic) {
-                    if (name != null) "متأكد إنك عايز تمسح \"$name\"؟ مش هينفع ترجعه بعد كده."
-                    else "متأكد إنك عايز تمسح ده؟ مش هينفع ترجعه بعد كده."
+                    if (name != null) "هل تريد بالتأكيد حذف \"$name\"؟ لا يمكن التراجع عن هذا الإجراء."
+                    else "هل تريد بالتأكيد الحذف؟ لا يمكن التراجع عن هذا الإجراء."
                 } else {
                     if (name != null) "Delete \"$name\"? This can't be undone."
                     else "Delete this? This can't be undone."
@@ -44,7 +44,7 @@ fun ConfirmDeleteDialog(
         confirmButton = {
             TextButton(onClick = { onConfirm(); onDismiss() }) {
                 Text(
-                    text = if (isArabic) "امسح" else "Delete",
+                    text = if (isArabic) "حذف" else "Delete",
                     color = MaterialTheme.colorScheme.error
                 )
             }

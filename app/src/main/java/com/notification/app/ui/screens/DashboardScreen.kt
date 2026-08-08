@@ -830,7 +830,7 @@ private fun CompanionWidgets(
         SmartWidget(
             visible = openNotes > 0,
             icon = Icons.Default.CheckCircle,
-            title = if (isArabic) "ملاحظات الشغل" else "Work notes",
+            title = if (isArabic) "ملاحظات العمل" else "Work notes",
             primaryLine = if (isArabic) "$openNotes قيد التنفيذ" else "$openNotes open",
             accent = AccentViolet,
             onClick = onNavigateToHealthNotes
