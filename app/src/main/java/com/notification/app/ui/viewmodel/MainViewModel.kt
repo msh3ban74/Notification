@@ -1105,7 +1105,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (autoCloudBackup.value) autoBackupNow()
                 }
         }
+        // Re-arm any adhkar the user has enabled — AlarmManager registrations
+        // are cleared on reboot/reinstall, and scheduleAdhkar is idempotent.
+        viewModelScope.launch {
+            val app = getApplication<android.app.Application>()
+            if (preferencesRepository.adhkarMorningFlow.first())
+                AlarmManagerScheduler.scheduleAdhkar(app, com.notification.app.receiver.AdhkarReceiver.KIND_MORNING)
+            if (preferencesRepository.adhkarEveningFlow.first())
+                AlarmManagerScheduler.scheduleAdhkar(app, com.notification.app.receiver.AdhkarReceiver.KIND_EVENING)
+            if (preferencesRepository.adhkarDuhaFlow.first())
+                AlarmManagerScheduler.scheduleAdhkar(app, com.notification.app.receiver.AdhkarReceiver.KIND_DUHA)
+            if (preferencesRepository.adhkarQiyamFlow.first())
+                AlarmManagerScheduler.scheduleAdhkar(app, com.notification.app.receiver.AdhkarReceiver.KIND_QIYAM)
+        }
     }
+
+    // ── أذكار ونوافل — persisted toggles that schedule/cancel daily nudges ──
+    val adhkarMorning: StateFlow<Boolean> = preferencesRepository.adhkarMorningFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val adhkarEvening: StateFlow<Boolean> = preferencesRepository.adhkarEveningFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val adhkarQiyam: StateFlow<Boolean> = preferencesRepository.adhkarQiyamFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val adhkarDuha: StateFlow<Boolean> = preferencesRepository.adhkarDuhaFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private fun setAdhkar(kind: String, enabled: Boolean, persist: suspend (Boolean) -> Unit) {
+        viewModelScope.launch {
+            persist(enabled)
+            val app = getApplication<android.app.Application>()
+            if (enabled) AlarmManagerScheduler.scheduleAdhkar(app, kind)
+            else AlarmManagerScheduler.cancelAdhkar(app, kind)
+        }
+    }
+
+    fun setAdhkarMorning(enabled: Boolean) =
+        setAdhkar(com.notification.app.receiver.AdhkarReceiver.KIND_MORNING, enabled) { preferencesRepository.setAdhkarMorning(it) }
+    fun setAdhkarEvening(enabled: Boolean) =
+        setAdhkar(com.notification.app.receiver.AdhkarReceiver.KIND_EVENING, enabled) { preferencesRepository.setAdhkarEvening(it) }
+    fun setAdhkarQiyam(enabled: Boolean) =
+        setAdhkar(com.notification.app.receiver.AdhkarReceiver.KIND_QIYAM, enabled) { preferencesRepository.setAdhkarQiyam(it) }
+    fun setAdhkarDuha(enabled: Boolean) =
+        setAdhkar(com.notification.app.receiver.AdhkarReceiver.KIND_DUHA, enabled) { preferencesRepository.setAdhkarDuha(it) }
 
     /** After a restore, re-schedule alarms + pending reminders so restored
      *  items actually fire (their AlarmManager registrations are gone). */

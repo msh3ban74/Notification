@@ -181,6 +181,51 @@ object AlarmManagerScheduler {
         scheduleExactOrFallback(alarmManager, next, pendingIntent)
     }
 
+    /** أذكار ونوافل — schedule (or re-schedule) a kind's daily gentle
+     *  notification at its fixed time. Idempotent per kind. */
+    fun scheduleAdhkar(context: Context, kind: String) {
+        val (hour, minute, requestCode) = adhkarSlot(kind) ?: return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, com.notification.app.receiver.AdhkarReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_ADHKAR"
+            putExtra(com.notification.app.receiver.AdhkarReceiver.EXTRA_KIND, kind)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val next = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, hour)
+            set(java.util.Calendar.MINUTE, minute)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }.timeInMillis
+        scheduleExactOrFallback(alarmManager, next, pendingIntent)
+    }
+
+    fun cancelAdhkar(context: Context, kind: String) {
+        val (_, _, requestCode) = adhkarSlot(kind) ?: return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, com.notification.app.receiver.AdhkarReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_ADHKAR"
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
+    }
+
+    /** (hour, minute, requestCode) for a kind, or null if unknown. */
+    private fun adhkarSlot(kind: String): Triple<Int, Int, Int>? = when (kind) {
+        com.notification.app.receiver.AdhkarReceiver.KIND_MORNING -> Triple(6, 0, 779101)
+        com.notification.app.receiver.AdhkarReceiver.KIND_EVENING -> Triple(17, 0, 779102)
+        com.notification.app.receiver.AdhkarReceiver.KIND_DUHA -> Triple(9, 0, 779103)
+        com.notification.app.receiver.AdhkarReceiver.KIND_QIYAM -> Triple(2, 30, 779104)
+        else -> null
+    }
+
     fun scheduleReminderAlarm(context: Context, reminder: ReminderEntity) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AlarmReceiver::class.java).apply {

@@ -502,9 +502,21 @@ class MainActivity : ComponentActivity() {
                             }
 
                             composable(Screen.Islamic.route) {
+                                val adhkarMorning by viewModel.adhkarMorning.collectAsState()
+                                val adhkarEvening by viewModel.adhkarEvening.collectAsState()
+                                val adhkarDuha by viewModel.adhkarDuha.collectAsState()
+                                val adhkarQiyam by viewModel.adhkarQiyam.collectAsState()
                                 IslamicRemindersScreen(
                                     prayerTimes = prayerTimes,
-                                    isArabic = isArabic
+                                    isArabic = isArabic,
+                                    morningAdhkarEnabled = adhkarMorning,
+                                    eveningAdhkarEnabled = adhkarEvening,
+                                    duhaEnabled = adhkarDuha,
+                                    qiyamEnabled = adhkarQiyam,
+                                    onSetMorningAdhkar = { viewModel.setAdhkarMorning(it) },
+                                    onSetEveningAdhkar = { viewModel.setAdhkarEvening(it) },
+                                    onSetDuha = { viewModel.setAdhkarDuha(it) },
+                                    onSetQiyam = { viewModel.setAdhkarQiyam(it) }
                                 )
                             }
 

@@ -41,6 +41,12 @@ class UserPreferencesRepository(private val context: Context) {
         // silently mirrors every data change to the cloud.
         val AUTO_CLOUD_BACKUP = booleanPreferencesKey("auto_cloud_backup_enabled")
         val AUTO_BACKUP_LAST = longPreferencesKey("auto_backup_last_at")
+        // Adhkar / nafl daily reminders — each a persisted ON/OFF switch that
+        // schedules (or cancels) a gentle daily notification.
+        val ADHKAR_MORNING = booleanPreferencesKey("adhkar_morning_enabled")
+        val ADHKAR_EVENING = booleanPreferencesKey("adhkar_evening_enabled")
+        val ADHKAR_QIYAM = booleanPreferencesKey("adhkar_qiyam_enabled")
+        val ADHKAR_DUHA = booleanPreferencesKey("adhkar_duha_enabled")
     }
 
     private fun todayStartMillis(): Long = java.util.Calendar.getInstance().apply {
@@ -65,6 +71,16 @@ class UserPreferencesRepository(private val context: Context) {
 
     suspend fun setAutoCloudBackup(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.AUTO_CLOUD_BACKUP] = v } }
     suspend fun setAutoBackupLast(v: Long) { context.dataStore.edit { it[PreferenceKeys.AUTO_BACKUP_LAST] = v } }
+
+    val adhkarMorningFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.ADHKAR_MORNING] ?: false }
+    val adhkarEveningFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.ADHKAR_EVENING] ?: false }
+    val adhkarQiyamFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.ADHKAR_QIYAM] ?: false }
+    val adhkarDuhaFlow: Flow<Boolean> = context.dataStore.data.map { it[PreferenceKeys.ADHKAR_DUHA] ?: false }
+
+    suspend fun setAdhkarMorning(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.ADHKAR_MORNING] = v } }
+    suspend fun setAdhkarEvening(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.ADHKAR_EVENING] = v } }
+    suspend fun setAdhkarQiyam(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.ADHKAR_QIYAM] = v } }
+    suspend fun setAdhkarDuha(v: Boolean) { context.dataStore.edit { it[PreferenceKeys.ADHKAR_DUHA] = v } }
 
     val chatHistoryFlow: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[PreferenceKeys.CHAT_HISTORY] ?: ""

@@ -44,6 +44,17 @@ class BootReceiver : BroadcastReceiver() {
                         .forEach { reminder ->
                             AlarmManagerScheduler.scheduleReminderAlarm(context, reminder)
                         }
+
+                    // Re-arm any adhkar/nafl the user has enabled.
+                    val prefs = com.notification.app.data.preferences.UserPreferencesRepository(context)
+                    if (prefs.adhkarMorningFlow.first())
+                        AlarmManagerScheduler.scheduleAdhkar(context, com.notification.app.receiver.AdhkarReceiver.KIND_MORNING)
+                    if (prefs.adhkarEveningFlow.first())
+                        AlarmManagerScheduler.scheduleAdhkar(context, com.notification.app.receiver.AdhkarReceiver.KIND_EVENING)
+                    if (prefs.adhkarDuhaFlow.first())
+                        AlarmManagerScheduler.scheduleAdhkar(context, com.notification.app.receiver.AdhkarReceiver.KIND_DUHA)
+                    if (prefs.adhkarQiyamFlow.first())
+                        AlarmManagerScheduler.scheduleAdhkar(context, com.notification.app.receiver.AdhkarReceiver.KIND_QIYAM)
                 } catch (_: Exception) {
                 } finally {
                     pending.finish()

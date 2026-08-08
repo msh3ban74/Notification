@@ -75,6 +75,14 @@
         </receiver>
 
         <receiver
+            android:name=".receiver.AdhkarReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.notification.app.ACTION_ADHKAR" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
             android:name=".receiver.TodayWidgetProvider"
             android:exported="false"
             android:label="@string/widget_label">

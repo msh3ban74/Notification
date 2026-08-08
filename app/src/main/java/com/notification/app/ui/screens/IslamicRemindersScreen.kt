@@ -23,16 +23,19 @@ import com.notification.app.domain.calculator.PrayerTimesCalculator
 @Composable
 fun IslamicRemindersScreen(
     prayerTimes: List<PrayerTime>,
-    isArabic: Boolean
+    isArabic: Boolean,
+    morningAdhkarEnabled: Boolean = false,
+    eveningAdhkarEnabled: Boolean = false,
+    duhaEnabled: Boolean = false,
+    qiyamEnabled: Boolean = false,
+    onSetMorningAdhkar: (Boolean) -> Unit = {},
+    onSetEveningAdhkar: (Boolean) -> Unit = {},
+    onSetDuha: (Boolean) -> Unit = {},
+    onSetQiyam: (Boolean) -> Unit = {}
 ) {
     val nextPrayer = remember(prayerTimes) {
         if (prayerTimes.isNotEmpty()) PrayerTimesCalculator.getNextPrayer(prayerTimes) else null
     }
-
-    var morningAdhkarEnabled by remember { mutableStateOf(true) }
-    var eveningAdhkarEnabled by remember { mutableStateOf(true) }
-    var qiyamEnabled by remember { mutableStateOf(true) }
-    var duhaEnabled by remember { mutableStateOf(true) }
 
     LazyColumn(
         modifier = Modifier
@@ -162,7 +165,7 @@ fun IslamicRemindersScreen(
                 title = if (isArabic) "أذكار الصباح" else "Morning Adhkar",
                 icon = Icons.Default.WbSunny,
                 checked = morningAdhkarEnabled,
-                onCheckedChange = { morningAdhkarEnabled = it }
+                onCheckedChange = onSetMorningAdhkar
             )
         }
 
@@ -171,7 +174,7 @@ fun IslamicRemindersScreen(
                 title = if (isArabic) "أذكار المساء" else "Evening Adhkar",
                 icon = Icons.Default.NightsStay,
                 checked = eveningAdhkarEnabled,
-                onCheckedChange = { eveningAdhkarEnabled = it }
+                onCheckedChange = onSetEveningAdhkar
             )
         }
 
@@ -180,7 +183,7 @@ fun IslamicRemindersScreen(
                 title = if (isArabic) "صلاة الضحى" else "Duha Prayer",
                 icon = Icons.Default.WbSunny,
                 checked = duhaEnabled,
-                onCheckedChange = { duhaEnabled = it }
+                onCheckedChange = onSetDuha
             )
         }
 
@@ -189,7 +192,7 @@ fun IslamicRemindersScreen(
                 title = if (isArabic) "قيام الليل" else "Qiyam al-Layl",
                 icon = Icons.Default.NightsStay,
                 checked = qiyamEnabled,
-                onCheckedChange = { qiyamEnabled = it }
+                onCheckedChange = onSetQiyam
             )
         }
     }
