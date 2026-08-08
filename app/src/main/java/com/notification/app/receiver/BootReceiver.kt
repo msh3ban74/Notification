@@ -28,7 +28,11 @@ class BootReceiver : BroadcastReceiver() {
                     val now = System.currentTimeMillis()
 
                     db.alarmDao().getActiveAlarms().forEach { alarm ->
-                        if (alarm.timeInMillis > now) {
+                        // Recurring alarms must ALWAYS be re-armed — their stored
+                        // timeInMillis is the first (now-past) occurrence, and
+                        // scheduleExactAlarm recomputes the next matching day.
+                        // One-shot alarms only re-arm if still in the future.
+                        if (alarm.repeatDays.isNotBlank() || alarm.timeInMillis > now) {
                             AlarmManagerScheduler.scheduleExactAlarm(context, alarm)
                         }
                     }

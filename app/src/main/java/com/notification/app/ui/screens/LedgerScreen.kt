@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -421,7 +422,7 @@ fun PersonLedgerSummaryCard(
             }
 
             Icon(
-                imageVector = Icons.Default.ChevronRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "View Details",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -461,7 +462,7 @@ fun PersonDetailScreen(
                 title = { Text(person.name, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -536,7 +537,7 @@ fun PersonDetailScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (isArabic) "صافي الحساب الحالى" else "Current Net Balance",
+                        text = if (isArabic) "صافي الحساب الحالي" else "Current Net Balance",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -790,8 +791,16 @@ fun PersonDetailScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = amountText,
-                        onValueChange = { amountText = it },
+                        onValueChange = { input ->
+                            // Numbers only, at most one decimal point.
+                            val cleaned = input.filter { it.isDigit() || it == '.' }
+                            if (cleaned.count { it == '.' } <= 1) amountText = cleaned
+                        },
                         label = { Text(if (isArabic) "المبلغ (ج.م)" else "Amount (EGP)") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
 

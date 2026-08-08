@@ -286,7 +286,7 @@ fun DetailedReminderCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Phase D — pin toggle; pinned items always sort first.
                     if (onTogglePin != null) {
-                        IconButton(onClick = onTogglePin, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = onTogglePin, modifier = Modifier.size(44.dp)) {
                             Icon(
                                 imageVector = if (reminder.isPinned) Icons.Filled.PushPin
                                 else Icons.Outlined.PushPin,

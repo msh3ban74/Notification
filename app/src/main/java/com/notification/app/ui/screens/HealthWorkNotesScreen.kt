@@ -135,7 +135,7 @@ fun HealthWorkNotesScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
-                                contentDescription = if (isArabic) "شربت كأس" else "Log a cup"
+                                contentDescription = if (isArabic) "شربت كوب" else "Log a cup"
                             )
                         }
                     }

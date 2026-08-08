@@ -36,7 +36,37 @@ object AlarmManagerScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        scheduleExactOrFallback(alarmManager, alarm.timeInMillis, pendingIntent)
+        // For a repeating alarm the stored timeInMillis is only its FIRST
+        // occurrence and is soon in the past. Always compute the next matching
+        // weekday at the alarm's clock time so re-arming (app start / reboot)
+        // schedules a real future time instead of a dead past one.
+        val triggerAt = if (alarm.repeatDays.isBlank()) alarm.timeInMillis
+        else nextRecurringTrigger(alarm.repeatDays, alarm.timeInMillis, System.currentTimeMillis())
+            ?: alarm.timeInMillis
+        scheduleExactOrFallback(alarmManager, triggerAt, pendingIntent)
+    }
+
+    /** Soonest future instant strictly after [after] that lands on one of
+     *  [repeatDays] (Calendar.DAY_OF_WEEK 1..7) at the clock time of
+     *  [clockFrom]. Null if repeatDays is empty/invalid. */
+    private fun nextRecurringTrigger(repeatDays: String, clockFrom: Long, after: Long): Long? {
+        val days = repeatDays.split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
+        if (days.isEmpty()) return null
+        val base = java.util.Calendar.getInstance().apply { timeInMillis = clockFrom }
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = after
+            set(java.util.Calendar.HOUR_OF_DAY, base.get(java.util.Calendar.HOUR_OF_DAY))
+            set(java.util.Calendar.MINUTE, base.get(java.util.Calendar.MINUTE))
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        for (i in 0..7) {
+            if (cal.timeInMillis > after && cal.get(java.util.Calendar.DAY_OF_WEEK) in days) {
+                return cal.timeInMillis
+            }
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        return null
     }
 
     /**
@@ -105,7 +135,13 @@ object AlarmManagerScheduler {
             putExtra("EXTRA_RINGTONE_URI", ringtoneUri)
             putExtra("EXTRA_IS_ALARM", isAlarm)
         }
-        val requestCode = if (isAlarm) alarmId.toInt() else (reminderId + 100000).toInt()
+        // A snooze is a one-off re-fire. It MUST use its own request-code
+        // namespace: reusing the alarm's own id (like scheduleExactAlarm /
+        // scheduleNextRepeat do) would overwrite the pending weekly
+        // occurrence via FLAG_UPDATE_CURRENT and silently kill the repeat
+        // chain. A dedicated offset keeps the weekly alarm intact.
+        val requestCode = if (isAlarm) (alarmId % 1_000_000L).toInt() + 500_000
+        else (reminderId + 100000).toInt()
         val pendingIntent = PendingIntent.getBroadcast(
             context, requestCode, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -287,7 +323,13 @@ object AlarmManagerScheduler {
 
     fun cancelAlarm(context: Context, alarmId: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(context, AlarmReceiver::class.java)
+        // MUST mirror scheduleExactAlarm's Intent EXACTLY — AlarmManager
+        // matches PendingIntents with filterEquals(), which compares the
+        // action. Without this action the cancel never matched the scheduled
+        // alarm, so a deleted/disabled alarm kept ringing forever.
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = "com.notification.app.ACTION_ALARM_TRIGGER"
+        }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             alarmId.toInt(),

@@ -336,8 +336,12 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                     MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10
                 )
-                // Safety net only — real migrations above preserve data.
-                .fallbackToDestructiveMigration()
+                // Never silently wipe a user's financial history on a normal
+                // upgrade: the contiguous 1→10 migrations above cover every
+                // forward step. Destructive fallback is limited to the only
+                // case a real migration can't exist — a DOWNGRADE (installing
+                // an older build over a newer schema).
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance
                 instance

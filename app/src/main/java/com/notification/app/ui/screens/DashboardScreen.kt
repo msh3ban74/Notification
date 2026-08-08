@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Alarm
@@ -458,7 +459,7 @@ private fun QuickAddField(
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
-                    if (quickText.isNotBlank()) Icons.Default.Send else androidx.compose.material.icons.Icons.Default.Add,
+                    if (quickText.isNotBlank()) Icons.AutoMirrored.Filled.Send else androidx.compose.material.icons.Icons.Default.Add,
                     contentDescription = if (isArabic) "إرسال" else "Send",
                     modifier = Modifier.size(18.dp)
                 )
@@ -612,7 +613,7 @@ private fun TodayRow(item: TodayItem, onToggleReminderDone: (ReminderEntity) -> 
         if (item.reminder != null) {
             IconButton(
                 onClick = { onToggleReminderDone(item.reminder) },
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(44.dp)
             ) {
                 Icon(
                     imageVector = if (item.reminder.isCompleted) Icons.Default.CheckCircle

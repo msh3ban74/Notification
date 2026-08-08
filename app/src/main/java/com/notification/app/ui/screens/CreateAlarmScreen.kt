@@ -13,7 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Schedule
@@ -136,7 +136,7 @@ fun CreateAlarmScreen(
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = if (isArabic) "رجوع" else "Back"
                         )
                     }
@@ -313,7 +313,7 @@ fun CreateAlarmScreen(
                         style = MaterialTheme.typography.labelLarge
                     )
                     val dayLabels = if (isArabic)
-                        listOf("أحد" to 1, "إثنين" to 2, "ثلاثاء" to 3, "أربعاء" to 4, "خميس" to 5, "جمعة" to 6, "سبت" to 7)
+                        listOf("الأحد" to 1, "الاثنين" to 2, "الثلاثاء" to 3, "الأربعاء" to 4, "الخميس" to 5, "الجمعة" to 6, "السبت" to 7)
                     else
                         listOf("Su" to 1, "Mo" to 2, "Tu" to 3, "We" to 4, "Th" to 5, "Fr" to 6, "Sa" to 7)
                     androidx.compose.foundation.layout.FlowRow(
