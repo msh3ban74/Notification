@@ -1,6 +1,7 @@
 package com.notification.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -606,7 +607,12 @@ private fun TodayRow(item: TodayItem, onToggleReminderDone: (ReminderEntity) -> 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        modifier = Modifier.fillMaxWidth()
+        // The whole row opens the item's section (an alarm → the notifications
+        // screen, a debt → the ledger). The reminder checkbox below is its own
+        // nested click, so ticking still works without navigating away.
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { item.onOpen() }
     ) {
         // Checkable in place when it's a reminder — done means done,
         // without leaving the home screen.

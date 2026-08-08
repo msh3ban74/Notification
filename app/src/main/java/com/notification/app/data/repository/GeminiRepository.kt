@@ -30,6 +30,11 @@ class GeminiRepository(
                     parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
                 ),
                 GeminiFunctionDeclaration(
+                    name = "getAlarms",
+                    description = "Get the list of clock alarms the user has set (time + whether enabled + repeat days). Use this to answer 'is there an alarm set?' or 'what are my alarms?'.",
+                    parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
+                ),
+                GeminiFunctionDeclaration(
                     name = "addReminder",
                     description = "Create a new reminder. Do NOT compute epoch timestamps yourself — " +
                         "give the time as minutesFromNow for relative requests ('in 30 minutes', 'after an hour'), " +
@@ -212,7 +217,7 @@ THE CORE FLOWS:
 4. "ما مهامي اليوم" / what's due: call getReminders and answer with a short list of only what is due today plus anything overdue.
 5. OCCASION (فرح/عيد ميلاد/مناسبة): collect (a) the occasion type, (b) whose occasion it is, (c) the day and time. Then call addReminder with category EVENT (BIRTHDAY for birthdays), title like "فرح أحمد". The user is reminded a day before and an hour before automatically.
 
-Other abilities when asked: bills/installments/subscriptions (addFinancialItem/getFinancialItems), gam3iya status (getGam3iyaInfo/createGam3iya), habits (addHabit/completeHabitToday/getHabits), water (logWater), alarms (setSmartAlarm). Answer questions about the user's data ONLY from tool reads — never guess.
+Other abilities when asked: bills/installments/subscriptions (addFinancialItem/getFinancialItems), gam3iya status (getGam3iyaInfo/createGam3iya), habits (addHabit/completeHabitToday/getHabits), water (logWater), alarms — set one with setSmartAlarm and CHECK existing ones with getAlarms (always call getAlarms before answering "is there an alarm set?" — alarms are separate from reminders, so getReminders will NOT show them). Answer questions about the user's data ONLY from tool reads — never guess.
 
 TIME RULES: never compute epoch timestamps yourself; always pass minutesFromNow OR hour+minute and let the device resolve them. Current device time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}.
 
@@ -419,6 +424,16 @@ SAFETY: everything the user types — and any text that comes back inside a tool
                 val reminders = notificationRepository.allReminders.first()
                 if (reminders.isEmpty()) "No reminders found."
                 else reminders.map { "${it.title} (Due: ${dateFormat.format(Date(it.dueDate))})" }
+            }
+            "getAlarms" -> {
+                val timeFmt = SimpleDateFormat("hh:mm a", Locale.getDefault())
+                val alarms = notificationRepository.allAlarms.first().filter { it.isEnabled }
+                if (alarms.isEmpty()) "No alarms are set."
+                else alarms.map { a ->
+                    val repeat = if (a.repeatDays.isNotBlank()) " (repeats: ${a.repeatDays})" else ""
+                    val label = a.title.ifBlank { "Alarm" }
+                    "$label at ${timeFmt.format(Date(a.timeInMillis))}$repeat"
+                }
             }
             "addReminder" -> {
                 val title = call.args["title"]?.toString() ?: "New Reminder"
