@@ -804,6 +804,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     onLogWater = { incrementWater() },
                     onGam3iyaCreated = { gam3iyaId ->
                         repository.getGam3iyaById(gam3iyaId)?.let { syncGam3iyaReminder(it) }
+                    },
+                    onAlarmCancelled = { alarmId ->
+                        AlarmManagerScheduler.cancelAlarm(getApplication(), alarmId)
                     }
                 )
             }

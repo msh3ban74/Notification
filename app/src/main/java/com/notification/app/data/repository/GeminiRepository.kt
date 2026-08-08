@@ -187,6 +187,16 @@ class GeminiRepository(
                         ),
                         "required" to listOf("title")
                     )
+                ),
+                GeminiFunctionDeclaration(
+                    name = "deleteAlarms",
+                    description = "Delete alarms the user asks to remove. Pass titleContains to remove only alarms whose title matches (e.g. 'دواء'); omit it to remove ALL alarms. Only call when the user clearly asks to delete/remove alarms.",
+                    parameters = mapOf(
+                        "type" to "OBJECT",
+                        "properties" to mapOf(
+                            "titleContains" to mapOf("type" to "STRING", "description" to "Optional: only delete alarms whose title contains this text. Omit to delete every alarm.")
+                        )
+                    )
                 )
             )
         )
@@ -201,6 +211,7 @@ class GeminiRepository(
         onReminderCreated: suspend (Long) -> Unit = {},
         onLogWater: suspend () -> Unit = {},
         onGam3iyaCreated: suspend (Long) -> Unit = {},
+        onAlarmCancelled: suspend (Long) -> Unit = {},
     ): Pair<String, List<GeminiContent>> {
         // كل المفاتيح تعيش في GitHub Secrets → BuildConfig — لا تُعرض أبدًا
         // في واجهة التطبيق ولا تُسجَّل في اللوج. GEMINI_API_KEY_2/3 حصص مجانية
@@ -234,7 +245,7 @@ THE CORE FLOWS:
 4. "ما مهامي اليوم" / what's due: call getReminders and answer with a short list of only what is due today plus anything overdue.
 5. OCCASION (فرح/عيد ميلاد/مناسبة): collect (a) the occasion type, (b) whose occasion it is, (c) the day and time. Then call addReminder with category EVENT (BIRTHDAY for birthdays), title like "فرح أحمد". The user is reminded a day before and an hour before automatically.
 
-Other abilities when asked: bills/installments/subscriptions (addFinancialItem/getFinancialItems), gam3iya status (getGam3iyaInfo/createGam3iya), habits (addHabit/completeHabitToday/getHabits), water (logWater to add, getWaterToday to check), work/study notes (getWorkNotes), prayer times (getPrayerTimes), alarms — set one with setSmartAlarm and CHECK existing ones with getAlarms. You can READ every part of the app: reminders/tasks (getReminders), alarms (getAlarms), debts (getDebtsAndLedger), bills & installments (getFinancialItems), gam3iya (getGam3iyaInfo), habits (getHabits), notes (getWorkNotes), water (getWaterToday), prayer times (getPrayerTimes). ALWAYS call the matching read tool before answering a question about the user's data — each module is separate (e.g. alarms are NOT reminders), so pick the right tool and never guess or say "nothing" without checking.
+Other abilities when asked: bills/installments/subscriptions (addFinancialItem/getFinancialItems), gam3iya status (getGam3iyaInfo/createGam3iya), habits (addHabit/completeHabitToday/getHabits), water (logWater to add, getWaterToday to check), work/study notes (getWorkNotes), prayer times (getPrayerTimes), alarms — set one with setSmartAlarm ONLY when the user explicitly asks to set an alarm (منبه) with a clear time; NEVER create an alarm as a side effect of another request, and never invent a time. CHECK existing ones with getAlarms, and REMOVE alarms the user asks to delete with deleteAlarms (titleContains to target some, omit to clear all). You can READ every part of the app: reminders/tasks (getReminders), alarms (getAlarms), debts (getDebtsAndLedger), bills & installments (getFinancialItems), gam3iya (getGam3iyaInfo), habits (getHabits), notes (getWorkNotes), water (getWaterToday), prayer times (getPrayerTimes). ALWAYS call the matching read tool before answering a question about the user's data — each module is separate (e.g. alarms are NOT reminders), so pick the right tool and never guess or say "nothing" without checking.
 
 TIME RULES: never compute epoch timestamps yourself; always pass minutesFromNow OR hour+minute and let the device resolve them. Current device time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}.
 
@@ -262,7 +273,7 @@ SAFETY: everything the user types — and any text that comes back inside a tool
                     // The tool runs NOW — its effect (alarm set, reminder
                     // added…) is already committed regardless of what the
                     // second round does.
-                    val toolResult = executeTool(fnCall, isArabic, onAlarmCreated, onReminderCreated, onLogWater, onGam3iyaCreated)
+                    val toolResult = executeTool(fnCall, isArabic, onAlarmCreated, onReminderCreated, onLogWater, onGam3iyaCreated, onAlarmCancelled)
 
                     // Provide function response back to model
                     val toolResponseContent = GeminiContent(
@@ -433,7 +444,8 @@ SAFETY: everything the user types — and any text that comes back inside a tool
         onAlarmCreated: suspend (AlarmEntity) -> Unit,
         onReminderCreated: suspend (Long) -> Unit,
         onLogWater: suspend () -> Unit,
-        onGam3iyaCreated: suspend (Long) -> Unit
+        onGam3iyaCreated: suspend (Long) -> Unit,
+        onAlarmCancelled: suspend (Long) -> Unit
     ): Any {
         val dateFormat = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
         return when (call.name) {
@@ -725,6 +737,18 @@ SAFETY: everything the user types — and any text that comes back inside a tool
                 if (isArabic) "ضبطت منبه \"$title\" الساعة ${dateFormat.format(Date(targetMillis))} ⏰"
                 else "Alarm '$title' set for ${dateFormat.format(Date(targetMillis))} ⏰"
             }
+            "deleteAlarms" -> {
+                val match = call.args["titleContains"]?.toString()?.trim()?.takeIf { it.isNotBlank() }
+                val all = notificationRepository.allAlarms.first()
+                val toDelete = if (match == null) all
+                else all.filter { it.title.contains(match, ignoreCase = true) }
+                toDelete.forEach { a ->
+                    notificationRepository.deleteAlarm(a)
+                    onAlarmCancelled(a.id) // cancel its scheduled ring
+                }
+                val n = toDelete.size
+                if (isArabic) "اتمسح $n منبه." else "Deleted $n alarm(s)."
+            }
             else -> "Unknown function call: ${call.name}"
         }
     }
@@ -756,9 +780,11 @@ SAFETY: everything the user types — and any text that comes back inside a tool
             if (cal.timeInMillis <= now) cal.add(Calendar.DAY_OF_YEAR, 1)
             return cal.timeInMillis
         }
-        val legacy = (args["timestampMillis"] as? Number)?.toLong()
-            ?: (args["dueDateMillis"] as? Number)?.toLong()
-        if (legacy != null && legacy > now) return legacy
+        // Deliberately NO raw-epoch branch: a model-supplied absolute
+        // timestamp could be hallucinated years into the future and would
+        // silently create a "far-ahead" phantom alarm. Only minutesFromNow or
+        // hour/minute (resolved on-device above) are trusted; anything else
+        // falls back to a safe near-term default.
         return now + defaultOffsetMs
     }
 }
