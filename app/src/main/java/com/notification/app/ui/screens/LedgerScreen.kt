@@ -452,6 +452,15 @@ fun PersonDetailScreen(
     val summary = remember(transactions) { LedgerCalculator.calculateNetBalance(transactions) }
     var showAddTxDialog by remember { mutableStateOf(false) }
     var editingTx by remember { mutableStateOf<LedgerTransactionEntity?>(null) }
+    var deletingTx by remember { mutableStateOf<LedgerTransactionEntity?>(null) }
+    deletingTx?.let { tx ->
+        com.notification.app.ui.components.ConfirmDeleteDialog(
+            isArabic = isArabic,
+            itemLabel = "${tx.amount.toLong()} ج.م",
+            onConfirm = { onDeleteTransaction(tx) },
+            onDismiss = { deletingTx = null }
+        )
+    }
     var showEditPerson by remember { mutableStateOf(false) }
     var showDeletePerson by remember { mutableStateOf(false) }
     var personMenu by remember { mutableStateOf(false) }
@@ -740,10 +749,10 @@ fun PersonDetailScreen(
                                         }
                                     }
 
-                                    IconButton(onClick = { onDeleteTransaction(tx) }) {
+                                    IconButton(onClick = { deletingTx = tx }) {
                                         Icon(
                                             imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete",
+                                            contentDescription = if (isArabic) "حذف" else "Delete",
                                             tint = MaterialTheme.colorScheme.error
                                         )
                                     }

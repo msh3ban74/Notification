@@ -203,6 +203,16 @@ fun FinancialListScreen(
                     else -> "${item.amount.toLong()} ${if (isArabic) "ج.م" else "EGP"}"
                 }
 
+                var confirmDelete by remember { mutableStateOf(false) }
+                if (confirmDelete) {
+                    com.notification.app.ui.components.ConfirmDeleteDialog(
+                        isArabic = isArabic,
+                        itemLabel = item.title,
+                        onConfirm = { onDelete(item) },
+                        onDismiss = { confirmDelete = false }
+                    )
+                }
+
                 PremiumCard(
                     onClick = {
                         if (item.type == "INSTALLMENT" && onOpenDetail != null) onOpenDetail(item)
@@ -254,7 +264,7 @@ fun FinancialListScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = { onDelete(item) }) {
+                        IconButton(onClick = { confirmDelete = true }) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = if (isArabic) "حذف" else "Delete",

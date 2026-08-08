@@ -258,6 +258,16 @@ fun DetailedReminderCard(
 ) {
     val category = ReminderCategory.fromString(reminder.category)
 
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        com.notification.app.ui.components.ConfirmDeleteDialog(
+            isArabic = isArabic,
+            itemLabel = reminder.title,
+            onConfirm = onDelete,
+            onDismiss = { confirmDelete = false }
+        )
+    }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(18.dp),
@@ -387,7 +397,7 @@ fun DetailedReminderCard(
                             )
                         }
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { confirmDelete = true }, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Delete",

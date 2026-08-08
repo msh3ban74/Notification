@@ -217,6 +217,16 @@ private fun HabitCard(
     val longestStreak = remember(days) { HabitCalculator.longestStreak(days) }
     val percent30 = remember(days, today) { HabitCalculator.completionPercent(days, 30, today) }
 
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        com.notification.app.ui.components.ConfirmDeleteDialog(
+            isArabic = isArabic,
+            itemLabel = habit.title,
+            onConfirm = onDelete,
+            onDismiss = { confirmDelete = false }
+        )
+    }
+
     PremiumCard(onClick = onExpandToggle, modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -295,7 +305,7 @@ private fun HabitCard(
                         TextButton(onClick = onArchive) {
                             Text(if (isArabic) "أرشفة" else "Archive")
                         }
-                        IconButton(onClick = onDelete) {
+                        IconButton(onClick = { confirmDelete = true }) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = if (isArabic) "حذف" else "Delete",

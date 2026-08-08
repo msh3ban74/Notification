@@ -197,6 +197,15 @@ fun HealthWorkNotesScreen(
                 }
             } else {
                 items(workNotes, key = { it.id }) { note ->
+                    var confirmDelete by remember { mutableStateOf(false) }
+                    if (confirmDelete) {
+                        com.notification.app.ui.components.ConfirmDeleteDialog(
+                            isArabic = isArabic,
+                            itemLabel = note.title,
+                            onConfirm = { onDeleteNote(note) },
+                            onDismiss = { confirmDelete = false }
+                        )
+                    }
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         shape = RoundedCornerShape(16.dp),
@@ -234,10 +243,10 @@ fun HealthWorkNotesScreen(
                                 }
                             }
 
-                            IconButton(onClick = { onDeleteNote(note) }) {
+                            IconButton(onClick = { confirmDelete = true }) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete",
+                                    contentDescription = if (isArabic) "حذف" else "Delete",
                                     tint = MaterialTheme.colorScheme.error
                                 )
                             }

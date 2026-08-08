@@ -74,6 +74,7 @@ fun NotificationsScreen(
     val canDelete = onDeleteAlarm != null || onDeleteReminder != null
     var selectionMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
+    var confirmBulkDelete by remember { mutableStateOf(false) }
 
     fun keyForAlarm(a: AlarmEntity) = "a-${a.id}"
     fun keyForReminder(r: ReminderEntity) = "r-${r.id}"
@@ -99,6 +100,15 @@ fun NotificationsScreen(
             }
         }
         exitSelection()
+    }
+
+    if (confirmBulkDelete) {
+        com.notification.app.ui.components.ConfirmDeleteDialog(
+            isArabic = isArabic,
+            itemLabel = if (isArabic) "${selected.size} عنصر" else "${selected.size} items",
+            onConfirm = { deleteSelected() },
+            onDismiss = { confirmBulkDelete = false }
+        )
     }
 
     val isEmpty = upcomingReminders.isEmpty() && overdueReminders.isEmpty() && upcomingAlarms.isEmpty()
@@ -149,7 +159,7 @@ fun NotificationsScreen(
                         )
                     }
                     IconButton(
-                        onClick = { if (selected.isNotEmpty()) deleteSelected() },
+                        onClick = { if (selected.isNotEmpty()) confirmBulkDelete = true },
                         enabled = selected.isNotEmpty()
                     ) {
                         Icon(
@@ -266,6 +276,15 @@ private fun AlarmFeedCard(
     onSelectToggle: () -> Unit,
     onDelete: (() -> Unit)?
 ) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete && onDelete != null) {
+        com.notification.app.ui.components.ConfirmDeleteDialog(
+            isArabic = isArabic,
+            itemLabel = alarm.title,
+            onConfirm = onDelete,
+            onDismiss = { confirmDelete = false }
+        )
+    }
     PremiumCard(
         contentPadding = AppPadding.listItem,
         modifier = Modifier.fillMaxWidth(),
@@ -300,7 +319,7 @@ private fun AlarmFeedCard(
                 )
             }
             if (!selectionMode && onDelete != null) {
-                IconButton(onClick = onDelete) {
+                IconButton(onClick = { confirmDelete = true }) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = if (isArabic) "حذف" else "Delete",
@@ -324,6 +343,16 @@ private fun ReminderFeedCard(
     onDelete: (() -> Unit)? = null
 ) {
     val category = ReminderCategory.fromString(reminder.category)
+
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete && onDelete != null) {
+        com.notification.app.ui.components.ConfirmDeleteDialog(
+            isArabic = isArabic,
+            itemLabel = reminder.title,
+            onConfirm = onDelete,
+            onDismiss = { confirmDelete = false }
+        )
+    }
 
     PremiumCard(
         contentPadding = AppPadding.listItem,
@@ -374,7 +403,7 @@ private fun ReminderFeedCard(
                     )
                 }
                 if (onDelete != null) {
-                    IconButton(onClick = onDelete) {
+                    IconButton(onClick = { confirmDelete = true }) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = if (isArabic) "حذف" else "Delete",
