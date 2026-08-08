@@ -44,9 +44,33 @@ android {
     val geminiKey3 = System.getenv("GEMINI_API_KEY_3")
       ?: localProperties.getProperty("GEMINI_API_KEY_3") ?: ""
     buildConfigField("String", "GEMINI_API_KEY_3", "\"$geminiKey3\"")
+    val geminiKey4 = System.getenv("GEMINI_API_KEY_4")
+      ?: localProperties.getProperty("GEMINI_API_KEY_4") ?: ""
+    buildConfigField("String", "GEMINI_API_KEY_4", "\"$geminiKey4\"")
+    val geminiKey5 = System.getenv("GEMINI_API_KEY_5")
+      ?: localProperties.getProperty("GEMINI_API_KEY_5") ?: ""
+    buildConfigField("String", "GEMINI_API_KEY_5", "\"$geminiKey5\"")
+    // Unlimited extra keys in ONE secret: a comma/semicolon-separated list.
+    // Add as many as you like later WITHOUT any code or build change.
+    val geminiKeysCsv = System.getenv("GEMINI_API_KEYS")
+      ?: localProperties.getProperty("GEMINI_API_KEYS") ?: ""
+    buildConfigField("String", "GEMINI_API_KEYS", "\"$geminiKeysCsv\"")
+
     val groqKey = System.getenv("GROQ_API_KEY")
       ?: localProperties.getProperty("GROQ_API_KEY") ?: ""
     buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
+    val groqKeysCsv = System.getenv("GROQ_API_KEYS")
+      ?: localProperties.getProperty("GROQ_API_KEYS") ?: ""
+    buildConfigField("String", "GROQ_API_KEYS", "\"$groqKeysCsv\"")
+
+    // Future providers — placeholders so adding Claude / OpenAI later is just a
+    // secret + a small provider block, no schema change. Empty until set.
+    val claudeKeysCsv = System.getenv("CLAUDE_API_KEYS")
+      ?: localProperties.getProperty("CLAUDE_API_KEYS") ?: ""
+    buildConfigField("String", "CLAUDE_API_KEYS", "\"$claudeKeysCsv\"")
+    val openaiKeysCsv = System.getenv("OPENAI_API_KEYS")
+      ?: localProperties.getProperty("OPENAI_API_KEYS") ?: ""
+    buildConfigField("String", "OPENAI_API_KEYS", "\"$openaiKeysCsv\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

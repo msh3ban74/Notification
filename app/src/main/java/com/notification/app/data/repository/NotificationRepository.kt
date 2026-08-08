@@ -185,4 +185,12 @@ class NotificationRepository(private val db: AppDatabase) {
     suspend fun insertWorkNote(note: WorkNoteEntity): Long = db.workNoteDao().insertNote(note)
     suspend fun updateWorkNote(note: WorkNoteEntity) = db.workNoteDao().updateNote(note)
     suspend fun deleteWorkNote(note: WorkNoteEntity) = db.workNoteDao().deleteNote(note)
+
+    // General memory — free-form facts Rafeeq keeps for the user.
+    val allMemories: Flow<List<MemoryEntity>> = db.memoryDao().getAllMemories()
+    suspend fun insertMemory(memory: MemoryEntity): Long = db.memoryDao().insertMemory(memory)
+    suspend fun searchMemories(query: String): List<MemoryEntity> = db.memoryDao().searchMemories(query)
+    suspend fun getAllMemoriesOnce(): List<MemoryEntity> = db.memoryDao().getAllMemoriesOnce()
+    suspend fun deleteMemory(memory: MemoryEntity) = db.memoryDao().deleteMemory(memory)
+    suspend fun deleteMemoryById(id: Long) = db.memoryDao().deleteMemoryById(id)
 }

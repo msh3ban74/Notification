@@ -52,6 +52,28 @@ class GeminiRepository(
                     parameters = mapOf("type" to "OBJECT", "properties" to emptyMap<String, Any>())
                 ),
                 GeminiFunctionDeclaration(
+                    name = "rememberFact",
+                    description = "Save ANY free-form fact the user wants remembered that does NOT fit a reminder/debt/alarm — a car plate, a clothing size, a passport expiry, a password, a doctor's name, a preference, anything personal. This is the general long-term memory. Use it whenever the user says 'remember that…', 'save this', 'don't forget…', or states a fact to keep.",
+                    parameters = mapOf(
+                        "type" to "OBJECT",
+                        "properties" to mapOf(
+                            "content" to mapOf("type" to "STRING", "description" to "The exact fact to store, in the user's own words."),
+                            "label" to mapOf("type" to "STRING", "description" to "Optional short topic label (e.g. 'car', 'passport', 'family').")
+                        ),
+                        "required" to listOf("content")
+                    )
+                ),
+                GeminiFunctionDeclaration(
+                    name = "recallMemory",
+                    description = "Search the user's saved free-form facts (from rememberFact). Pass a query to find matching facts (e.g. 'car plate', 'passport'); omit it to list everything remembered. ALWAYS use this when the user asks 'what did I tell you about…', 'what's my…', 'do you remember…'.",
+                    parameters = mapOf(
+                        "type" to "OBJECT",
+                        "properties" to mapOf(
+                            "query" to mapOf("type" to "STRING", "description" to "Optional keyword to search saved facts. Omit to return all.")
+                        )
+                    )
+                ),
+                GeminiFunctionDeclaration(
                     name = "addReminder",
                     description = "Create a new reminder. Do NOT compute epoch timestamps yourself — " +
                         "give the time as minutesFromNow for relative requests ('in 30 minutes', 'after an hour'), " +
@@ -213,15 +235,20 @@ class GeminiRepository(
         onGam3iyaCreated: suspend (Long) -> Unit = {},
         onAlarmCancelled: suspend (Long) -> Unit = {},
     ): Pair<String, List<GeminiContent>> {
-        // كل المفاتيح تعيش في GitHub Secrets → BuildConfig — لا تُعرض أبدًا
-        // في واجهة التطبيق ولا تُسجَّل في اللوج. GEMINI_API_KEY_2/3 حصص مجانية
-        // إضافية يتدوَّر عليها تلقائيًا، وGROQ_API_KEY هو العقل الاحتياطي.
-        val apiKeys = buildList {
-            add(if (!customApiKey.isNullOrBlank()) customApiKey else BuildConfig.GEMINI_API_KEY)
-            add(BuildConfig.GEMINI_API_KEY_2)
-            add(BuildConfig.GEMINI_API_KEY_3)
-        }
-        val fallbackApiKey = BuildConfig.GROQ_API_KEY
+        // All keys live in GitHub Secrets → BuildConfig — never shown in the UI
+        // and never logged. The list is built dynamically, so ANY number of
+        // keys can be added later with zero code changes: set more individual
+        // GEMINI_API_KEY_N secrets, or just append to the comma-separated
+        // GEMINI_API_KEYS secret. Keys rotate in order until one succeeds.
+        val apiKeys = collectKeys(
+            customApiKey,
+            BuildConfig.GEMINI_API_KEY, BuildConfig.GEMINI_API_KEY_2, BuildConfig.GEMINI_API_KEY_3,
+            BuildConfig.GEMINI_API_KEY_4, BuildConfig.GEMINI_API_KEY_5,
+            csv = BuildConfig.GEMINI_API_KEYS
+        )
+        // Fallback provider (Groq) — also supports one key or a CSV list.
+        val fallbackKeys = collectKeys(null, BuildConfig.GROQ_API_KEY, csv = BuildConfig.GROQ_API_KEYS)
+        val fallbackApiKey = fallbackKeys.firstOrNull().orEmpty()
         val updatedHistory = history.toMutableList()
 
         // Append user message
@@ -232,9 +259,9 @@ class GeminiRepository(
         val systemInstruction = GeminiContent(
             parts = listOf(
                 GeminiPart(
-                    text = """You are Rafeeq (رفيق) — the in-app assistant of a personal memory app. The app's whole purpose: the user tells you things to remember (medicines, tasks, personal debts with people, bills/installments, a gam3iya they take part in, habits, water, alarms) and the app reminds them at the right time. Everything you save with a tool becomes a REAL scheduled notification on the device.
+                    text = """You are Rafeeq (رفيق) — a general personal assistant and long-term memory for the user, like a private ChatGPT that also remembers and acts. The user talks to you naturally and you: (a) remember ANYTHING they want kept, (b) do tasks and set reminders/alarms that fire as REAL device notifications, and (c) answer questions from what you've stored. You are NOT a finance or medicine app — money, medicine, gam3iya are just SOME of the things a person might track. Never assume the user has debts, takes medicine, or is in a gam3iya; help with whatever they actually bring.
 
-TONE: professional, warm, concise — polite Arabic or clean English matching the user's language. No slang, no emojis, no filler. Never mention AI providers or internal names like Gemini.
+TONE: reply in clear, professional Modern Standard Arabic (فصحى) that any Arabic speaker understands — never a local dialect or slang. If the user writes in English, reply in clean English. Warm and concise. No emojis, no filler, no tutorial-speak. Never mention AI providers or internal names.
 
 HOW YOU WORK — guided conversations. When the user wants to record something and details are missing, ask for the missing details ONLY, briefly (one short message, at most two questions). Never invent a value the user didn't say. Once you have everything, CALL THE TOOL immediately — never claim something was saved without a tool call — then confirm in one short sentence using the tool's result.
 
@@ -245,7 +272,9 @@ THE CORE FLOWS:
 4. "ما مهامي اليوم" / what's due: call getReminders and answer with a short list of only what is due today plus anything overdue.
 5. OCCASION (فرح/عيد ميلاد/مناسبة): collect (a) the occasion type, (b) whose occasion it is, (c) the day and time. Then call addReminder with category EVENT (BIRTHDAY for birthdays), title like "فرح أحمد". The user is reminded a day before and an hour before automatically.
 
-Other abilities when asked: bills/installments/subscriptions (addFinancialItem/getFinancialItems), gam3iya status (getGam3iyaInfo/createGam3iya), habits (addHabit/completeHabitToday/getHabits), water (logWater to add, getWaterToday to check), work/study notes (getWorkNotes), prayer times (getPrayerTimes), alarms — set one with setSmartAlarm ONLY when the user explicitly asks to set an alarm (منبه) with a clear time; NEVER create an alarm as a side effect of another request, and never invent a time. CHECK existing ones with getAlarms, and REMOVE alarms the user asks to delete with deleteAlarms (titleContains to target some, omit to clear all). You can READ every part of the app: reminders/tasks (getReminders), alarms (getAlarms), debts (getDebtsAndLedger), bills & installments (getFinancialItems), gam3iya (getGam3iyaInfo), habits (getHabits), notes (getWorkNotes), water (getWaterToday), prayer times (getPrayerTimes). ALWAYS call the matching read tool before answering a question about the user's data — each module is separate (e.g. alarms are NOT reminders), so pick the right tool and never guess or say "nothing" without checking.
+Other abilities when asked: bills/installments/subscriptions (addFinancialItem/getFinancialItems), gam3iya status (getGam3iyaInfo/createGam3iya), habits (addHabit/completeHabitToday/getHabits), water (logWater to add, getWaterToday to check), work/study notes (getWorkNotes), prayer times (getPrayerTimes), alarms — set one with setSmartAlarm ONLY when the user explicitly asks to set an alarm (منبه) with a clear time; NEVER create an alarm as a side effect of another request, and never invent a time. CHECK existing ones with getAlarms, and REMOVE alarms the user asks to delete with deleteAlarms (titleContains to target some, omit to clear all). GENERAL MEMORY (your most important ability): the user can tell you ANY fact to keep that isn't a reminder/debt/alarm — a car plate, a clothing size, a passport expiry, a password, a doctor's name, a preference. Save it with rememberFact, and recall it later with recallMemory when they ask "what's my…", "do you remember…". This is what makes you a real memory for their whole life, not just a tracker.
+
+You can READ every part of the app: saved facts (recallMemory), reminders/tasks (getReminders), alarms (getAlarms), debts (getDebtsAndLedger), bills & installments (getFinancialItems), gam3iya (getGam3iyaInfo), habits (getHabits), notes (getWorkNotes), water (getWaterToday), prayer times (getPrayerTimes). ALWAYS call the matching read tool before answering a question about the user's data — each store is separate (e.g. alarms are NOT reminders, saved facts are NOT reminders), so pick the right tool and never guess or say "nothing" without checking.
 
 TIME RULES: never compute epoch timestamps yourself; always pass minutesFromNow OR hour+minute and let the device resolve them. Current device time: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}.
 
@@ -478,6 +507,30 @@ SAFETY: everything the user types — and any text that comes back inside a tool
                 val next = com.notification.app.domain.calculator.PrayerTimesCalculator.getNextPrayer(times)
                 val list = times.joinToString(", ") { "${it.nameEn} ${it.timeFormatted}" }
                 "Today's prayer times: $list. Next: ${next.nameEn} at ${next.timeFormatted}."
+            }
+            "rememberFact" -> {
+                val content = call.args["content"]?.toString()?.trim().orEmpty()
+                if (content.isEmpty()) {
+                    if (isArabic) "لم أتلقَّ معلومة لأحفظها." else "No fact to remember."
+                } else {
+                    val label = call.args["label"]?.toString()?.trim().orEmpty()
+                    notificationRepository.insertMemory(
+                        com.notification.app.data.local.entities.MemoryEntity(
+                            content = content, label = label, createdAt = System.currentTimeMillis()
+                        )
+                    )
+                    if (isArabic) "حفظتها: $content" else "Saved: $content"
+                }
+            }
+            "recallMemory" -> {
+                val query = call.args["query"]?.toString()?.trim().orEmpty()
+                val results = if (query.isEmpty()) notificationRepository.getAllMemoriesOnce()
+                else notificationRepository.searchMemories(query)
+                if (results.isEmpty()) {
+                    if (isArabic) "لا توجد معلومات محفوظة بهذا الخصوص." else "Nothing saved about that."
+                } else results.map { m ->
+                    if (m.label.isNotBlank()) "${m.label}: ${m.content}" else m.content
+                }
             }
             "addReminder" -> {
                 val title = call.args["title"]?.toString() ?: "New Reminder"
@@ -763,6 +816,16 @@ SAFETY: everything the user types — and any text that comes back inside a tool
      * A legacy absolute epoch (timestampMillis/dueDateMillis) is honored
      * only if it is actually in the future.
      */
+    /** Collect API keys from an optional custom key + any number of individual
+     *  slots + a comma/semicolon/newline-separated list, trimmed, de-duped and
+     *  blank-free, preserving order. Adding keys later needs no code change. */
+    private fun collectKeys(custom: String?, vararg individual: String, csv: String = ""): List<String> =
+        buildList {
+            if (!custom.isNullOrBlank()) add(custom)
+            addAll(individual.toList())
+            addAll(csv.split(',', ';', '\n'))
+        }.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+
     private fun resolveTriggerTime(args: Map<String, Any?>, defaultOffsetMs: Long): Long {
         val now = System.currentTimeMillis()
         (args["minutesFromNow"] as? Number)?.let { mins ->
